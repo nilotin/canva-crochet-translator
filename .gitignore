@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+!.env.template
+!.env.example
+.idea
+.ssl
+*.log*
+**/*/db.json
+**/.data/
+coverage
+dist
+node_modules
+.swc
