@@ -1,5 +1,7 @@
 import {
   applyBulkReviews,
+  digestBulkReviewExpectedSnapshot,
+  digestBulkReviewSourceSnapshot,
   preflightBulkApply,
   preflightBulkApplySession,
   prepareBulkApply,
@@ -123,6 +125,97 @@ describe("bulk apply preparation", () => {
   });
 });
 
+describe("bulk apply snapshot digests", () => {
+  const pageBlocks = [
+    {
+      id: "page-page-1-block-1",
+      sourceText: "Kulak",
+      order: 0,
+      formattingRegions: [],
+    },
+    {
+      id: "page-page-1-block-2",
+      sourceText: "Burun",
+      order: 1,
+      formattingRegions: [],
+    },
+  ];
+
+  it("builds an exact source snapshot independent of local block IDs", () => {
+    const renamed = pageBlocks.map((block, index) => ({
+      ...block,
+      id: `different-${index}`,
+    }));
+
+    expect(digestBulkReviewSourceSnapshot(pageBlocks)).toBe(
+      digestBulkReviewSourceSnapshot(renamed),
+    );
+  });
+
+  it("builds the expected snapshot from edited translations", () => {
+    const review = {
+      ...reviewFor("page-1"),
+      blocks: [
+        {
+          ...reviewFor("page-1").blocks[0]!,
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Edited ear",
+        },
+        {
+          id: "page-page-1-block-2",
+          source: "Burun",
+          translated: "Nose",
+          editedTranslation: "Edited nose",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    const expectedBlocks = [
+      {
+        ...pageBlocks[0]!,
+        sourceText: "Edited ear",
+      },
+      {
+        ...pageBlocks[1]!,
+        sourceText: "Edited nose",
+      },
+    ];
+
+    expect(digestBulkReviewExpectedSnapshot(pageBlocks, review)).toBe(
+      digestBulkReviewSourceSnapshot(expectedBlocks),
+    );
+  });
+
+  it("rejects an expected snapshot when review source mapping does not match", () => {
+    const review = {
+      ...reviewFor("page-1"),
+      blocks: [
+        {
+          ...reviewFor("page-1").blocks[0]!,
+          source: "Different source",
+        },
+        {
+          id: "page-page-1-block-2",
+          source: "Burun",
+          translated: "Nose",
+          editedTranslation: "Nose",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    expect(() =>
+      digestBulkReviewExpectedSnapshot(pageBlocks, review),
+    ).toThrow();
+  });
+});
+
 describe("bulk apply mutation", () => {
   const makeRange = (text: string) => ({
     readPlaintext: () => text,
@@ -216,6 +309,32 @@ describe("bulk apply mutation", () => {
       secondReview,
     ]);
 
+    const readInventory = jest.fn(async (): Promise<WholeDocumentInventory> => ({
+      pages: [
+        {
+          ...inventory.pages[0]!,
+          blocks: [
+            {
+              ...inventory.pages[0]!.blocks[0]!,
+              sourceText: "Translated Kulak",
+            },
+          ],
+        },
+        {
+          ...inventory.pages[1]!,
+          blocks: [
+            {
+              ...inventory.pages[1]!.blocks[0]!,
+              sourceText: "Eyebrow",
+            },
+          ],
+        },
+      ],
+      skippedPages: [],
+    }));
+
+    const saveAppliedPageState = jest.fn(async () => undefined);
+
     const result = await applyBulkReviews(
       ["page-1", "page-2"],
       {
@@ -226,6 +345,8 @@ describe("bulk apply mutation", () => {
         verifyTarget: verifiedTarget,
         loadReviews,
         openDesign: openDesign as never,
+        readInventory,
+        saveAppliedPageState,
       },
     );
 
@@ -239,7 +360,254 @@ describe("bulk apply mutation", () => {
     );
     expect(sync).toHaveBeenCalledTimes(1);
     expect(loadReviews).toHaveBeenCalledTimes(1);
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(saveAppliedPageState).toHaveBeenCalledTimes(2);
+
+    const firstSourceDigest = digestBulkReviewSourceSnapshot(
+      inventory.pages[0]!.blocks,
+    );
+    const firstExpectedDigest = digestBulkReviewExpectedSnapshot(
+      inventory.pages[0]!.blocks,
+      firstReview,
+    );
+
+    expect(saveAppliedPageState).toHaveBeenNthCalledWith(
+      1,
+      "page-1",
+      firstReview.blocks,
+      firstSourceDigest,
+      firstExpectedDigest,
+      firstExpectedDigest,
+    );
+
     expect(result.appliedPageIds).toEqual(["page-1", "page-2"]);
+    expect(result.verifiedAppliedPageIds).toEqual(["page-1", "page-2"]);
+    expect(result.verificationFailedPageIds).toEqual([]);
+    expect(result.persistedAppliedPageIds).toEqual(["page-1", "page-2"]);
+    expect(result.persistenceFailedPageIds).toEqual([]);
+  });
+
+  it("reports a post-sync snapshot mismatch without pretending mutation failed", async () => {
+    const range = makeRange("Kulak");
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [{ type: "text", text: range }],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const readInventory = jest.fn(async (): Promise<WholeDocumentInventory> => ({
+      pages: [
+        {
+          ...inventory.pages[0]!,
+          blocks: [
+            {
+              ...inventory.pages[0]!.blocks[0]!,
+              sourceText: "Unexpected post-sync text",
+            },
+          ],
+        },
+      ],
+      skippedPages: [],
+    }));
+
+    const saveAppliedPageState = jest.fn(async () => undefined);
+
+    const result = await applyBulkReviews(
+      ["page-1"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [reviewFor("page-1")],
+        openDesign: openDesign as never,
+        readInventory,
+        saveAppliedPageState,
+      },
+    );
+
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(range.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Kulak".length },
+      "Translated Kulak",
+    );
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(saveAppliedPageState).not.toHaveBeenCalled();
+    expect(result.appliedPageIds).toEqual(["page-1"]);
+    expect(result.verifiedAppliedPageIds).toEqual([]);
+    expect(result.verificationFailedPageIds).toEqual(["page-1"]);
+    expect(result.persistedAppliedPageIds).toEqual([]);
+    expect(result.persistenceFailedPageIds).toEqual([]);
+  });
+
+  it("reports verification failure when the post-sync inventory read fails", async () => {
+    const range = makeRange("Kulak");
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [{ type: "text", text: range }],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const readInventory = jest.fn(async (): Promise<WholeDocumentInventory> => {
+      throw new Error("Post-sync inventory read failed.");
+    });
+
+    const saveAppliedPageState = jest.fn(async () => undefined);
+
+    const result = await applyBulkReviews(
+      ["page-1"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [reviewFor("page-1")],
+        openDesign: openDesign as never,
+        readInventory,
+        saveAppliedPageState,
+      },
+    );
+
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(range.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Kulak".length },
+      "Translated Kulak",
+    );
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(saveAppliedPageState).not.toHaveBeenCalled();
+
+    expect(result.appliedPageIds).toEqual(["page-1"]);
+    expect(result.verifiedAppliedPageIds).toEqual([]);
+    expect(result.verificationFailedPageIds).toEqual(["page-1"]);
+    expect(result.persistedAppliedPageIds).toEqual([]);
+    expect(result.persistenceFailedPageIds).toEqual([]);
+  });
+
+  it("reports persistence failure without pretending the applied mutation failed", async () => {
+    const range = makeRange("Kulak");
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [{ type: "text", text: range }],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const readInventory = jest.fn(
+      async (): Promise<WholeDocumentInventory> => ({
+        pages: [
+          {
+            ...inventory.pages[0]!,
+            blocks: [
+              {
+                ...inventory.pages[0]!.blocks[0]!,
+                sourceText: "Translated Kulak",
+              },
+            ],
+          },
+        ],
+        skippedPages: [],
+      }),
+    );
+
+    const saveAppliedPageState = jest.fn(async () => {
+      throw new Error("Backend persistence failed.");
+    });
+
+    const result = await applyBulkReviews(
+      ["page-1"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [reviewFor("page-1")],
+        openDesign: openDesign as never,
+        readInventory,
+        saveAppliedPageState,
+      },
+    );
+
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(range.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Kulak".length },
+      "Translated Kulak",
+    );
+    expect(readInventory).toHaveBeenCalledTimes(1);
+    expect(saveAppliedPageState).toHaveBeenCalledTimes(1);
+
+    expect(result.appliedPageIds).toEqual(["page-1"]);
+    expect(result.verifiedAppliedPageIds).toEqual(["page-1"]);
+    expect(result.verificationFailedPageIds).toEqual([]);
+    expect(result.persistedAppliedPageIds).toEqual([]);
+    expect(result.persistenceFailedPageIds).toEqual(["page-1"]);
   });
 
   it("projects preserved formatting after replacing translated text", async () => {

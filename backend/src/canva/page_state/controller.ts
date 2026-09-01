@@ -23,6 +23,7 @@ const saveSchema = z
     sourceSnapshotDigest: z.string().min(1).max(200),
     expectedAppliedSnapshotDigest: z.string().min(1).max(200),
     appliedSnapshotDigest: z.string().min(1).max(200).optional(),
+    snapshotMode: z.enum(["current_page", "whole_document"]).optional(),
     status: z.enum(["reviewed", "needs_review", "blocked", "applied"]),
     blocks: persistedPageStateSchema.shape.blocks,
   })
@@ -128,6 +129,7 @@ export const getPageTranslationState = async (
               expectedAppliedSnapshotDigest:
                 state.expectedAppliedSnapshotDigest,
               appliedSnapshotDigest: state.appliedSnapshotDigest,
+              snapshotMode: state.snapshotMode,
               status: state.status,
               blocks: state.blocks,
               appliedAt: state.appliedAt,
@@ -226,6 +228,7 @@ export const savePageTranslationState = async (
       pipelineRevision: input.data.pipelineRevision,
       sourceSnapshotDigest: input.data.sourceSnapshotDigest,
       expectedAppliedSnapshotDigest: input.data.expectedAppliedSnapshotDigest,
+      snapshotMode: input.data.snapshotMode,
       ...(input.data.status === "applied"
         ? {
             appliedSnapshotDigest: input.data.appliedSnapshotDigest,

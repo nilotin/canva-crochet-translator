@@ -2,6 +2,8 @@ import { editContent, getDesignToken } from "@canva/design";
 import { auth } from "@canva/user";
 import type { PageIdentity } from "./page_identity";
 import { TRANSLATION_PIPELINE_REVISION } from "./bulk_review_state";
+import { readWholeDocumentInventory } from "./whole_document_inventory";
+import { digestWholeDocumentPage } from "./whole_document_snapshot";
 import { normalizePageReviewSeverity } from "./review_severity";
 import {
   readCurrentPageBlocks,
@@ -24,6 +26,7 @@ type PersistedState = {
   sourceSnapshotDigest: string;
   expectedAppliedSnapshotDigest: string;
   appliedSnapshotDigest?: string;
+  snapshotMode?: "current_page" | "whole_document";
   status: PersistedStatus;
   blocks: ReviewBlock[];
 };
@@ -49,6 +52,7 @@ type Dependencies = {
   fetch: typeof fetch;
   backendHost: string;
   queryCurrentPage: typeof editContent;
+  readWholeDocumentInventory: typeof readWholeDocumentInventory;
 };
 
 const dependencies = (overrides: Partial<Dependencies> = {}): Dependencies => ({
@@ -58,6 +62,8 @@ const dependencies = (overrides: Partial<Dependencies> = {}): Dependencies => ({
   backendHost: typeof BACKEND_HOST === "string" ? BACKEND_HOST : "",
   queryCurrentPage: editContent,
   ...overrides,
+  readWholeDocumentInventory:
+    overrides.readWholeDocumentInventory ?? readWholeDocumentInventory,
 });
 
 const digest = (entries: readonly { id: string; text: string }[]): string => {
@@ -147,35 +153,68 @@ export const loadPersistedPageStateSummaries = async (
   return result.states;
 };
 
+const readWholeDocumentSnapshotDigest = async (
+  pageIdentity: PageIdentity,
+  readInventory: typeof readWholeDocumentInventory,
+): Promise<string | undefined> => {
+  if (
+    pageIdentity.source !== "canva_page_id" ||
+    !pageIdentity.key.startsWith("page:")
+  ) {
+    return undefined;
+  }
+
+  const pageId = pageIdentity.key.slice("page:".length);
+  if (!pageId) return undefined;
+
+  const inventory = await readInventory();
+  const page = inventory.pages.find((candidate) => candidate.pageId === pageId);
+
+  return page ? digestWholeDocumentPage(page) : undefined;
+};
+
 export const loadPersistedPageState = async (
   pageIdentity: PageIdentity,
   contextId: string,
   overrides: Partial<Dependencies> = {},
 ): Promise<LoadedPageWorkflowState> => {
   const deps = dependencies(overrides);
-  const currentSnapshotDigest = await readCurrentSnapshotDigest(
-    contextId,
-    deps.queryCurrentPage,
-  );
   const response = await authorizedRequest(
     "/api/canva/page-state/get",
     { pageIdentity: pageIdentity.key },
     overrides,
   );
   if (!response.ok) throw new Error("Could not load saved page state.");
+
   const result = (await response.json()) as {
     state: PersistedState | null;
     appliedCount: number;
     progressSummary: DocumentProgressSummary;
   };
+
   const persisted = result.state ?? undefined;
-  if (!persisted)
+
+  if (!persisted) {
+    const currentSnapshotDigest = await readCurrentSnapshotDigest(
+      contextId,
+      deps.queryCurrentPage,
+    );
+
     return {
       disposition: "unreviewed",
       appliedCount: result.appliedCount,
       progressSummary: result.progressSummary,
       currentSnapshotDigest,
     };
+  }
+
+  const currentSnapshotDigest =
+    persisted.snapshotMode === "whole_document"
+      ? ((await readWholeDocumentSnapshotDigest(
+          pageIdentity,
+          deps.readWholeDocumentInventory,
+        )) ?? "whole-document-snapshot-missing")
+      : await readCurrentSnapshotDigest(contextId, deps.queryCurrentPage);
 
   const review = normalizePageReviewSeverity({
     blocks: persisted.blocks,
@@ -271,4 +310,32 @@ export const savePersistedApplied = async (
     overrides,
   );
   if (!response.ok) throw new Error("Could not save applied page state.");
+};
+
+export const savePersistedWholeDocumentApplied = async (
+  pageId: string,
+  blocks: readonly ReviewBlock[],
+  sourceSnapshotDigest: string,
+  expectedAppliedSnapshotDigest: string,
+  appliedSnapshotDigest: string,
+  overrides: Partial<Dependencies> = {},
+): Promise<void> => {
+  const response = await authorizedRequest(
+    "/api/canva/page-state/save",
+    {
+      pageIdentity: `page:${pageId}`,
+      pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+      sourceSnapshotDigest,
+      expectedAppliedSnapshotDigest,
+      appliedSnapshotDigest,
+      snapshotMode: "whole_document",
+      status: "applied",
+      blocks,
+    },
+    overrides,
+  );
+
+  if (!response.ok) {
+    throw new Error("Could not save whole-document applied page state.");
+  }
 };

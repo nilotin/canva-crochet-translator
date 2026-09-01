@@ -11,6 +11,8 @@ import {
   type WholeDocumentTextBlock,
 } from "./whole_document_inventory";
 import { pageContentFingerprint } from "./whole_document_classification";
+import { digestWholeDocumentBlocks } from "./whole_document_snapshot";
+import { savePersistedWholeDocumentApplied } from "./persisted_page_state";
 import {
   ApplyReviewError,
   applyProjectedFormatting,
@@ -204,6 +206,38 @@ export const prepareBulkApply = async (
   return preflightBulkApply(inventory, reviews);
 };
 
+export const digestBulkReviewSourceSnapshot = (
+  blocks: readonly WholeDocumentTextBlock[],
+): string => digestWholeDocumentBlocks(blocks);
+
+export const digestBulkReviewExpectedSnapshot = (
+  pageBlocks: readonly WholeDocumentTextBlock[],
+  review: PersistedBulkPageReview,
+): string => {
+  const orderedPageBlocks = [...pageBlocks].sort(
+    (left, right) => left.order - right.order,
+  );
+
+  if (orderedPageBlocks.length !== review.blocks.length) {
+    throw new ApplyReviewError("MISSING_MAPPING");
+  }
+
+  return digestWholeDocumentBlocks(
+    orderedPageBlocks.map((pageBlock, index) => {
+      const reviewBlock = review.blocks[index];
+
+      if (!reviewBlock || reviewBlock.source !== pageBlock.sourceText) {
+        throw new ApplyReviewError("MISSING_MAPPING");
+      }
+
+      return {
+        ...pageBlock,
+        sourceText: reviewBlock.editedTranslation,
+      };
+    }),
+  );
+};
+
 type SessionPageMapping = {
   pageId: string;
   review: PersistedBulkPageReview;
@@ -328,6 +362,11 @@ type VerifiedBulkApplyDependencies = {
   openDesign: typeof openDesign;
 };
 
+type BulkApplyMutationDependencies = VerifiedBulkApplyDependencies & {
+  readInventory: () => Promise<WholeDocumentInventory>;
+  saveAppliedPageState: typeof savePersistedWholeDocumentApplied;
+};
+
 export const prepareVerifiedBulkApply = async (
   pageIds: readonly string[],
   expectedTarget: {
@@ -384,6 +423,10 @@ export const prepareVerifiedBulkApply = async (
 export type BulkApplyResult = {
   preflight: BulkApplyPreflightResult;
   appliedPageIds: string[];
+  verifiedAppliedPageIds: string[];
+  verificationFailedPageIds: string[];
+  persistedAppliedPageIds: string[];
+  persistenceFailedPageIds: string[];
 };
 
 export const applyBulkReviews = async (
@@ -392,12 +435,14 @@ export const applyBulkReviews = async (
     contextId: string;
     language: TargetLanguage;
   },
-  overrides: Partial<VerifiedBulkApplyDependencies> = {},
+  overrides: Partial<BulkApplyMutationDependencies> = {},
 ): Promise<BulkApplyResult> => {
-  const dependencies: VerifiedBulkApplyDependencies = {
+  const dependencies: BulkApplyMutationDependencies = {
     verifyTarget: loadTargetContext,
     loadReviews: loadBulkReviews,
     openDesign,
+    readInventory: readWholeDocumentInventory,
+    saveAppliedPageState: savePersistedWholeDocumentApplied,
     ...overrides,
   };
 
@@ -411,6 +456,10 @@ export const applyBulkReviews = async (
     return {
       preflight: prepared.preflight,
       appliedPageIds: [],
+      verifiedAppliedPageIds: [],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: [],
+      persistenceFailedPageIds: [],
     };
   }
 
@@ -420,6 +469,14 @@ export const applyBulkReviews = async (
 
   const requestedPageIds = new Set(pageIds);
   const appliedPageIds: string[] = [];
+  const appliedSnapshots = new Map<
+    string,
+    {
+      review: PersistedBulkPageReview;
+      sourceSnapshotDigest: string;
+      expectedAppliedSnapshotDigest: string;
+    }
+  >();
 
   let synced = false;
   const phase: { value: "mutation" | "sync" } = {
@@ -472,6 +529,15 @@ export const applyBulkReviews = async (
               if (!pagePreflight.ok) {
                 throw new ApplyReviewError("STALE_REVIEW");
               }
+
+              appliedSnapshots.set(page.id, {
+                review,
+                sourceSnapshotDigest: digestBulkReviewSourceSnapshot(
+                  snapshot.page.blocks,
+                ),
+                expectedAppliedSnapshotDigest:
+                  digestBulkReviewExpectedSnapshot(snapshot.page.blocks, review),
+              });
 
               const orderedBlocks = [...snapshot.page.blocks].sort(
                 (left, right) => left.order - right.order,
@@ -557,8 +623,79 @@ export const applyBulkReviews = async (
     throw new ApplyReviewError("SYNC_FAILED");
   }
 
+  const postSyncInventory = await dependencies.readInventory().catch(
+    () => undefined,
+  );
+  const postSyncPages = postSyncInventory
+    ? pageById(postSyncInventory)
+    : new Map<string, WholeDocumentPage>();
+  const verifiedAppliedPageIds: string[] = [];
+  const verificationFailedPageIds: string[] = [];
+  const actualAppliedSnapshotDigests = new Map<string, string>();
+
+  for (const pageId of appliedPageIds) {
+    const appliedSnapshot = appliedSnapshots.get(pageId);
+    const currentPage = postSyncPages.get(pageId);
+
+    if (!appliedSnapshot || !currentPage) {
+      verificationFailedPageIds.push(pageId);
+      continue;
+    }
+
+    const actualDigest = digestBulkReviewSourceSnapshot(currentPage.blocks);
+
+    if (
+      actualDigest === appliedSnapshot.expectedAppliedSnapshotDigest
+    ) {
+      verifiedAppliedPageIds.push(pageId);
+      actualAppliedSnapshotDigests.set(pageId, actualDigest);
+    } else {
+      verificationFailedPageIds.push(pageId);
+    }
+  }
+
+  const persistedAppliedPageIds: string[] = [];
+  const persistenceFailedPageIds: string[] = [];
+
+  const persistenceResults = await Promise.allSettled(
+    verifiedAppliedPageIds.map(async (pageId) => {
+      const appliedSnapshot = appliedSnapshots.get(pageId);
+      const actualAppliedSnapshotDigest =
+        actualAppliedSnapshotDigests.get(pageId);
+
+      if (!appliedSnapshot || !actualAppliedSnapshotDigest) {
+        throw new Error("Verified applied snapshot mapping is missing.");
+      }
+
+      await dependencies.saveAppliedPageState(
+        pageId,
+        appliedSnapshot.review.blocks,
+        appliedSnapshot.sourceSnapshotDigest,
+        appliedSnapshot.expectedAppliedSnapshotDigest,
+        actualAppliedSnapshotDigest,
+      );
+
+      return pageId;
+    }),
+  );
+
+  persistenceResults.forEach((result, index) => {
+    const pageId = verifiedAppliedPageIds[index];
+    if (!pageId) return;
+
+    if (result.status === "fulfilled") {
+      persistedAppliedPageIds.push(pageId);
+    } else {
+      persistenceFailedPageIds.push(pageId);
+    }
+  });
+
   return {
     preflight: prepared.preflight,
     appliedPageIds,
+    verifiedAppliedPageIds,
+    verificationFailedPageIds,
+    persistedAppliedPageIds,
+    persistenceFailedPageIds,
   };
 };

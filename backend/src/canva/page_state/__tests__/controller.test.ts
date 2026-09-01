@@ -102,6 +102,72 @@ describe("page-state controller", () => {
     expect(JSON.stringify(result.body)).not.toContain("fresh-");
   });
 
+  it("round-trips whole-document snapshot mode while legacy states remain valid", async () => {
+    const stores = await setup();
+    const dependencies = { verification: verification(), ...stores };
+
+    await expect(
+      savePageTranslationState(
+        dependencies,
+        {
+          ...reviewBody,
+          status: "applied",
+          appliedSnapshotDigest: "whole-document-applied-digest",
+          snapshotMode: "whole_document",
+        },
+        "Bearer fresh-user-token",
+      ),
+    ).resolves.toMatchObject({ status: 200 });
+
+    const wholeDocumentResult = await getPageTranslationState(
+      dependencies,
+      { designToken: "fresh-design-token", pageIdentity: "page:one" },
+      "Bearer fresh-user-token",
+    );
+
+    expect(wholeDocumentResult).toMatchObject({
+      status: 200,
+      body: {
+        state: {
+          snapshotMode: "whole_document",
+          status: "applied",
+          appliedSnapshotDigest: "whole-document-applied-digest",
+        },
+      },
+    });
+
+    await expect(
+      savePageTranslationState(
+        dependencies,
+        {
+          ...reviewBody,
+          pageIdentity: "page:legacy",
+        },
+        "Bearer fresh-user-token",
+      ),
+    ).resolves.toMatchObject({ status: 200 });
+
+    const legacyResult = await getPageTranslationState(
+      dependencies,
+      { designToken: "fresh-design-token", pageIdentity: "page:legacy" },
+      "Bearer fresh-user-token",
+    );
+
+    expect(legacyResult).toMatchObject({
+      status: 200,
+      body: {
+        state: {
+          status: "reviewed",
+        },
+      },
+    });
+
+    expect(
+      (legacyResult.body as { state?: { snapshotMode?: string } }).state
+        ?.snapshotMode,
+    ).toBeUndefined();
+  });
+
   it("counts only unique applied page records", async () => {
     const stores = await setup();
     const dependencies = { verification: verification(), ...stores };

@@ -4,8 +4,10 @@ import {
   loadPersistedPageState,
   loadPersistedPageStateSummaries,
   savePersistedReview,
+  savePersistedWholeDocumentApplied,
 } from "../persisted_page_state";
 import type { PageReview } from "../translation_review";
+import { digestWholeDocumentPage } from "../whole_document_snapshot";
 
 const review: PageReview = {
   reviewStatus: "needs_review",
@@ -48,6 +50,20 @@ const overrides = (fetcher: jest.Mock, currentText = "6x") => ({
   fetch: fetcher as never,
   backendHost: "http://backend",
   queryCurrentPage: queryWith(currentText) as never,
+});
+
+const wholeDocumentPage = (text: string) => ({
+  pageId: "one",
+  discoveryIndex: 0,
+  locked: false,
+  blocks: [
+    {
+      id: "page-one-block-1",
+      sourceText: text,
+      order: 0,
+      formattingRegions: [],
+    },
+  ],
 });
 
 describe("persisted page-state client", () => {
@@ -143,6 +159,107 @@ describe("persisted page-state client", () => {
     });
   });
 
+  it("restores a fresh whole-document applied state without reading current-page content", async () => {
+    const page = wholeDocumentPage("manually edited 6sc");
+    const queryCurrentPage = queryWith("should not be read");
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 1,
+        progressSummary: {
+          applied: 1,
+          reviewed: 0,
+          needsReview: 0,
+          blocked: 0,
+        },
+        state: {
+          pageIdentity: "page:one",
+          pipelineRevision: "translation-pipeline-v4",
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          appliedSnapshotDigest: digestWholeDocumentPage(page),
+          snapshotMode: "whole_document",
+          status: "applied",
+          blocks: review.blocks,
+        },
+      }),
+    }));
+
+    const readWholeDocumentInventory = jest.fn(async () => ({
+      pages: [page],
+      skippedPages: [],
+    }));
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        {
+          ...overrides(fetcher),
+          queryCurrentPage: queryCurrentPage as never,
+          readWholeDocumentInventory: readWholeDocumentInventory as never,
+        },
+      ),
+    ).resolves.toMatchObject({
+      disposition: "applied",
+    });
+
+    expect(queryCurrentPage).not.toHaveBeenCalled();
+    expect(readWholeDocumentInventory).toHaveBeenCalledTimes(1);
+  });
+
+  it("detects a changed whole-document applied snapshot", async () => {
+    const persistedPage = wholeDocumentPage("manually edited 6sc");
+    const currentPage = wholeDocumentPage("manually changed after apply");
+    const queryCurrentPage = queryWith("should not be read");
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 1,
+        progressSummary: {
+          applied: 1,
+          reviewed: 0,
+          needsReview: 0,
+          blocked: 0,
+        },
+        state: {
+          pageIdentity: "page:one",
+          pipelineRevision: "translation-pipeline-v4",
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          appliedSnapshotDigest: digestWholeDocumentPage(persistedPage),
+          snapshotMode: "whole_document",
+          status: "applied",
+          blocks: review.blocks,
+        },
+      }),
+    }));
+
+    const readWholeDocumentInventory = jest.fn(async () => ({
+      pages: [currentPage],
+      skippedPages: [],
+    }));
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        {
+          ...overrides(fetcher),
+          queryCurrentPage: queryCurrentPage as never,
+          readWholeDocumentInventory: readWholeDocumentInventory as never,
+        },
+      ),
+    ).resolves.toMatchObject({
+      disposition: "applied_changed",
+    });
+
+    expect(queryCurrentPage).not.toHaveBeenCalled();
+    expect(readWholeDocumentInventory).toHaveBeenCalledTimes(1);
+  });
+
   it("detects stale reviewed and manually changed applied pages", async () => {
     const state = {
       pageIdentity: "page:one",
@@ -196,6 +313,38 @@ describe("persisted page-state client", () => {
         overrides(fetcher, "manually edited 6sc"),
       ),
     ).resolves.toMatchObject({ disposition: "reconcile_applied" });
+  });
+
+  it("saves whole-document applied state with an absolute page identity", async () => {
+    const fetcher = jest.fn(async () => ({ ok: true }));
+
+    await savePersistedWholeDocumentApplied(
+      "absolute-page-id",
+      review.blocks,
+      "whole-source-digest",
+      "whole-expected-digest",
+      "whole-applied-digest",
+      overrides(fetcher),
+    );
+
+    const call = (fetcher.mock.calls as unknown as [string, RequestInit][])[0];
+    if (!call) throw new Error("Expected a persistence request.");
+
+    const [url, init] = call;
+    const body = JSON.parse(String(init.body));
+
+    expect(url).toBe("http://backend/api/canva/page-state/save");
+    expect(body).toMatchObject({
+      designToken: "design-jwt",
+      pageIdentity: "page:absolute-page-id",
+      pipelineRevision: "translation-pipeline-v4",
+      sourceSnapshotDigest: "whole-source-digest",
+      expectedAppliedSnapshotDigest: "whole-expected-digest",
+      appliedSnapshotDigest: "whole-applied-digest",
+      snapshotMode: "whole_document",
+      status: "applied",
+      blocks: review.blocks,
+    });
   });
 
   it("saves only normalized review state with fresh Canva authorization", async () => {

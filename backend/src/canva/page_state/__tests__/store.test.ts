@@ -110,6 +110,53 @@ describe("durable page translation state", () => {
     expect(states.filter(({ status }) => status === "applied")).toHaveLength(2);
   });
 
+  it("persists whole-document snapshot mode and accepts legacy records without it", async () => {
+    const path = await pathForTest();
+    const store = new JsonPageTranslationStateStore(path);
+
+    await store.savePageState(
+      state({
+        status: "applied",
+        snapshotMode: "whole_document",
+        appliedSnapshotDigest: "whole-document-digest",
+        appliedAt: new Date().toISOString(),
+      }),
+    );
+
+    await store.savePageState(
+      state({
+        pageIdentity: "page:legacy",
+      }),
+    );
+
+    const restored = await new JsonPageTranslationStateStore(
+      path,
+    ).listPageStates({
+      userId: "user-1",
+      targetDesignId: "target-1",
+      targetLanguage: "en",
+    });
+
+    expect(restored).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          pageIdentity: "page:one",
+          snapshotMode: "whole_document",
+          appliedSnapshotDigest: "whole-document-digest",
+        }),
+        expect.objectContaining({
+          pageIdentity: "page:legacy",
+        }),
+      ]),
+    );
+
+    const legacy = restored.find(
+      ({ pageIdentity }) => pageIdentity === "page:legacy",
+    );
+
+    expect(legacy?.snapshotMode).toBeUndefined();
+  });
+
   it("isolates users, target designs, and languages", async () => {
     const path = await pathForTest();
     const store = new JsonPageTranslationStateStore(path);

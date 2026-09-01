@@ -44,6 +44,7 @@ export const persistedPageStateSchema = z
     sourceSnapshotDigest: z.string().min(1).max(200),
     expectedAppliedSnapshotDigest: z.string().min(1).max(200),
     appliedSnapshotDigest: z.string().min(1).max(200).optional(),
+    snapshotMode: z.enum(["current_page", "whole_document"]).optional(),
     status: z.enum(["reviewed", "needs_review", "blocked", "applied"]),
     blocks: z.array(reviewBlockSchema).max(1_000),
     appliedAt: z.string().datetime().optional(),
