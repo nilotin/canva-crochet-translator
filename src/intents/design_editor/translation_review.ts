@@ -142,7 +142,7 @@ const inlineFormattingKey = (formatting: Partial<RichtextFormatting>): string =>
     link: formatting.link,
   });
 
-const requiresFormattingProjection = (
+export const requiresFormattingProjection = (
   snapshots: readonly FormattingRegionSnapshot[],
 ): boolean =>
   new Set(snapshots.map(({ formatting }) => inlineFormattingKey(formatting)))

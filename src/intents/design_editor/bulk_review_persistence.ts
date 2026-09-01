@@ -108,6 +108,19 @@ export const loadBulkReviewSummaries = async (
   return result.reviews;
 };
 
+export const loadBulkReviews = async (
+  pageIds: readonly string[],
+  overrides: Partial<Dependencies> = {},
+): Promise<PersistedBulkPageReview[]> => {
+  const reviews = await Promise.all(
+    pageIds.map((pageId) => loadBulkReview(pageId, overrides)),
+  );
+
+  return reviews.filter(
+    (review): review is PersistedBulkPageReview => review !== undefined,
+  );
+};
+
 export const saveBulkReview = async (
   review: PersistedBulkPageReview,
   overrides: Partial<Dependencies> = {},

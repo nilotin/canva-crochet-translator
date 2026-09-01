@@ -1,5 +1,6 @@
 import {
   loadBulkReview,
+  loadBulkReviews,
   loadBulkReviewSummaries,
   saveBulkReview,
 } from "../bulk_review_persistence";
@@ -62,6 +63,78 @@ describe("bulk review persistence client", () => {
       pageId: "page-1",
       designToken: "design-jwt",
     });
+  });
+
+  it("loads multiple persisted bulk reviews", async () => {
+    const reviewsByPageId = new Map([
+      ["page-1", review],
+      [
+        "page-2",
+        {
+          ...review,
+          pageId: "page-2",
+          fingerprint: "page-content-v1-def",
+        },
+      ],
+    ]);
+
+    const fetcher = jest.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        pageId: string;
+      };
+
+      const stored = reviewsByPageId.get(body.pageId);
+
+      return {
+        ok: true,
+        json: async () => ({
+          review: stored
+            ? {
+                ...stored,
+                updatedAt: "2026-08-29T20:00:00.000Z",
+              }
+            : null,
+        }),
+      };
+    });
+
+    await expect(
+      loadBulkReviews(["page-1", "page-2"], overrides(fetcher)),
+    ).resolves.toEqual([
+      review,
+      {
+        ...review,
+        pageId: "page-2",
+        fingerprint: "page-content-v1-def",
+      },
+    ]);
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("omits missing persisted reviews from bulk loads", async () => {
+    const fetcher = jest.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as {
+        pageId: string;
+      };
+
+      return {
+        ok: true,
+        json: async () => ({
+          review:
+            body.pageId === "page-1"
+              ? {
+                  ...review,
+                  updatedAt: "2026-08-29T20:00:00.000Z",
+                }
+              : null,
+        }),
+      };
+    });
+
+    await expect(
+      loadBulkReviews(["page-1", "missing-page"], overrides(fetcher)),
+    ).resolves.toEqual([review]);
   });
 
   it("loads lightweight bulk review summaries", async () => {
