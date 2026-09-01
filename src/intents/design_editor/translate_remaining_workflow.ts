@@ -55,25 +55,6 @@ export const prepareRemainingPages = async (
     loadSummaries: async () => pageStateSummaries,
   });
 
-  const templateCandidates = workflow.plan.entries
-    .filter((entry) => entry.status === "template_candidate")
-    .map((entry) => {
-      const page = inventory.pages.find(
-        (candidate) => candidate.pageId === entry.pageId,
-      );
-
-      return {
-        pageId: entry.pageId,
-        discoveryIndex: entry.discoveryIndex,
-        fingerprint: entry.fingerprint,
-        blocks:
-          page?.blocks.map((block) => ({
-            order: block.order,
-            sourceText: block.sourceText,
-          })) ?? [],
-      };
-    });
-
   const bulkSummaries = await deps.loadBulkSummaries();
 
   const queue = restoreBulkReviewQueue(
