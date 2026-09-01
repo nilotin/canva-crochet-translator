@@ -39,7 +39,7 @@ type Dependencies = {
   openDesign: typeof openDesign;
 };
 
-const snapshotFormatting = (
+export const snapshotFormatting = (
   range: DesignEditing.TextElement["text"],
 ): WholeDocumentFormattingRegion[] => {
   let index = 0;
@@ -57,7 +57,7 @@ const snapshotFormatting = (
   });
 };
 
-const collectTextRanges = (
+export const collectTextRanges = (
   elements: readonly DesignEditing.AbsoluteElement[],
 ): DesignEditing.TextElement["text"][] => {
   const ranges: DesignEditing.TextElement["text"][] = [];

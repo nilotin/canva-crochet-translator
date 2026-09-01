@@ -1,13 +1,26 @@
+import { openDesign, type DesignEditing } from "@canva/design";
 import type { PersistedBulkPageReview } from "./bulk_review_state";
 import { loadBulkReviews } from "./bulk_review_persistence";
 import { isBulkReviewFresh } from "./bulk_review_state";
 import {
+  collectTextRanges,
   readWholeDocumentInventory,
+  snapshotFormatting,
   type WholeDocumentInventory,
   type WholeDocumentPage,
+  type WholeDocumentTextBlock,
 } from "./whole_document_inventory";
 import { pageContentFingerprint } from "./whole_document_classification";
-import { requiresFormattingProjection } from "./translation_review";
+import {
+  ApplyReviewError,
+  applyProjectedFormatting,
+  requiresFormattingProjection,
+} from "./translation_review";
+import type { TargetLanguage } from "./copy_designs";
+import {
+  loadTargetContext,
+  type DesignRole,
+} from "./target_context";
 
 export type BulkApplyPreflightIssueCode =
   | "MISSING_PAGE"
@@ -189,4 +202,363 @@ export const prepareBulkApply = async (
   }
 
   return preflightBulkApply(inventory, reviews);
+};
+
+type SessionPageMapping = {
+  pageId: string;
+  review: PersistedBulkPageReview;
+  references: Map<string, DesignEditing.TextElement["text"]>;
+  blocks: WholeDocumentTextBlock[];
+};
+
+export type BulkApplySessionPreflightResult = {
+  preflight: BulkApplyPreflightResult;
+  mappings: SessionPageMapping[];
+};
+
+const snapshotSessionPage = (
+  page: DesignEditing.AbsolutePage,
+  discoveryIndex: number,
+): {
+  page: WholeDocumentPage;
+  references: Map<string, DesignEditing.TextElement["text"]>;
+} => {
+  const ranges = collectTextRanges(page.elements.toArray());
+  const references = new Map<
+    string,
+    DesignEditing.TextElement["text"]
+  >();
+
+  const blocks = ranges.flatMap((range, order) => {
+    const sourceText = range.readPlaintext();
+
+    if (!sourceText.trim()) return [];
+
+    const id = `page-${page.id}-block-${order + 1}`;
+    references.set(id, range);
+
+    return [
+      {
+        id,
+        sourceText,
+        order,
+        formattingRegions: snapshotFormatting(range),
+      },
+    ];
+  });
+
+  return {
+    page: {
+      pageId: page.id,
+      discoveryIndex,
+      locked: page.locked,
+      blocks,
+    },
+    references,
+  };
+};
+
+export const preflightBulkApplySession = async (
+  reviews: readonly PersistedBulkPageReview[],
+  overrides: {
+    openDesign?: typeof openDesign;
+  } = {},
+): Promise<BulkApplySessionPreflightResult> => {
+  const open = overrides.openDesign ?? openDesign;
+  const requestedPageIds = new Set(reviews.map((review) => review.pageId));
+  const pages: WholeDocumentPage[] = [];
+  const mappings: SessionPageMapping[] = [];
+
+  await open({ type: "all_pages" }, async (session) => {
+    for (const [discoveryIndex, pageRef] of session.pageRefs
+      .toArray()
+      .entries()) {
+      const response = await session.helpers.openPage(
+        pageRef,
+        async ({ page }) => {
+          if (page.type !== "absolute") return;
+          if (!requestedPageIds.has(page.id)) return;
+
+          const snapshot = snapshotSessionPage(page, discoveryIndex);
+          const { references } = snapshot;
+          const { blocks } = snapshot.page;
+
+          pages.push(snapshot.page);
+
+          const review = reviews.find(
+            (candidate) => candidate.pageId === page.id,
+          );
+
+          if (review) {
+            mappings.push({
+              pageId: page.id,
+              review,
+              references,
+              blocks,
+            });
+          }
+        },
+      );
+
+      if (response.status === "skipped") {
+        continue;
+      }
+    }
+
+    // Read-only session preflight. Never sync here.
+  });
+
+  const inventory: WholeDocumentInventory = {
+    pages,
+    skippedPages: [],
+  };
+
+  return {
+    preflight: preflightBulkApply(inventory, reviews),
+    mappings,
+  };
+};
+
+
+type VerifiedBulkApplyDependencies = {
+  verifyTarget: () => Promise<DesignRole>;
+  loadReviews: (
+    pageIds: readonly string[],
+  ) => Promise<PersistedBulkPageReview[]>;
+  openDesign: typeof openDesign;
+};
+
+export const prepareVerifiedBulkApply = async (
+  pageIds: readonly string[],
+  expectedTarget: {
+    contextId: string;
+    language: TargetLanguage;
+  },
+  overrides: Partial<VerifiedBulkApplyDependencies> = {},
+): Promise<BulkApplySessionPreflightResult> => {
+  const dependencies: VerifiedBulkApplyDependencies = {
+    verifyTarget: loadTargetContext,
+    loadReviews: loadBulkReviews,
+    openDesign,
+    ...overrides,
+  };
+
+  const verified = await dependencies.verifyTarget().catch(() => undefined);
+
+  if (
+    !verified?.isTranslationTarget ||
+    verified.contextId !== expectedTarget.contextId ||
+    verified.language !== expectedTarget.language
+  ) {
+    throw new ApplyReviewError("TARGET_VERIFICATION_FAILED");
+  }
+
+  const reviews = await dependencies.loadReviews(pageIds);
+  const requestedPageIds = new Set(pageIds);
+  const receivedPageIds = new Set(reviews.map((review) => review.pageId));
+
+  const missingRequestedReviews = [...requestedPageIds].filter(
+    (pageId) => !receivedPageIds.has(pageId),
+  );
+
+  if (missingRequestedReviews.length > 0) {
+    return {
+      preflight: {
+        ok: false,
+        issues: missingRequestedReviews.map((pageId) => ({
+          pageId,
+          code: "MISSING_REVIEW" as const,
+        })),
+        readyPageIds: [],
+      },
+      mappings: [],
+    };
+  }
+
+  return preflightBulkApplySession(reviews, {
+    openDesign: dependencies.openDesign,
+  });
+};
+
+
+export type BulkApplyResult = {
+  preflight: BulkApplyPreflightResult;
+  appliedPageIds: string[];
+};
+
+export const applyBulkReviews = async (
+  pageIds: readonly string[],
+  expectedTarget: {
+    contextId: string;
+    language: TargetLanguage;
+  },
+  overrides: Partial<VerifiedBulkApplyDependencies> = {},
+): Promise<BulkApplyResult> => {
+  const dependencies: VerifiedBulkApplyDependencies = {
+    verifyTarget: loadTargetContext,
+    loadReviews: loadBulkReviews,
+    openDesign,
+    ...overrides,
+  };
+
+  const prepared = await prepareVerifiedBulkApply(
+    pageIds,
+    expectedTarget,
+    dependencies,
+  );
+
+  if (!prepared.preflight.ok) {
+    return {
+      preflight: prepared.preflight,
+      appliedPageIds: [],
+    };
+  }
+
+  const reviewByPageId = new Map(
+    prepared.mappings.map(({ review }) => [review.pageId, review]),
+  );
+
+  const requestedPageIds = new Set(pageIds);
+  const appliedPageIds: string[] = [];
+
+  let synced = false;
+  const phase: { value: "mutation" | "sync" } = {
+    value: "mutation",
+  };
+
+  const mutationTarget = await dependencies.verifyTarget().catch(
+    () => undefined,
+  );
+
+  if (
+    !mutationTarget?.isTranslationTarget ||
+    mutationTarget.contextId !== expectedTarget.contextId ||
+    mutationTarget.language !== expectedTarget.language
+  ) {
+    throw new ApplyReviewError("TARGET_VERIFICATION_FAILED");
+  }
+
+  try {
+    await dependencies.openDesign(
+      { type: "all_pages" },
+      async (session) => {
+        const foundPageIds = new Set<string>();
+
+        for (const [discoveryIndex, pageRef] of session.pageRefs
+          .toArray()
+          .entries()) {
+          const response = await session.helpers.openPage(
+            pageRef,
+            async ({ page }) => {
+              if (page.type !== "absolute") return;
+              if (!requestedPageIds.has(page.id)) return;
+
+              foundPageIds.add(page.id);
+
+              const review = reviewByPageId.get(page.id);
+              if (!review) {
+                throw new ApplyReviewError("MISSING_MAPPING");
+              }
+
+              const snapshot = snapshotSessionPage(page, discoveryIndex);
+              const pagePreflight = preflightBulkApply(
+                {
+                  pages: [snapshot.page],
+                  skippedPages: [],
+                },
+                [review],
+              );
+
+              if (!pagePreflight.ok) {
+                throw new ApplyReviewError("STALE_REVIEW");
+              }
+
+              const orderedBlocks = [...snapshot.page.blocks].sort(
+                (left, right) => left.order - right.order,
+              );
+
+              const mapped = review.blocks.map((block, index) => {
+                const currentBlock = orderedBlocks[index];
+
+                if (
+                  !currentBlock ||
+                  currentBlock.sourceText !== block.source
+                ) {
+                  throw new ApplyReviewError("MISSING_MAPPING");
+                }
+
+                const reference = snapshot.references.get(currentBlock.id);
+
+                if (!reference) {
+                  throw new ApplyReviewError("MISSING_MAPPING");
+                }
+
+                return {
+                  block,
+                  currentBlock,
+                  reference,
+                };
+              });
+
+              for (const { block, currentBlock, reference } of mapped) {
+                reference.replaceText(
+                  {
+                    index: 0,
+                    length: currentBlock.sourceText.length,
+                  },
+                  block.editedTranslation,
+                );
+
+                applyProjectedFormatting(
+                  block,
+                  reference,
+                  currentBlock.formattingRegions,
+                );
+              }
+
+              appliedPageIds.push(page.id);
+            },
+          );
+
+          if (response.status === "skipped") {
+            continue;
+          }
+        }
+
+        const missingPage = [...requestedPageIds].some(
+          (pageId) => !foundPageIds.has(pageId),
+        );
+
+        if (missingPage) {
+          throw new ApplyReviewError("STALE_REVIEW");
+        }
+
+        phase.value = "sync";
+        await session.sync();
+        synced = true;
+      },
+    );
+  } catch (cause) {
+    if (cause instanceof ApplyReviewError) throw cause;
+
+    if (
+      cause instanceof Error &&
+      /permission|scope|forbidden/iu.test(cause.message)
+    ) {
+      throw new ApplyReviewError("PERMISSION_REQUIRED");
+    }
+
+    throw new ApplyReviewError(
+      phase.value === "sync" ? "SYNC_FAILED" : "MUTATION_FAILED",
+    );
+  }
+
+  if (!synced) {
+    throw new ApplyReviewError("SYNC_FAILED");
+  }
+
+  return {
+    preflight: prepared.preflight,
+    appliedPageIds,
+  };
 };

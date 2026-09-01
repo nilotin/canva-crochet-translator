@@ -1,4 +1,10 @@
-import { preflightBulkApply, prepareBulkApply } from "../bulk_apply";
+import {
+  applyBulkReviews,
+  preflightBulkApply,
+  preflightBulkApplySession,
+  prepareBulkApply,
+  prepareVerifiedBulkApply,
+} from "../bulk_apply";
 import { TRANSLATION_PIPELINE_REVISION } from "../bulk_review_state";
 import { pageContentFingerprint } from "../whole_document_classification";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
@@ -114,6 +120,766 @@ describe("bulk apply preparation", () => {
       issues: [],
       readyPageIds: ["page-1"],
     });
+  });
+});
+
+describe("bulk apply mutation", () => {
+  const makeRange = (text: string) => ({
+    readPlaintext: () => text,
+    readTextRegions: () => [{ text, formatting: {} }],
+    replaceText: jest.fn(),
+    formatText: jest.fn(),
+  });
+
+  const verifiedTarget = async () => ({
+    isTranslationTarget: true as const,
+    contextId: "target-context",
+    language: "en" as const,
+    sourceTitle: "Pattern",
+  });
+
+  it("applies all reviewed pages and syncs exactly once", async () => {
+    const firstRange = makeRange("Kulak");
+    const secondRange = makeRange("Kaş");
+    const sync = jest.fn();
+
+    const pages = [
+      {
+        type: "absolute",
+        id: "page-1",
+        locked: false,
+        elements: {
+          toArray: () => [{ type: "text", text: firstRange }],
+        },
+      },
+      {
+        type: "absolute",
+        id: "page-2",
+        locked: false,
+        elements: {
+          toArray: () => [{ type: "text", text: secondRange }],
+        },
+      },
+    ];
+
+    const pageRefs = [{ type: "absolute" }, { type: "absolute" }];
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (pageRef, pageCallback) => {
+        const page = pageRef === pageRefs[0] ? pages[0] : pages[1];
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => pageRefs,
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const firstReview = reviewFor("page-1");
+    const secondReview = {
+      ...reviewFor("page-2"),
+      fingerprint: pageContentFingerprint([
+        {
+          id: "page-page-2-block-1",
+          sourceText: "Kaş",
+          order: 0,
+          formattingRegions: [
+            {
+              index: 0,
+              length: 3,
+              text: "Kaş",
+              formatting: {},
+            },
+          ],
+        },
+      ]),
+      blocks: [
+        {
+          id: "page-page-2-block-1",
+          source: "Kaş",
+          translated: "Eyebrow",
+          editedTranslation: "Eyebrow",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    const loadReviews = jest.fn(async () => [
+      firstReview,
+      secondReview,
+    ]);
+
+    const result = await applyBulkReviews(
+      ["page-1", "page-2"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews,
+        openDesign: openDesign as never,
+      },
+    );
+
+    expect(firstRange.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Kulak".length },
+      "Translated Kulak",
+    );
+    expect(secondRange.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Kaş".length },
+      "Eyebrow",
+    );
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(loadReviews).toHaveBeenCalledTimes(1);
+    expect(result.appliedPageIds).toEqual(["page-1", "page-2"]);
+  });
+
+  it("projects preserved formatting after replacing translated text", async () => {
+    const formatText = jest.fn();
+    const replaceText = jest.fn();
+
+    const styledRange = {
+      readPlaintext: () => "Burun",
+      readTextRegions: () => [
+        {
+          text: "Bur",
+          formatting: { fontWeight: "bold" },
+        },
+        {
+          text: "un",
+          formatting: {},
+        },
+      ],
+      replaceText,
+      formatText,
+    };
+
+    const page = {
+      type: "absolute",
+      id: "page-3",
+      locked: false,
+      elements: {
+        toArray: () => [
+          {
+            type: "text",
+            text: styledRange,
+          },
+        ],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+    const sync = jest.fn();
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const review = reviewFor("page-3", {
+      blocks: [
+        {
+          id: "page-page-3-block-1",
+          source: "Burun",
+          translated: "Nose",
+          editedTranslation: "Nose",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+          targetFormattingRegions: [
+            {
+              id: "fmt-0",
+              start: 0,
+              end: 2,
+            },
+            {
+              id: "fmt-1",
+              start: 2,
+              end: 4,
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await applyBulkReviews(
+      ["page-3"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [review],
+        openDesign: openDesign as never,
+      },
+    );
+
+    expect(replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Burun".length },
+      "Nose",
+    );
+
+    expect(formatText).toHaveBeenNthCalledWith(
+      1,
+      { index: 0, length: 2 },
+      { fontWeight: "bold" },
+    );
+    expect(formatText).toHaveBeenNthCalledWith(
+      2,
+      { index: 2, length: 2 },
+      {},
+    );
+
+    expect(formatText).toHaveBeenCalledTimes(2);
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(result.appliedPageIds).toEqual(["page-3"]);
+  });
+
+  it("stops before mutation when the target changes after preflight", async () => {
+    const range = makeRange("Kulak");
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [{ type: "text", text: range }],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+    let targetChecks = 0;
+
+    const verifyTarget = jest.fn(async () => {
+      targetChecks += 1;
+
+      if (targetChecks === 1) {
+        return {
+          isTranslationTarget: true as const,
+          contextId: "target-context",
+          language: "en" as const,
+          sourceTitle: "Pattern",
+        };
+      }
+
+      return {
+        isTranslationTarget: true as const,
+        contextId: "different-context",
+        language: "en" as const,
+        sourceTitle: "Pattern",
+      };
+    });
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    await expect(
+      applyBulkReviews(
+        ["page-1"],
+        {
+          contextId: "target-context",
+          language: "en",
+        },
+        {
+          verifyTarget,
+          loadReviews: async () => [reviewFor("page-1")],
+          openDesign: openDesign as never,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "TARGET_VERIFICATION_FAILED",
+    });
+
+    expect(verifyTarget).toHaveBeenCalledTimes(2);
+    expect(openDesign).toHaveBeenCalledTimes(1);
+    expect(range.replaceText).not.toHaveBeenCalled();
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("does not sync partial mutations when a later page becomes stale", async () => {
+    const firstPreflightRange = makeRange("Kulak");
+    const secondPreflightRange = makeRange("Kaş");
+    const firstMutationRange = makeRange("Kulak");
+    const staleMutationRange = makeRange("Changed");
+    const sync = jest.fn();
+
+    const pageRefs = [{ type: "absolute" }, { type: "absolute" }];
+    let sessionNumber = 0;
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      sessionNumber += 1;
+
+      const pages =
+        sessionNumber === 1
+          ? [
+              {
+                type: "absolute",
+                id: "page-1",
+                locked: false,
+                elements: {
+                  toArray: () => [
+                    { type: "text", text: firstPreflightRange },
+                  ],
+                },
+              },
+              {
+                type: "absolute",
+                id: "page-2",
+                locked: false,
+                elements: {
+                  toArray: () => [
+                    { type: "text", text: secondPreflightRange },
+                  ],
+                },
+              },
+            ]
+          : [
+              {
+                type: "absolute",
+                id: "page-1",
+                locked: false,
+                elements: {
+                  toArray: () => [
+                    { type: "text", text: firstMutationRange },
+                  ],
+                },
+              },
+              {
+                type: "absolute",
+                id: "page-2",
+                locked: false,
+                elements: {
+                  toArray: () => [
+                    { type: "text", text: staleMutationRange },
+                  ],
+                },
+              },
+            ];
+
+      const openPage = jest.fn(async (pageRef, pageCallback) => {
+        const page = pageRef === pageRefs[0] ? pages[0] : pages[1];
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => pageRefs,
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const secondReview = {
+      ...reviewFor("page-2"),
+      fingerprint: pageContentFingerprint([
+        {
+          id: "page-page-2-block-1",
+          sourceText: "Kaş",
+          order: 0,
+          formattingRegions: [
+            {
+              index: 0,
+              length: 3,
+              text: "Kaş",
+              formatting: {},
+            },
+          ],
+        },
+      ]),
+      blocks: [
+        {
+          id: "page-page-2-block-1",
+          source: "Kaş",
+          translated: "Eyebrow",
+          editedTranslation: "Eyebrow",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    await expect(
+      applyBulkReviews(
+        ["page-1", "page-2"],
+        {
+          contextId: "target-context",
+          language: "en",
+        },
+        {
+          verifyTarget: verifiedTarget,
+          loadReviews: async () => [
+            reviewFor("page-1"),
+            secondReview,
+          ],
+          openDesign: openDesign as never,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "STALE_REVIEW",
+    });
+
+    expect(firstMutationRange.replaceText).toHaveBeenCalledTimes(1);
+    expect(staleMutationRange.replaceText).not.toHaveBeenCalled();
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("does not enter the mutation session when global preflight fails", async () => {
+    const sync = jest.fn();
+    const range = makeRange("Changed");
+    let sessions = 0;
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      sessions += 1;
+
+      const page = {
+        type: "absolute",
+        id: "page-1",
+        locked: false,
+        elements: {
+          toArray: () => [{ type: "text", text: range }],
+        },
+      };
+
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [{ type: "absolute" }],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const result = await applyBulkReviews(
+      ["page-1"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [reviewFor("page-1")],
+        openDesign: openDesign as never,
+      },
+    );
+
+    expect(result.preflight.ok).toBe(false);
+    expect(result.appliedPageIds).toEqual([]);
+    expect(sessions).toBe(1);
+    expect(range.replaceText).not.toHaveBeenCalled();
+    expect(sync).not.toHaveBeenCalled();
+  });
+});
+
+describe("verified bulk apply preparation", () => {
+  it("stops before loading reviews when the target does not match", async () => {
+    const loadReviews = jest.fn();
+    const openDesign = jest.fn();
+
+    await expect(
+      prepareVerifiedBulkApply(
+        ["page-1"],
+        {
+          contextId: "expected-context",
+          language: "en",
+        },
+        {
+          verifyTarget: async () => ({
+            isTranslationTarget: true,
+            contextId: "wrong-context",
+            language: "en",
+            sourceTitle: "Pattern",
+          }),
+          loadReviews,
+          openDesign: openDesign as never,
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "TARGET_VERIFICATION_FAILED",
+    });
+
+    expect(loadReviews).not.toHaveBeenCalled();
+    expect(openDesign).not.toHaveBeenCalled();
+  });
+
+  it("loads persisted reviews and continues to session preflight for the verified target", async () => {
+    const review = reviewFor("page-1");
+    const loadReviews = jest.fn(async () => [review]);
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [
+          {
+            type: "text",
+            text: {
+              readPlaintext: () => "Kulak",
+              readTextRegions: () => [
+                {
+                  text: "Kulak",
+                  formatting: {},
+                },
+              ],
+            },
+          },
+        ],
+      },
+    };
+
+    const openPage = jest.fn(async (_pageRef, callback) => {
+      await callback({ page, helpers: {} });
+      return { status: "executed" as const };
+    });
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      await callback({
+        pageRefs: {
+          toArray: () => [{ type: "absolute" }],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const result = await prepareVerifiedBulkApply(
+      ["page-1"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: async () => ({
+          isTranslationTarget: true,
+          contextId: "target-context",
+          language: "en",
+          sourceTitle: "Pattern",
+        }),
+        loadReviews,
+        openDesign: openDesign as never,
+      },
+    );
+
+    expect(loadReviews).toHaveBeenCalledWith(["page-1"]);
+    expect(result.preflight.ok).toBe(true);
+    expect(result.preflight.readyPageIds).toEqual(["page-1"]);
+    expect(openDesign).toHaveBeenCalledTimes(1);
+    expect(sync).not.toHaveBeenCalled();
+  });
+});
+
+describe("bulk apply session preflight", () => {
+  const makeRange = (
+    text: string,
+    regions = [{ text, formatting: {} }],
+  ) => ({
+    readPlaintext: () => text,
+    readTextRegions: () => regions,
+    replaceText: jest.fn(),
+    formatText: jest.fn(),
+  });
+
+  it("maps fresh target pages without syncing", async () => {
+    const sync = jest.fn();
+    const targetRange = makeRange("Kulak");
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [
+          {
+            type: "text",
+            text: targetRange,
+          },
+        ],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openPage = jest.fn(async (_pageRef, callback) => {
+      await callback({ page, helpers: {} });
+      return { status: "executed" as const };
+    });
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const result = await preflightBulkApplySession(
+      [reviewFor("page-1")],
+      { openDesign: openDesign as never },
+    );
+
+    expect(result.preflight.ok).toBe(true);
+    expect(result.preflight.readyPageIds).toEqual(["page-1"]);
+    expect(result.mappings).toHaveLength(1);
+    expect(
+      result.mappings[0]?.references.get("page-page-1-block-1"),
+    ).toBe(targetRange);
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("keeps block-id mapping correct when blank text ranges are skipped", async () => {
+    const sync = jest.fn();
+    const firstRange = makeRange("Kulak");
+    const blankRange = makeRange("   ");
+    const secondRange = makeRange("Kaş");
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [
+          { type: "text", text: firstRange },
+          { type: "text", text: blankRange },
+          { type: "text", text: secondRange },
+        ],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openPage = jest.fn(async (_pageRef, callback) => {
+      await callback({ page, helpers: {} });
+      return { status: "executed" as const };
+    });
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const review = reviewFor("page-1");
+    review.fingerprint = "unused-in-this-test";
+    review.blocks = [
+      {
+        id: "page-page-1-block-1",
+        source: "Kulak",
+        translated: "Ear",
+        editedTranslation: "Ear",
+        validation: "PASS",
+        errors: [],
+        warnings: [],
+      },
+      {
+        id: "page-page-1-block-3",
+        source: "Kaş",
+        translated: "Eyebrow",
+        editedTranslation: "Eyebrow",
+        validation: "PASS",
+        errors: [],
+        warnings: [],
+      },
+    ];
+
+    const result = await preflightBulkApplySession(
+      [review],
+      { openDesign: openDesign as never },
+    );
+
+    expect(
+      result.mappings[0]?.references.get("page-page-1-block-1"),
+    ).toBe(firstRange);
+    expect(
+      result.mappings[0]?.references.get("page-page-1-block-3"),
+    ).toBe(secondRange);
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("fails session preflight when the current source changed", async () => {
+    const sync = jest.fn();
+    const changedRange = makeRange("Changed");
+
+    const page = {
+      type: "absolute",
+      id: "page-1",
+      locked: false,
+      elements: {
+        toArray: () => [{ type: "text", text: changedRange }],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openPage = jest.fn(async (_pageRef, callback) => {
+      await callback({ page, helpers: {} });
+      return { status: "executed" as const };
+    });
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const result = await preflightBulkApplySession(
+      [reviewFor("page-1")],
+      { openDesign: openDesign as never },
+    );
+
+    expect(result.preflight.ok).toBe(false);
+    expect(result.preflight.issues[0]?.code).toBe("STALE_REVIEW");
+    expect(sync).not.toHaveBeenCalled();
   });
 });
 

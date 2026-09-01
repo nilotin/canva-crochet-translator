@@ -363,9 +363,9 @@ const inlineFormattingFromSnapshot = (
   return result;
 };
 
-const applyProjectedFormatting = (
+export const applyProjectedFormatting = (
   block: ReviewBlock,
-  reference: RichtextContentRange,
+  reference: Pick<RichtextContentRange, "formatText">,
   snapshots: readonly FormattingRegionSnapshot[],
 ) => {
   if (block.editedTranslation !== block.translated) return;
