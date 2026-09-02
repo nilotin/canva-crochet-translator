@@ -10,6 +10,10 @@ export type PersistedBulkPageReview = {
 
   pipelineRevision?: string;
   status: PersistedBulkPageStatus;
+  // Explicit human sign-off on a "needs_review" page's warnings. Never
+  // implied by status alone, and must be re-earned after any edit to the
+  // review's blocks (see bulk_review_persistence.saveBulkReview callers).
+  acknowledged?: boolean;
   blocks: ReviewBlock[];
 };
 

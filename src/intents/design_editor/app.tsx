@@ -55,6 +55,11 @@ import {
   saveBulkPreferences as savePersistedBulkPreferences,
 } from "./bulk_preferences_persistence";
 import {
+  loadBulkReviews as loadPersistedBulkReviews,
+  saveBulkReview as savePersistedBulkReview,
+} from "./bulk_review_persistence";
+import type { PersistedBulkPageReview } from "./bulk_review_state";
+import {
   applyBulkReviews,
   type BulkApplyResult,
 } from "./bulk_apply";
@@ -101,6 +106,8 @@ type AppProps = {
   applyRemaining?: typeof applyBulkReviews;
   loadBulkPreferences?: typeof loadPersistedBulkPreferences;
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
+  loadBulkReviews?: typeof loadPersistedBulkReviews;
+  saveBulkReview?: typeof savePersistedBulkReview;
   pagePollIntervalMs?: number;
   initialDesignRole?: DesignRoleState;
 };
@@ -141,6 +148,8 @@ export const TargetReview = ({
   },
   loadBulkPreferences = loadPersistedBulkPreferences,
   saveBulkPreferences = savePersistedBulkPreferences,
+  loadBulkReviews = loadPersistedBulkReviews,
+  saveBulkReview = savePersistedBulkReview,
   pagePollIntervalMs,
 }: {
   context: TranslationTargetContext;
@@ -175,6 +184,8 @@ export const TargetReview = ({
   applyRemaining?: typeof applyBulkReviews;
   loadBulkPreferences?: typeof loadPersistedBulkPreferences;
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
+  loadBulkReviews?: typeof loadPersistedBulkReviews;
+  saveBulkReview?: typeof savePersistedBulkReview;
   pagePollIntervalMs: number;
 }) => {
   const [review, setReview] = useState<PageReview>();
@@ -208,6 +219,19 @@ export const TargetReview = ({
     "idle" | "applying" | "success" | "partial" | "error"
   >("idle");
   const [bulkApplyResult, setBulkApplyResult] = useState<BulkApplyResult>();
+  const [bulkReviewsByPageId, setBulkReviewsByPageId] = useState<
+    Map<string, PersistedBulkPageReview>
+  >(new Map());
+  const [selectedBulkPageId, setSelectedBulkPageId] = useState<string>();
+  const [bulkReviewSaveStatus, setBulkReviewSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  // Pages with local, unsaved bulk-review edits. A dirty page is never
+  // Apply-eligible: Bulk Apply must not use an older persisted review while
+  // the UI shows newer, unsaved text.
+  const [dirtyBulkReviewPageIds, setDirtyBulkReviewPageIds] = useState<
+    ReadonlySet<string>
+  >(new Set());
   const [pageIdentity, setPageIdentity] = useState<PageIdentity>();
   const [pageNotice, setPageNotice] = useState<"new" | "changed">();
   const [restoreNotice, setRestoreNotice] = useState<"restored" | "stale">();
@@ -244,11 +268,21 @@ export const TargetReview = ({
   );
   const bulkReadyPageIds =
     bulkResult?.translation.queue.entries
-      .filter(
-        (entry) =>
-          entry.status === "ready" && !bulkAppliedPageIds.has(entry.pageId),
-      )
+      .filter((entry) => {
+        if (bulkAppliedPageIds.has(entry.pageId)) return false;
+        if (dirtyBulkReviewPageIds.has(entry.pageId)) return false;
+        if (entry.status === "ready") return true;
+        if (entry.status === "needs_review") {
+          return (
+            bulkReviewsByPageId.get(entry.pageId)?.acknowledged === true
+          );
+        }
+        return false;
+      })
       .map((entry) => entry.pageId) ?? [];
+  const selectedReview = selectedBulkPageId
+    ? bulkReviewsByPageId.get(selectedBulkPageId)
+    : undefined;
   const pageIdentityRef = useRef<PageIdentity | undefined>(undefined);
   const editSaveTimer = useRef<number | undefined>(undefined);
   const reviewRef = useRef<PageReview | undefined>(undefined);
@@ -264,6 +298,38 @@ export const TargetReview = ({
     } catch {
       // Persistence may already have succeeded. A progress refresh failure
       // must not be reported as a failed review/apply save.
+    }
+  };
+
+  // Best-effort UI cache of persisted bulk reviews for inspection/editing.
+  // Bulk Apply's own fresh preflight in bulk_apply.ts remains the sole
+  // safety authority for what may be mutated; this cache only drives what
+  // the review/edit/acknowledge UI displays and offers as apply-eligible.
+  const refreshBulkReviews = async (
+    entries: readonly { pageId: string; status: string }[],
+  ) => {
+    const pageIds = entries
+      .filter(
+        (entry) =>
+          entry.status === "ready" ||
+          entry.status === "needs_review" ||
+          entry.status === "blocked",
+      )
+      .map((entry) => entry.pageId);
+
+    if (pageIds.length === 0) {
+      setBulkReviewsByPageId(new Map());
+      return;
+    }
+
+    try {
+      const reviews = await loadBulkReviews(pageIds);
+      setBulkReviewsByPageId(
+        new Map(reviews.map((review) => [review.pageId, review])),
+      );
+    } catch {
+      // Loading the review cache is best-effort; the page list and Apply
+      // button still function from bulkResult alone.
     }
   };
 
@@ -406,6 +472,10 @@ export const TargetReview = ({
     setBulkResult(undefined);
     setBulkApplyStatus("idle");
     setBulkApplyResult(undefined);
+    setBulkReviewsByPageId(new Map());
+    setSelectedBulkPageId(undefined);
+    setBulkReviewSaveStatus("idle");
+    setDirtyBulkReviewPageIds(new Set());
 
     try {
       const excludedPageIds = resolveExcludedPageIds();
@@ -441,6 +511,10 @@ export const TargetReview = ({
     setBulkResult(undefined);
     setBulkApplyStatus("idle");
     setBulkApplyResult(undefined);
+    setBulkReviewsByPageId(new Map());
+    setSelectedBulkPageId(undefined);
+    setBulkReviewSaveStatus("idle");
+    setDirtyBulkReviewPageIds(new Set());
 
     try {
       const excludedPageIds = resolveExcludedPageIds();
@@ -454,6 +528,7 @@ export const TargetReview = ({
       );
       setBulkResult(result);
       setBulkStatus("success");
+      await refreshBulkReviews(result.translation.queue.entries);
     } catch {
       setBulkStatus("error");
     }
@@ -492,6 +567,75 @@ export const TargetReview = ({
       setBulkApplyStatus("error");
     }
   };
+
+  // Local-only edit of a bulk review block's editedTranslation. Not
+  // persisted until saveBulkReviewChanges runs, and never mutates Canva.
+  // Marks the page dirty (excluding it from Bulk Apply eligibility until
+  // saved) and immediately clears any local acknowledgement, since an
+  // acknowledgement earned on the previous text no longer applies.
+  const editBulkReviewBlock = (
+    pageId: string,
+    blockId: string,
+    editedTranslation: string,
+  ) => {
+    setBulkReviewsByPageId((current) => {
+      const existing = current.get(pageId);
+      if (!existing) return current;
+      const next = new Map(current);
+      next.set(pageId, {
+        ...existing,
+        acknowledged: false,
+        blocks: existing.blocks.map((block) =>
+          block.id === blockId ? { ...block, editedTranslation } : block,
+        ),
+      });
+      return next;
+    });
+    setDirtyBulkReviewPageIds(
+      (current) => new Set(current).add(pageId),
+    );
+    setBulkReviewSaveStatus("idle");
+  };
+
+  // Persists edits (and, optionally, explicit acknowledgement) through the
+  // existing bulk review persistence API. This never mutates Canva itself;
+  // Bulk Apply remains the only path that touches the design. Clears the
+  // page's dirty flag on success, since the persisted review now matches
+  // what the UI shows.
+  const saveBulkReviewChanges = async (
+    pageId: string,
+    options: { acknowledged?: boolean } = {},
+  ) => {
+    const review = bulkReviewsByPageId.get(pageId);
+    if (!review) return;
+
+    // Any content edit must re-earn acknowledgement; only an explicit
+    // acknowledge action may set it to true.
+    const nextReview: PersistedBulkPageReview = {
+      ...review,
+      acknowledged: options.acknowledged ?? false,
+    };
+
+    setBulkReviewSaveStatus("saving");
+    try {
+      await saveBulkReview(nextReview);
+      setBulkReviewsByPageId((current) =>
+        new Map(current).set(pageId, nextReview),
+      );
+      setDirtyBulkReviewPageIds((current) => {
+        if (!current.has(pageId)) return current;
+        const next = new Set(current);
+        next.delete(pageId);
+        return next;
+      });
+      setBulkReviewSaveStatus("saved");
+    } catch {
+      setBulkReviewSaveStatus("error");
+    }
+  };
+
+  const acknowledgeBulkReview = (pageId: string) =>
+    saveBulkReviewChanges(pageId, { acknowledged: true });
 
   const apply = async () => {
     if (!review || hasBlockingReviewIntegrity(review) || !pageIdentity) return;
@@ -658,6 +802,10 @@ export const TargetReview = ({
                   setBulkResult(undefined);
                   setBulkApplyStatus("idle");
                   setBulkApplyResult(undefined);
+                  setBulkReviewsByPageId(new Map());
+                  setSelectedBulkPageId(undefined);
+                  setBulkReviewSaveStatus("idle");
+                  setDirtyBulkReviewPageIds(new Set());
                 }}
               />
             )}
@@ -723,6 +871,134 @@ export const TargetReview = ({
             <Text tone="secondary">
               No Canva pages were changed. Review before applying.
             </Text>
+
+            {bulkReviewsByPageId.size > 0 && (
+              <Rows spacing="0.5u">
+                <Title size="small" tagName="h3">
+                  Inspect and edit pages
+                </Title>
+                <Rows spacing="0.5u">
+                  {bulkResult.translation.queue.entries
+                    .filter((entry) => bulkReviewsByPageId.has(entry.pageId))
+                    .map((entry) => {
+                      const entryReview = bulkReviewsByPageId.get(
+                        entry.pageId,
+                      );
+                      const label = `Page ${entry.discoveryIndex + 1} — ${
+                        entry.status === "ready"
+                          ? "Ready"
+                          : entry.status === "needs_review"
+                            ? entryReview?.acknowledged
+                              ? "Needs review (acknowledged)"
+                              : "Needs review"
+                            : entry.status === "blocked"
+                              ? "Blocked"
+                              : entry.status
+                      }`;
+                      return (
+                        <Button
+                          key={entry.pageId}
+                          variant={
+                            selectedBulkPageId === entry.pageId
+                              ? "primary"
+                              : "secondary"
+                          }
+                          onClick={() => {
+                            setSelectedBulkPageId(entry.pageId);
+                            setBulkReviewSaveStatus("idle");
+                          }}
+                        >
+                          {label}
+                        </Button>
+                      );
+                    })}
+                </Rows>
+
+                {selectedReview && (
+                  <Rows spacing="0.5u">
+                    {selectedReview.status === "blocked" && (
+                      <Alert tone="critical">
+                        This page is blocked and cannot be applied. Resolve
+                        the blocking issues, then translate again.
+                      </Alert>
+                    )}
+
+                    {selectedReview.blocks.map((block) => (
+                      <Rows key={block.id} spacing="0.5u">
+                        <Text tone="secondary">{block.source}</Text>
+                        <FormField
+                          label="Translation"
+                          value={block.editedTranslation}
+                          control={(props) => (
+                            <MultilineInput
+                              {...props}
+                              minRows={1}
+                              maxRows={6}
+                              onChange={(value) =>
+                                editBulkReviewBlock(
+                                  selectedReview.pageId,
+                                  block.id,
+                                  value,
+                                )
+                              }
+                            />
+                          )}
+                        />
+                        {block.errors.map((error) => (
+                          <Alert key={error.code} tone="critical">
+                            {error.message}
+                          </Alert>
+                        ))}
+                        {block.warnings.map((warning) => (
+                          <Alert key={warning.code} tone="warn">
+                            {warning.message}
+                          </Alert>
+                        ))}
+                      </Rows>
+                    ))}
+
+                    <Button
+                      variant="secondary"
+                      disabled={bulkReviewSaveStatus === "saving"}
+                      onClick={() =>
+                        void saveBulkReviewChanges(selectedReview.pageId)
+                      }
+                    >
+                      Save edits
+                    </Button>
+
+                    {selectedReview.status === "needs_review" && (
+                      <Button
+                        variant="primary"
+                        disabled={
+                          selectedReview.acknowledged === true ||
+                          bulkReviewSaveStatus === "saving"
+                        }
+                        onClick={() =>
+                          void acknowledgeBulkReview(selectedReview.pageId)
+                        }
+                      >
+                        {selectedReview.acknowledged
+                          ? "Warnings acknowledged"
+                          : "Acknowledge warnings"}
+                      </Button>
+                    )}
+
+                    {bulkReviewSaveStatus === "saving" && (
+                      <Text tone="secondary">Saving review...</Text>
+                    )}
+                    {bulkReviewSaveStatus === "saved" && (
+                      <Text>Review saved.</Text>
+                    )}
+                    {bulkReviewSaveStatus === "error" && (
+                      <Alert tone="critical">
+                        Could not save the review.
+                      </Alert>
+                    )}
+                  </Rows>
+                )}
+              </Rows>
+            )}
 
             <Button
               variant="primary"
@@ -966,6 +1242,8 @@ export const App = ({
   applyRemaining = applyBulkReviews,
   loadBulkPreferences: loadBulkPreferencesProp = loadPersistedBulkPreferences,
   saveBulkPreferences: saveBulkPreferencesProp = savePersistedBulkPreferences,
+  loadBulkReviews: loadBulkReviewsProp = loadPersistedBulkReviews,
+  saveBulkReview: saveBulkReviewProp = savePersistedBulkReview,
   pagePollIntervalMs = 1000,
   initialDesignRole = { status: "loading" },
 }: AppProps) => {
@@ -1075,6 +1353,8 @@ export const App = ({
         applyRemaining={applyRemaining}
         loadBulkPreferences={loadBulkPreferencesProp}
         saveBulkPreferences={saveBulkPreferencesProp}
+        loadBulkReviews={loadBulkReviewsProp}
+        saveBulkReview={saveBulkReviewProp}
         pagePollIntervalMs={pagePollIntervalMs}
       />
     );

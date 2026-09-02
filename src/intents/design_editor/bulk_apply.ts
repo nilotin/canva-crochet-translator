@@ -104,7 +104,7 @@ export const preflightBulkApply = (
       continue;
     }
 
-    if (review.status === "needs_review") {
+    if (review.status === "needs_review" && !review.acknowledged) {
       issues.push({ pageId: review.pageId, code: "REVIEW_REQUIRED" });
       continue;
     }

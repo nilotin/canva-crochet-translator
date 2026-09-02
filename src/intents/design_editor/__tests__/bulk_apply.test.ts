@@ -1343,6 +1343,36 @@ describe("bulk apply preflight", () => {
     expect(result.readyPageIds).toEqual([]);
   });
 
+  it("still requires explicit review when acknowledged is explicitly false", () => {
+    const result = preflightBulkApply(inventory, [
+      reviewFor("page-1", { status: "needs_review", acknowledged: false }),
+    ]);
+
+    expect(result.issues[0]?.code).toBe("REVIEW_REQUIRED");
+    expect(result.readyPageIds).toEqual([]);
+  });
+
+  it("accepts a needs_review review once explicitly acknowledged", () => {
+    const result = preflightBulkApply(inventory, [
+      reviewFor("page-1", { status: "needs_review", acknowledged: true }),
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      issues: [],
+      readyPageIds: ["page-1"],
+    });
+  });
+
+  it("keeps a blocked review blocked even when acknowledged is true", () => {
+    const result = preflightBulkApply(inventory, [
+      reviewFor("page-1", { status: "blocked", acknowledged: true }),
+    ]);
+
+    expect(result.issues[0]?.code).toBe("BLOCKED_REVIEW");
+    expect(result.readyPageIds).toEqual([]);
+  });
+
   it("rejects source block mismatches", () => {
     const review = reviewFor("page-1");
     review.blocks[0]!.source = "Changed source";

@@ -12,6 +12,7 @@ export type BulkReviewSummary = {
 
   pipelineRevision?: string;
   status: PersistedBulkPageStatus;
+  acknowledged?: boolean;
   updatedAt: string;
 };
 
@@ -84,6 +85,7 @@ export const loadBulkReview = async (
     fingerprint: result.review.fingerprint,
     pipelineRevision: result.review.pipelineRevision,
     status: result.review.status,
+    acknowledged: result.review.acknowledged,
     blocks: result.review.blocks,
   };
 };
@@ -132,6 +134,7 @@ export const saveBulkReview = async (
       fingerprint: review.fingerprint,
       pipelineRevision: TRANSLATION_PIPELINE_REVISION,
       status: review.status,
+      acknowledged: review.acknowledged ?? false,
       blocks: review.blocks,
     },
     overrides,

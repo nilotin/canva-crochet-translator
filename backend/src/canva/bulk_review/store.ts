@@ -13,6 +13,11 @@ export const persistedBulkReviewSchema = z
 
     pipelineRevision: z.string().min(1).max(200).optional(),
     status: z.enum(["ready", "needs_review", "blocked"]),
+    // Explicit human sign-off that a "needs_review" page's warnings were
+    // seen and accepted. Independent of `status`, which reflects the
+    // translation pipeline's own severity classification and never changes
+    // as a side effect of acknowledgement.
+    acknowledged: z.boolean().optional(),
     blocks: z.array(reviewBlockSchema).max(1_000),
     updatedAt: z.string().datetime(),
   })

@@ -182,6 +182,7 @@ describe("bulk review persistence client", () => {
       fingerprint: "page-content-v1-abc",
       pipelineRevision: "translation-pipeline-v4",
       status: "ready",
+      acknowledged: false,
       blocks: review.blocks,
       designToken: "design-jwt",
     });

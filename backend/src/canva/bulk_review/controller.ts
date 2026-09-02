@@ -26,6 +26,7 @@ const saveSchema = z
 
     pipelineRevision: persistedBulkReviewSchema.shape.pipelineRevision,
     status: persistedBulkReviewSchema.shape.status,
+    acknowledged: persistedBulkReviewSchema.shape.acknowledged,
     blocks: persistedBulkReviewSchema.shape.blocks,
   })
   .strict();
@@ -117,6 +118,7 @@ export const getBulkReview = async (
 
               pipelineRevision: review.pipelineRevision,
               status: review.status,
+              acknowledged: review.acknowledged,
               blocks: review.blocks,
               updatedAt: review.updatedAt,
             }
@@ -173,6 +175,7 @@ export const listBulkReviews = async (
 
           pipelineRevision: review.pipelineRevision,
           status: review.status,
+          acknowledged: review.acknowledged,
           updatedAt: review.updatedAt,
         })),
       },
@@ -220,6 +223,7 @@ export const saveBulkReview = async (
 
       pipelineRevision: input.data.pipelineRevision,
       status: input.data.status,
+      acknowledged: input.data.acknowledged,
       blocks: input.data.blocks,
       updatedAt: new Date().toISOString(),
     });

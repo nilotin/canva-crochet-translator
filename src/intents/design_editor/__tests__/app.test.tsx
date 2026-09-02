@@ -956,6 +956,681 @@ describe("Crochet Translator", () => {
     expect(applyRemaining).not.toHaveBeenCalled();
   });
 
+  it("lets a needs_review page become Apply-eligible only after explicit acknowledgement, without editing ever mutating Canva", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-review",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-review",
+          status: "needs_review" as const,
+          blockIds: ["page-page-review-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 0,
+        needs_review: 1,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const persistedReview = {
+      pageId: "page-review",
+      fingerprint: "fingerprint-review",
+      pipelineRevision: "translation-pipeline-v4",
+      status: "needs_review" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: "page-page-review-block-1",
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "WARNING" as const,
+          errors: [],
+          warnings: [{ code: "W1", message: "Check this translation." }],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+    const saveBulkReview = jest.fn(async () => undefined);
+    const applyRemaining = jest.fn(async () => ({
+      preflight: { ok: true, issues: [], readyPageIds: ["page-review"] },
+      appliedPageIds: ["page-review"],
+      verifiedAppliedPageIds: ["page-review"],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: ["page-review"],
+      persistenceFailedPageIds: [],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-review-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        saveBulkReview={saveBulkReview as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    expect(result.getByText("Check this translation.")).toBeTruthy();
+
+    const input = await result.findByRole("textbox", { name: "Translation" });
+    expect(input).toHaveProperty("value", "Ear");
+
+    fireEvent.change(input, { target: { value: "Ear (edited)" } });
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(result.getByRole("button", { name: "Save edits" }));
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+    expect(saveBulkReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: "page-review",
+        acknowledged: false,
+        blocks: [
+          expect.objectContaining({
+            id: "page-page-review-block-1",
+            editedTranslation: "Ear (edited)",
+          }),
+        ],
+      }),
+    );
+
+    // Editing and saving must never mutate Canva or apply anything.
+    expect(applyRemaining).not.toHaveBeenCalled();
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(
+      result.getByRole("button", { name: "Acknowledge warnings" }),
+    );
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(2));
+    expect(saveBulkReview).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        pageId: "page-review",
+        acknowledged: true,
+      }),
+    );
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+
+    await waitFor(() =>
+      expect(applyButton.getAttribute("aria-disabled")).not.toBe("true"),
+    );
+
+    fireEvent.click(applyButton);
+
+    await waitFor(() => expect(applyRemaining).toHaveBeenCalledTimes(1));
+    expect(applyRemaining).toHaveBeenCalledWith(["page-review"], {
+      contextId: "bulk-review-context",
+      language: "en",
+    });
+  });
+
+  it("excludes a ready page from Bulk Apply while it has an unsaved local edit", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-ready",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-ready",
+          status: "ready" as const,
+          blockIds: ["page-page-ready-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 1,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const persistedReview = {
+      pageId: "page-ready",
+      fingerprint: "fingerprint-ready",
+      pipelineRevision: "translation-pipeline-v4",
+      status: "ready" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: "page-page-ready-block-1",
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+    const applyRemaining = jest.fn(async () => ({
+      preflight: { ok: true, issues: [], readyPageIds: ["page-ready"] },
+      appliedPageIds: ["page-ready"],
+      verifiedAppliedPageIds: ["page-ready"],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: ["page-ready"],
+      persistenceFailedPageIds: [],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-dirty-ready-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+
+    // Ready and not yet edited: eligible.
+    expect(applyButton.getAttribute("aria-disabled")).not.toBe("true");
+
+    const input = await result.findByRole("textbox", { name: "Translation" });
+    fireEvent.change(input, { target: { value: "Ear (edited)" } });
+
+    // An unsaved local edit must exclude the page even though it is "ready",
+    // so Bulk Apply never uses stale persisted text under newer UI text.
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(applyButton);
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+  });
+
+  it("removes Apply eligibility for an already-acknowledged needs_review page immediately after further editing", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-review",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-review",
+          status: "needs_review" as const,
+          blockIds: ["page-page-review-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 0,
+        needs_review: 1,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const persistedReview = {
+      pageId: "page-review",
+      fingerprint: "fingerprint-review",
+      pipelineRevision: "translation-pipeline-v4",
+      status: "needs_review" as const,
+      acknowledged: true,
+      blocks: [
+        {
+          id: "page-page-review-block-1",
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "WARNING" as const,
+          errors: [],
+          warnings: [{ code: "W1", message: "Check this translation." }],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+    const applyRemaining = jest.fn();
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-dirty-acked-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+
+    // Already acknowledged and not yet edited: eligible.
+    expect(applyButton.getAttribute("aria-disabled")).not.toBe("true");
+
+    const input = await result.findByRole("textbox", { name: "Translation" });
+    fireEvent.change(input, { target: { value: "Ear (edited again)" } });
+
+    // Editing an already-acknowledged needs_review page must immediately
+    // revoke its eligibility: the prior acknowledgement covered older text.
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+    expect(
+      result.getByRole("button", { name: "Acknowledge warnings" }),
+    ).toBeTruthy();
+    expect(
+      result.queryByRole("button", { name: "Warnings acknowledged" }),
+    ).toBeNull();
+
+    fireEvent.click(applyButton);
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+  });
+
+  it("clears dirty state on a successful Save without restoring eligibility until explicitly re-acknowledged", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-review",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-review",
+          status: "needs_review" as const,
+          blockIds: ["page-page-review-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 0,
+        needs_review: 1,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const persistedReview = {
+      pageId: "page-review",
+      fingerprint: "fingerprint-review",
+      pipelineRevision: "translation-pipeline-v4",
+      status: "needs_review" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: "page-page-review-block-1",
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "WARNING" as const,
+          errors: [],
+          warnings: [{ code: "W1", message: "Check this translation." }],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+    const saveBulkReview = jest.fn(async () => undefined);
+    const applyRemaining = jest.fn(async () => ({
+      preflight: { ok: true, issues: [], readyPageIds: ["page-review"] },
+      appliedPageIds: ["page-review"],
+      verifiedAppliedPageIds: ["page-review"],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: ["page-review"],
+      persistenceFailedPageIds: [],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-dirty-save-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        saveBulkReview={saveBulkReview as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    const input = await result.findByRole("textbox", { name: "Translation" });
+    fireEvent.change(input, { target: { value: "Ear (edited)" } });
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(result.getByRole("button", { name: "Save edits" }));
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+    expect(saveBulkReview).toHaveBeenCalledWith(
+      expect.objectContaining({ pageId: "page-review", acknowledged: false }),
+    );
+
+    // Saved (no longer dirty), but still needs_review and unacknowledged:
+    // must stay ineligible.
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+    expect(applyRemaining).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      result.getByRole("button", { name: "Acknowledge warnings" }),
+    );
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(2));
+    expect(saveBulkReview).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pageId: "page-review", acknowledged: true }),
+    );
+
+    // Explicit acknowledgement of the saved (clean) edit restores eligibility.
+    await waitFor(() =>
+      expect(applyButton.getAttribute("aria-disabled")).not.toBe("true"),
+    );
+
+    fireEvent.click(applyButton);
+
+    await waitFor(() => expect(applyRemaining).toHaveBeenCalledTimes(1));
+    expect(applyRemaining).toHaveBeenCalledWith(["page-review"], {
+      contextId: "bulk-dirty-save-context",
+      language: "en",
+    });
+  });
+
+  it("keeps a blocked page non-applicable in the bulk review UI", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-blocked",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-blocked",
+          status: "blocked" as const,
+          blockIds: ["page-page-blocked-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 1,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const persistedReview = {
+      pageId: "page-blocked",
+      fingerprint: "fingerprint-blocked",
+      pipelineRevision: "translation-pipeline-v4",
+      status: "blocked" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: "page-page-blocked-block-1",
+          source: "6 sc, inc x6",
+          translated: "",
+          editedTranslation: "",
+          validation: "BLOCK" as const,
+          errors: [{ code: "E1", message: "Notation could not be preserved." }],
+          warnings: [],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+    const applyRemaining = jest.fn();
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-blocked-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    expect(
+      result.getByText(
+        "This page is blocked and cannot be applied. Resolve the blocking issues, then translate again.",
+      ),
+    ).toBeTruthy();
+    expect(
+      result.queryByRole("button", { name: "Acknowledge warnings" }),
+    ).toBeNull();
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(applyButton);
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+  });
+
   it("shows a partial bulk Apply result without reporting total failure", async () => {
     const queue = {
       entries: [
