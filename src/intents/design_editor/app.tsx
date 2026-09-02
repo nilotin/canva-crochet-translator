@@ -54,6 +54,10 @@ import {
   loadBulkPreferences as loadPersistedBulkPreferences,
   saveBulkPreferences as savePersistedBulkPreferences,
 } from "./bulk_preferences_persistence";
+import {
+  applyBulkReviews,
+  type BulkApplyResult,
+} from "./bulk_apply";
 
 const ENGLISH = "en";
 const SPANISH = "es";
@@ -94,6 +98,7 @@ type AppProps = {
     language: TargetLanguage,
     excludedPageIds?: ReadonlySet<string>,
   ) => Promise<TranslateRemainingPagesResult>;
+  applyRemaining?: typeof applyBulkReviews;
   loadBulkPreferences?: typeof loadPersistedBulkPreferences;
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
   pagePollIntervalMs?: number;
@@ -131,6 +136,9 @@ export const TargetReview = ({
   translateRemaining = async () => {
     throw new Error("Bulk translation is unavailable.");
   },
+  applyRemaining = async () => {
+    throw new Error("Bulk apply is unavailable.");
+  },
   loadBulkPreferences = loadPersistedBulkPreferences,
   saveBulkPreferences = savePersistedBulkPreferences,
   pagePollIntervalMs,
@@ -164,6 +172,7 @@ export const TargetReview = ({
     language: TargetLanguage,
     excludedPageIds?: ReadonlySet<string>,
   ) => Promise<TranslateRemainingPagesResult>;
+  applyRemaining?: typeof applyBulkReviews;
   loadBulkPreferences?: typeof loadPersistedBulkPreferences;
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
   pagePollIntervalMs: number;
@@ -195,6 +204,10 @@ export const TargetReview = ({
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [bulkResult, setBulkResult] = useState<TranslateRemainingPagesResult>();
+  const [bulkApplyStatus, setBulkApplyStatus] = useState<
+    "idle" | "applying" | "success" | "partial" | "error"
+  >("idle");
+  const [bulkApplyResult, setBulkApplyResult] = useState<BulkApplyResult>();
   const [pageIdentity, setPageIdentity] = useState<PageIdentity>();
   const [pageNotice, setPageNotice] = useState<"new" | "changed">();
   const [restoreNotice, setRestoreNotice] = useState<"restored" | "stale">();
@@ -226,6 +239,16 @@ export const TargetReview = ({
     context.pageCount !== undefined &&
     context.pageCount > 0 &&
     progressSummary.applied >= context.pageCount;
+  const bulkAppliedPageIds = new Set(
+    bulkApplyResult?.appliedPageIds ?? [],
+  );
+  const bulkReadyPageIds =
+    bulkResult?.translation.queue.entries
+      .filter(
+        (entry) =>
+          entry.status === "ready" && !bulkAppliedPageIds.has(entry.pageId),
+      )
+      .map((entry) => entry.pageId) ?? [];
   const pageIdentityRef = useRef<PageIdentity | undefined>(undefined);
   const editSaveTimer = useRef<number | undefined>(undefined);
   const reviewRef = useRef<PageReview | undefined>(undefined);
@@ -379,6 +402,10 @@ export const TargetReview = ({
     if (!prepareRemaining) return;
 
     setBulkPlanStatus("loading");
+    setBulkStatus("idle");
+    setBulkResult(undefined);
+    setBulkApplyStatus("idle");
+    setBulkApplyResult(undefined);
 
     try {
       const excludedPageIds = resolveExcludedPageIds();
@@ -411,6 +438,9 @@ export const TargetReview = ({
 
   const runBulkTranslation = async () => {
     setBulkStatus("loading");
+    setBulkResult(undefined);
+    setBulkApplyStatus("idle");
+    setBulkApplyResult(undefined);
 
     try {
       const excludedPageIds = resolveExcludedPageIds();
@@ -426,6 +456,40 @@ export const TargetReview = ({
       setBulkStatus("success");
     } catch {
       setBulkStatus("error");
+    }
+  };
+
+  const runBulkApply = async () => {
+    if (!bulkResult || bulkReadyPageIds.length === 0) return;
+
+    setBulkApplyStatus("applying");
+    setBulkApplyResult(undefined);
+
+    try {
+      const result = await applyRemaining(
+        bulkReadyPageIds,
+        {
+          contextId: context.contextId,
+          language: context.language,
+        },
+      );
+
+      setBulkApplyResult(result);
+
+      if (pageIdentity) {
+        await refreshProgressSummary(pageIdentity);
+      }
+
+      if (
+        result.verificationFailedPageIds.length > 0 ||
+        result.persistenceFailedPageIds.length > 0
+      ) {
+        setBulkApplyStatus("partial");
+      } else {
+        setBulkApplyStatus("success");
+      }
+    } catch {
+      setBulkApplyStatus("error");
     }
   };
 
@@ -587,7 +651,14 @@ export const TargetReview = ({
                 minRows={1}
                 maxRows={2}
                 placeholder="e.g. 3, 7, 12"
-                onChange={setExcludedPageNumbers}
+                onChange={(value) => {
+                  setExcludedPageNumbers(value);
+                  setBulkPlanStatus("idle");
+                  setBulkStatus("idle");
+                  setBulkResult(undefined);
+                  setBulkApplyStatus("idle");
+                  setBulkApplyResult(undefined);
+                }}
               />
             )}
           />
@@ -652,8 +723,48 @@ export const TargetReview = ({
             <Text tone="secondary">
               No Canva pages were changed. Review before applying.
             </Text>
+
+            <Button
+              variant="primary"
+              stretch
+              disabled={
+                bulkApplyStatus === "applying" ||
+                bulkReadyPageIds.length === 0
+              }
+              onClick={() => void runBulkApply()}
+            >
+              Apply ready pages
+            </Button>
+
+            {bulkResult.translation.queue.counts.needs_review > 0 && (
+              <Text tone="secondary">
+                Pages marked Needs review are not included in bulk Apply.
+              </Text>
+            )}
           </Rows>
         )}
+        {bulkApplyStatus === "applying" && (
+          <Text tone="secondary">Applying ready pages...</Text>
+        )}
+
+        {bulkApplyStatus === "success" && bulkApplyResult && (
+          <Alert tone="positive">
+            {`${bulkApplyResult.persistedAppliedPageIds.length} ready pages applied and saved.`}
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "partial" && bulkApplyResult && (
+          <Alert tone="critical">
+            {`Canva Apply completed, but ${bulkApplyResult.verificationFailedPageIds.length} pages could not be verified and ${bulkApplyResult.persistenceFailedPageIds.length} verified pages could not be saved.`}
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "error" && (
+          <Alert tone="critical">
+            Could not apply the ready pages. No successful bulk Apply was confirmed.
+          </Alert>
+        )}
+
         {pageNotice === "new" && <Alert tone="info">New page detected</Alert>}
         {pageNotice === "changed" && (
           <Alert tone="critical">
@@ -852,6 +963,7 @@ export const App = ({
     prepareRemainingPages(excludedPageIds),
   translateRemaining = (language, excludedPageIds) =>
     translateRemainingPages(language, excludedPageIds),
+  applyRemaining = applyBulkReviews,
   loadBulkPreferences: loadBulkPreferencesProp = loadPersistedBulkPreferences,
   saveBulkPreferences: saveBulkPreferencesProp = savePersistedBulkPreferences,
   pagePollIntervalMs = 1000,
@@ -960,6 +1072,7 @@ export const App = ({
         readSnapshotDigest={readSnapshotDigest}
         prepareRemaining={prepareRemaining}
         translateRemaining={translateRemaining}
+        applyRemaining={applyRemaining}
         loadBulkPreferences={loadBulkPreferencesProp}
         saveBulkPreferences={saveBulkPreferencesProp}
         pagePollIntervalMs={pagePollIntervalMs}

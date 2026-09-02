@@ -722,6 +722,345 @@ describe("Crochet Translator", () => {
     expect(
       result.getByText("No Canva pages were changed. Review before applying."),
     ).toBeTruthy();
+
+    const exclusionInput = result.getByLabelText("Exclude page numbers");
+
+    fireEvent.change(exclusionInput, {
+      target: { value: "2" },
+    });
+
+    expect(
+      result.queryByRole("button", {
+        name: "Apply ready pages",
+      }),
+    ).toBeNull();
+
+    expect(
+      result.queryByText("Remaining-page translation review completed."),
+    ).toBeNull();
+  });
+
+  it("bulk applies only ready pages after explicit user action", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-ready",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-ready",
+          status: "ready" as const,
+          blockIds: ["page-page-ready-block-1"],
+        },
+        {
+          pageId: "page-review",
+          discoveryIndex: 1,
+          fingerprint: "fingerprint-review",
+          status: "needs_review" as const,
+          blockIds: ["page-page-review-block-1"],
+        },
+        {
+          pageId: "page-blocked",
+          discoveryIndex: 2,
+          fingerprint: "fingerprint-blocked",
+          status: "blocked" as const,
+          blockIds: ["page-page-blocked-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 1,
+        needs_review: 1,
+        blocked: 1,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 3,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 3,
+        failedPages: 0,
+      },
+    }));
+
+    const applyRemaining = jest.fn(async () => ({
+      preflight: {
+        ok: true,
+        issues: [],
+        readyPageIds: ["page-ready"],
+      },
+      appliedPageIds: ["page-ready"],
+      verifiedAppliedPageIds: ["page-ready"],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: ["page-ready"],
+      persistenceFailedPageIds: [],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-apply-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        applyRemaining={applyRemaining}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+    expect(
+      result.getByText(
+        "Pages marked Needs review are not included in bulk Apply.",
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(applyButton);
+
+    await waitFor(() => {
+      expect(applyRemaining).toHaveBeenCalledTimes(1);
+    });
+
+    expect(applyRemaining).toHaveBeenCalledWith(
+      ["page-ready"],
+      {
+        contextId: "bulk-apply-context",
+        language: "en",
+      },
+    );
+
+    expect(
+      await result.findByText("1 ready pages applied and saved."),
+    ).toBeTruthy();
+
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(applyButton);
+
+    expect(applyRemaining).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps bulk Apply disabled when no pages are ready", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-review",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-review",
+          status: "needs_review" as const,
+          blockIds: ["page-page-review-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 0,
+        needs_review: 1,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const applyRemaining = jest.fn();
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-no-ready-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    fireEvent.click(applyButton);
+
+    expect(applyRemaining).not.toHaveBeenCalled();
+  });
+
+  it("shows a partial bulk Apply result without reporting total failure", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-1",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-1",
+          status: "ready" as const,
+          blockIds: ["page-page-1-block-1"],
+        },
+        {
+          pageId: "page-2",
+          discoveryIndex: 1,
+          fingerprint: "fingerprint-2",
+          status: "ready" as const,
+          blockIds: ["page-page-2-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 2,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 2,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 2,
+        failedPages: 0,
+      },
+    }));
+
+    const applyRemaining = jest.fn(async () => ({
+      preflight: {
+        ok: true,
+        issues: [],
+        readyPageIds: ["page-1", "page-2"],
+      },
+      appliedPageIds: ["page-1", "page-2"],
+      verifiedAppliedPageIds: ["page-1"],
+      verificationFailedPageIds: ["page-2"],
+      persistedAppliedPageIds: [],
+      persistenceFailedPageIds: ["page-1"],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-partial-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        applyRemaining={applyRemaining}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      result.getByRole("button", {
+        name: "Apply ready pages",
+      }),
+    );
+
+    expect(
+      await result.findByText(
+        "Canva Apply completed, but 1 pages could not be verified and 1 verified pages could not be saved.",
+      ),
+    ).toBeTruthy();
+
+    expect(
+      result.queryByText("Could not apply the ready pages. No successful bulk Apply was confirmed."),
+    ).toBeNull();
   });
 
   it("keeps Apply disabled for a blocked page", async () => {
