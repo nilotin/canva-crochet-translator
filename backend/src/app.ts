@@ -494,6 +494,7 @@ export const createBackendApp = ({
       const translations = await translateBlocks(
         input.blocks,
         input.targetLanguage,
+        { contentKind: input.contentKind },
       );
       response.json({ translations });
     } catch (cause) {

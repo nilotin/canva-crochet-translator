@@ -535,3 +535,40 @@ describe("/api/translate auth", () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe("/api/translate content kind", () => {
+  it("threads materials contentKind into the translator", async () => {
+    const app = createBackendApp({
+      canvaTokenVerification: {
+        verifyDesignToken: vi.fn(async () => ({
+          appId: "app-1",
+          designId: "design-1",
+        })),
+        verifyUserToken: vi.fn(async () => ({
+          appId: "app-1",
+          userId: "user-1",
+          brandId: "brand-1",
+        })),
+      },
+    });
+
+    const callsBefore = vi.mocked(translateBlocks).mock.calls.length;
+
+    const response = await request(app)
+      .post("/api/translate")
+      .set("Authorization", "Bearer user-jwt")
+      .send({
+        ...validBody,
+        contentKind: "materials",
+      });
+
+    expect(response.status).toBe(200);
+
+    const call = vi.mocked(translateBlocks).mock.calls[callsBefore];
+    expect(call).toEqual([
+      validBody.blocks,
+      "en",
+      { contentKind: "materials" },
+    ]);
+  });
+});

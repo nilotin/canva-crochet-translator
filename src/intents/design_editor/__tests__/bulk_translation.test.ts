@@ -483,7 +483,7 @@ describe("bulk translation", () => {
     },
   );
 
-  it("never acquires design/user tokens or calls fetch for the static materials/instructions/glossary page", async () => {
+  it("Page 2 (plain shape): sends exactly one translation request containing only the materials body, and merges it with the deterministic headings/instructions/glossary result", async () => {
     const page2Inventory: WholeDocumentInventory = {
       pages: [
         {
@@ -548,7 +548,21 @@ describe("bulk translation", () => {
 
     const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
     const getUserTokenSpy = jest.fn(async () => "user-jwt");
-    const fetcher = jest.fn();
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "materials-block",
+            source: "300gr bej ip, 2mm tığ, oyuncak gözü",
+            translated: "300g beige yarn, 2mm hook, safety eyes",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
     const saveReview = jest.fn(async () => undefined);
 
     const result = await translatePendingBulkPages(
@@ -564,19 +578,41 @@ describe("bulk translation", () => {
       },
     );
 
-    expect(getDesignTokenSpy).not.toHaveBeenCalled();
-    expect(getUserTokenSpy).not.toHaveBeenCalled();
-    expect(fetcher).not.toHaveBeenCalled();
+    // Exactly one token acquisition and one /api/translate request --
+    // never the whole page.
+    expect(getDesignTokenSpy).toHaveBeenCalledTimes(1);
+    expect(getUserTokenSpy).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
 
-    // Materials block must be passed through byte-for-byte untouched.
+    const [, request] = (fetcher.mock.calls as unknown as [string, RequestInit][])[0]!;
+    const body = JSON.parse(String(request.body));
+
+    expect(body.contentKind).toBe("materials");
+    expect(body.blocks).toHaveLength(1);
+    expect(body.blocks[0].id).toBe("materials-block");
+    expect(body.blocks[0].text).toBe("300gr bej ip, 2mm tığ, oyuncak gözü");
+
+    // The instructions/glossary/decorative content must never appear in
+    // the request body sent to the LLM.
+    const requestedText = JSON.stringify(body.blocks);
+    expect(requestedText).not.toContain(INSTRUCTIONS_TR);
+    expect(requestedText).not.toContain(GLOSSARY_TR);
+    expect(requestedText.includes('"text":"."')).toBe(false);
+
+    // The merged review must contain the LLM-translated materials block
+    // alongside the deterministic instructions/glossary/dot entries.
     expect(saveReview).toHaveBeenCalledWith(
       expect.objectContaining({
         pageId: "materials-page",
+        status: "ready",
         blocks: expect.arrayContaining([
           expect.objectContaining({
             id: "materials-block",
-            translated: "300gr bej ip, 2mm tığ, oyuncak gözü",
+            translated: "300g beige yarn, 2mm hook, safety eyes",
           }),
+          expect.objectContaining({ id: "instructions-block" }),
+          expect.objectContaining({ id: "glossary-block" }),
+          expect.objectContaining({ id: "dot-block", translated: "." }),
         ]),
       }),
     );
@@ -584,6 +620,326 @@ describe("bulk translation", () => {
     expect(result.queue.entries[0]?.status).toBe("ready");
     expect(result.translatedPages).toBe(1);
     expect(result.failedPages).toBe(0);
+  });
+
+  it("Page 2 (headings shape): sends exactly one translation request containing only the materials body, and translates the three headings deterministically", async () => {
+    const headingsInventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            { id: "materials-heading", sourceText: "MALZEMELER", order: 0, formattingRegions: [] },
+            {
+              id: "materials-block",
+              sourceText: "300gr bej ip, 2mm tığ, oyuncak gözü",
+              order: 1,
+              formattingRegions: [],
+            },
+            { id: "explanations-heading", sourceText: "AÇIKLAMALAR", order: 2, formattingRegions: [] },
+            { id: "instructions-block", sourceText: INSTRUCTIONS_TR, order: 3, formattingRegions: [] },
+            { id: "abbreviations-heading", sourceText: "TERIMLER", order: 4, formattingRegions: [] },
+            { id: "glossary-block", sourceText: GLOSSARY_TR, order: 5, formattingRegions: [] },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const headingsQueue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-materials-headings",
+          status: "pending",
+          blockIds: [
+            "materials-heading",
+            "materials-block",
+            "explanations-heading",
+            "instructions-block",
+            "abbreviations-heading",
+            "glossary-block",
+          ],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
+    const getUserTokenSpy = jest.fn(async () => "user-jwt");
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "materials-block",
+            source: "300gr bej ip, 2mm tığ, oyuncak gözü",
+            translated: "300g beige yarn, 2mm hook, safety eyes",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      headingsInventory,
+      headingsQueue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        getDesignToken: getDesignTokenSpy as never,
+        getUserToken: getUserTokenSpy as never,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [, request] = (fetcher.mock.calls as unknown as [string, RequestInit][])[0]!;
+    const body = JSON.parse(String(request.body));
+    expect(body.contentKind).toBe("materials");
+    expect(body.blocks).toHaveLength(1);
+    expect(body.blocks[0].id).toBe("materials-block");
+
+    expect(saveReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: "materials-page",
+        status: "ready",
+        blocks: expect.arrayContaining([
+          expect.objectContaining({ id: "materials-heading", translated: "Materials" }),
+          expect.objectContaining({ id: "explanations-heading", translated: "Explanations" }),
+          expect.objectContaining({ id: "abbreviations-heading", translated: "Abbreviations" }),
+          expect.objectContaining({
+            id: "materials-block",
+            translated: "300g beige yarn, 2mm hook, safety eyes",
+          }),
+        ]),
+      }),
+    );
+
+    expect(result.queue.entries[0]?.status).toBe("ready");
+    expect(result.translatedPages).toBe(1);
+  });
+
+  it("falls back to the normal full-page backend pipeline when Page 2 is not statically recognized (e.g. missing/altered instructions text)", async () => {
+    const unrecognizedInventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            { id: "materials-block", sourceText: "300gr bej ip", order: 0, formattingRegions: [] },
+            { id: "unknown-block", sourceText: "Some unrelated paragraph.", order: 1, formattingRegions: [] },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const unrecognizedQueue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-unrecognized",
+          status: "pending",
+          blockIds: ["materials-block", "unknown-block"],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "materials-block",
+            source: "300gr bej ip",
+            translated: "300g beige yarn",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+          {
+            id: "unknown-block",
+            source: "Some unrelated paragraph.",
+            translated: "Some unrelated paragraph translated.",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      unrecognizedInventory,
+      unrecognizedQueue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        ...translationAuth,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    // Falls through to the normal pipeline: BOTH blocks go to the LLM in
+    // a single request, never the privileged materials-only path.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const [, request] = (fetcher.mock.calls as unknown as [string, RequestInit][])[0]!;
+    const body = JSON.parse(String(request.body));
+    expect(body.blocks).toHaveLength(2);
+    expect(result.queue.entries[0]?.status).toBe("ready");
+  });
+
+  it("does not mark Page 2 as Ready when the materials translation request fails", async () => {
+    const page2Inventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            { id: "materials-block", sourceText: "300gr bej ip", order: 0, formattingRegions: [] },
+            { id: "instructions-block", sourceText: INSTRUCTIONS_TR, order: 1, formattingRegions: [] },
+            { id: "glossary-block", sourceText: GLOSSARY_TR, order: 2, formattingRegions: [] },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const page2Queue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-materials-fail",
+          status: "pending",
+          blockIds: ["materials-block", "instructions-block", "glossary-block"],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const fetcher = jest.fn(async () => ({ ok: false, json: async () => ({}) }));
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      page2Inventory,
+      page2Queue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        ...translationAuth,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.queue.entries[0]?.status).toBe("failed");
+    expect(result.failedPages).toBe(1);
+    expect(result.translatedPages).toBe(0);
+    // A failed materials translation must never be silently persisted as
+    // a Ready page.
+    expect(saveReview).not.toHaveBeenCalledWith(
+      expect.objectContaining({ pageId: "materials-page", status: "ready" }),
+    );
+  });
+
+  it("does not mark Page 2 as Ready when the materials translation response is malformed (missing/extra entries)", async () => {
+    const page2Inventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            { id: "materials-block", sourceText: "300gr bej ip", order: 0, formattingRegions: [] },
+            { id: "instructions-block", sourceText: INSTRUCTIONS_TR, order: 1, formattingRegions: [] },
+            { id: "glossary-block", sourceText: GLOSSARY_TR, order: 2, formattingRegions: [] },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const page2Queue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-materials-malformed",
+          status: "pending",
+          blockIds: ["materials-block", "instructions-block", "glossary-block"],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    // Malformed: response omits the requested materials-block id
+    // entirely (e.g. backend returned an empty/wrong translations array).
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ translations: [] }),
+    }));
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      page2Inventory,
+      page2Queue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        ...translationAuth,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(result.queue.entries[0]?.status).toBe("failed");
+    expect(result.failedPages).toBe(1);
+    expect(saveReview).not.toHaveBeenCalledWith(
+      expect.objectContaining({ pageId: "materials-page", status: "ready" }),
+    );
   });
 
   it("never acquires design/user tokens or calls fetch for the static closing page (Buzu)", async () => {

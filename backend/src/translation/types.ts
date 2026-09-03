@@ -39,6 +39,7 @@ export const translateRequestSchema = z
     designToken: z.string().min(1),
     sourceLanguage: z.literal("tr"),
     targetLanguage: targetLanguageSchema,
+    contentKind: z.enum(["pattern", "materials"]).optional().default("pattern"),
     blocks: z.array(translationBlockSchema).min(1).max(100),
     templateCandidate: z.literal(true).optional(),
     pageFingerprint: z.string().min(1).max(500).optional(),

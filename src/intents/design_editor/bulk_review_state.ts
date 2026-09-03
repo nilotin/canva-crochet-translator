@@ -37,7 +37,16 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // Recognition logic is unchanged; only the persisted OUTPUT text differs
 // from every prior revision, so a stale review must not be silently
 // reused (it would still contain the old hard-wrapped text).
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v9";
+// v10: Page 2 is now hybrid -- its materials body is no longer a static
+// "keep" passthrough, it is translated via the LLM (see Feature 3 /
+// static_template_translation.ts's recognizePage2Hybrid and
+// bulk_translation.ts). Page 2 also now recognizes an optional
+// heading-blocks shape (Malzemeler/Açıklamalar/Terimler -> Materials/
+// Explanations/Abbreviations). Both the recognition GATE and the
+// persisted OUTPUT for Page 2 changed, so a stale Page 2 review from
+// before this change (materials left untranslated) must not be
+// silently reused.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v10";
 
 export type PersistedBulkPageReview = {
   pageId: string;

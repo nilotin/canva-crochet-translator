@@ -879,3 +879,94 @@ describe("translateBlocks provider boundary", () => {
     );
   });
 });
+
+describe("materials translation profile", () => {
+  it("translates materials prose without treating parentheses or crochet-like words as immutable pattern content", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "materials",
+          text: "2.5mm Elektrik Teli (kol, gövde)",
+        },
+      ],
+      "en",
+      {
+        provider,
+        contentKind: "materials",
+      },
+    );
+
+    expect(provider.requests).toHaveLength(1);
+
+    const sent = provider.protectedTexts[0] ?? "";
+
+    expect(sent).toContain("(");
+    expect(sent).toContain("kol, gövde");
+    expect(sent).toContain("__XQ");
+    expect(sent).not.toContain("2.5");
+
+    expect(result?.errors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "INTERNAL_MIXED_LEXER_ERROR" }),
+      ]),
+    );
+  });
+});
+
+describe("materials translation profile with Canva formatting regions", () => {
+  it("keeps decorative bullet regions deterministic and translates only material prose regions", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "✦ 2 adet Catania TR263\n    Ten rengi\n" +
+      "✦ 55cm gri renk süet ip\n" +
+      "✦ 2.5mm Elektrik Teli (kol, gövde)";
+
+    const firstBullet = 0;
+    const firstProse = 1;
+    const secondBullet = source.indexOf("✦", firstProse);
+    const secondProse = secondBullet + 1;
+    const thirdBullet = source.indexOf("✦", secondProse);
+    const thirdProse = thirdBullet + 1;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-materials",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: firstBullet, end: firstProse },
+            { id: "fmt-1", start: firstProse, end: secondBullet },
+            { id: "fmt-2", start: secondBullet, end: secondProse },
+            { id: "fmt-3", start: secondProse, end: thirdBullet },
+            { id: "fmt-4", start: thirdBullet, end: thirdProse },
+            { id: "fmt-5", start: thirdProse, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      {
+        provider,
+        contentKind: "materials",
+      },
+    );
+
+    expect(provider.protectedTexts).toHaveLength(3);
+
+    for (const sent of provider.protectedTexts) {
+      expect(sent).not.toBe("✦");
+    }
+
+    expect(provider.protectedTexts.join("\n")).not.toContain("TR263");
+    expect(provider.protectedTexts.join("\n")).not.toContain("55");
+    expect(provider.protectedTexts.join("\n")).not.toContain("2.5");
+
+    expect(provider.protectedTexts.join("\n")).toContain("(kol, gövde)");
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+    expect(result?.targetFormattingRegions).toHaveLength(6);
+  });
+});

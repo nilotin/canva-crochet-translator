@@ -67,7 +67,10 @@ export const validateTranslation = (
   source: string,
   translated: string | undefined,
   targetLanguage: TargetLanguage,
-  options: { notationCaseInsensitive?: boolean } = {},
+  options: {
+    notationCaseInsensitive?: boolean;
+    contentKind?: "pattern" | "materials";
+  } = {},
 ): BlockValidation => {
   const errors: ValidationDiagnostic<ValidationCode>[] = [];
   const warnings: ValidationDiagnostic<WarningCode>[] = [];
@@ -98,6 +101,33 @@ export const validateTranslation = (
         `Numeric values changed: expected [${sourceNumbers.join(", ")}], received [${translatedNumbers.join(", ")}].`,
       ),
     );
+  }
+
+  if (options.contentKind === "materials") {
+    const sourceLength = source.trim().length;
+    const translatedLength = translated.trim().length;
+
+    if (sourceLength >= 20 && translatedLength < sourceLength * 0.35) {
+      warnings.push(
+        warning(
+          "SUSPICIOUSLY_SHORT_TRANSLATION",
+          "The translation is unusually short compared with the source.",
+        ),
+      );
+    }
+
+    if (sourceLength > 0 && translatedLength > sourceLength * 3) {
+      warnings.push(
+        warning(
+          "UNUSUALLY_LARGE_EXPANSION",
+          "The translation is unusually long compared with the source.",
+        ),
+      );
+    }
+
+    warnings.push(...validateTargetLanguageFluency(translated, targetLanguage));
+
+    return { valid: errors.length === 0, errors, warnings };
   }
 
   const repetitionPattern = /\bx\s+\d+\b/giu;

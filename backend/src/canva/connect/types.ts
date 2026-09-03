@@ -22,6 +22,7 @@ export interface CanvaDesignCopier {
   ): Promise<CanvaCopyResult>;
 
   getDesign?(designId: string, userId: string): Promise<CanvaCopyResult>;
+
 }
 
 export type CopyOperationResult = CanvaCopyResult & {

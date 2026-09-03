@@ -1,13 +1,20 @@
 import {
   buildStaticTemplateTranslationResponse,
+  recognizePage2Hybrid,
+  ABBREVIATIONS_HEADING,
+  ABBREVIATIONS_HEADING_TR,
   CLOSING,
   CLOSING_TR,
+  EXPLANATIONS_HEADING,
+  EXPLANATIONS_HEADING_TR,
   FRONT_NOTICE,
   FRONT_NOTICE_TR,
   GLOSSARY,
   GLOSSARY_TR,
   INSTRUCTIONS,
   INSTRUCTIONS_TR,
+  MATERIALS_HEADING,
+  MATERIALS_HEADING_TR,
   SELENE_CLOSING,
   SELENE_CLOSING_TR,
 } from "../static_template_translation";
@@ -36,6 +43,11 @@ const translationBlocksFor = (p: Page): CanvaTranslationBlock[] =>
 
 const byId = (translations: ReturnType<typeof buildStaticTemplateTranslationResponse>, id: string) =>
   translations?.translations.find((t) => t.id === id);
+
+const deterministicById = (
+  skeleton: ReturnType<typeof recognizePage2Hybrid>,
+  id: string,
+) => skeleton?.deterministicTranslations.find((t) => t.id === id);
 
 // Buzu's live document happens to be 9 pages; used as the default
 // document size for fixtures that don't care about exercising a
@@ -164,7 +176,7 @@ describe("buildStaticTemplateTranslationResponse: Page 1 (front cover)", () => {
   });
 });
 
-describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructions / glossary)", () => {
+describe("recognizePage2Hybrid: plain 3/4-block Page 2 (materials / instructions / glossary)", () => {
   const MATERIALS_TR =
     "✦ 1 Catania 162 Dark Brown\n✦ 1 Catania 105 Ecru\n✦ 1 Puppets Eldorado C.075";
 
@@ -195,75 +207,88 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
     materialsText = MATERIALS_TR,
     instructionsText = INSTRUCTIONS_TR,
     glossaryText = GLOSSARY_TR,
+    includeDot = true,
   ) =>
-    page([
-      block("materials", materialsText, 0, [
-        { index: 0, length: materialsText.length, text: materialsText, formatting: { fontWeight: "bold" } },
-      ]),
-      block("instructions", instructionsText, 1),
-      block("decorative", ".", 2),
-      block("glossary", glossaryText, 3, glossaryFormattingRegions()),
-    ]);
+    page(
+      [
+        block("materials", materialsText, 0, [
+          { index: 0, length: materialsText.length, text: materialsText, formatting: { fontWeight: "bold" } },
+        ]),
+        block("instructions", instructionsText, 1),
+        ...(includeDot ? [block("decorative", ".", 2)] : []),
+        block("glossary", glossaryText, includeDot ? 3 : 2, glossaryFormattingRegions()),
+      ],
+      1,
+    );
 
-  it("leaves the materials block completely untouched, byte-for-byte", () => {
+  it("identifies the materials block as the single block needing LLM translation (4-block, with dot)", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "materials")?.translated).toBe(MATERIALS_TR);
-    expect(byId(result, "materials")?.source).toBe(MATERIALS_TR);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
   });
 
-  it("keeps the materials block's formatting mapping identity/safe (no shifted or invented ranges)", () => {
-    const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    const regions = byId(result, "materials")?.targetFormattingRegions;
-    expect(regions).toEqual([{ id: "fmt-0", start: 0, end: MATERIALS_TR.length }]);
+  it("identifies the materials block as the single block needing LLM translation (3-block, no dot)", () => {
+    const p = buildPage2(MATERIALS_TR, INSTRUCTIONS_TR, GLOSSARY_TR, false);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
   });
 
-  it("produces the exact approved English instructions", () => {
+  it("never includes the materials block in deterministicTranslations", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "materials")).toBeUndefined();
   });
 
-  it("produces the exact approved Spanish instructions", () => {
+  it("produces the exact approved English instructions deterministically", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
-    expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.es);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
   });
 
-  it("produces the exact approved English glossary", () => {
+  it("produces the exact approved Spanish instructions deterministically", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.en);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "es");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.es);
   });
 
-  it("produces the exact approved Spanish glossary", () => {
+  it("produces the exact approved English glossary deterministically", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
-    expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.es);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
   });
 
-  it("leaves the decorative '.' block unchanged", () => {
+  it("produces the exact approved Spanish glossary deterministically", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "decorative")?.translated).toBe(".");
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "es");
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.es);
   });
 
-  it("never produces the normal-pipeline notation-mismatch/manual-review warnings or errors", () => {
+  it("leaves the decorative '.' block unchanged when present", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    for (const t of result!.translations) {
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "decorative")?.translated).toBe(".");
+  });
+
+  it("omits any decorative-block entry when the '.' block is absent", () => {
+    const p = buildPage2(MATERIALS_TR, INSTRUCTIONS_TR, GLOSSARY_TR, false);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.deterministicTranslations.length).toBe(2);
+  });
+
+  it("never produces the normal-pipeline notation-mismatch/manual-review warnings or errors on deterministic entries", () => {
+    const p = buildPage2();
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    for (const t of result!.deterministicTranslations) {
       expect(t.errors).toEqual([]);
       expect(t.warnings).toEqual([]);
       expect(t.valid).toBe(true);
     }
   });
 
-  it("produces only valid, non-overlapping, in-bounds target formatting ranges for every block", () => {
+  it("produces only valid, non-overlapping, in-bounds target formatting ranges for the glossary block", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    assertNoOverlapsOrOOB(byId(result, "materials")?.targetFormattingRegions, MATERIALS_TR.length);
-    assertNoOverlapsOrOOB(byId(result, "glossary")?.targetFormattingRegions, GLOSSARY.en.length);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    assertNoOverlapsOrOOB(deterministicById(result, "glossary")?.targetFormattingRegions, GLOSSARY.en.length);
   });
 
   it("still matches when instructions/glossary have different internal line-wrap placement", () => {
@@ -272,51 +297,220 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
       "kullanabilirsiniz.\n  ",
     ).trim();
     const p = buildPage2(MATERIALS_TR, noisyInstructions, GLOSSARY_TR);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
   });
 
-  it("still matches materials-independent of the materials content (pattern-specific)", () => {
+  it("identifies the materials block regardless of its content (pattern-specific)", () => {
     const differentMaterials = "✦ Some completely different pattern's yarn list";
     const p = buildPage2(differentMaterials);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
-    expect(byId(result, "materials")?.translated).toBe(differentMaterials);
-    expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
-    expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.en);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
   });
 
-
-  it("supports the real Canva 3-block Page 2 inventory", () => {
-    const p = page([
-      block("materials", MATERIALS_TR, 0, [
-        {
-          index: 0,
-          length: MATERIALS_TR.length,
-          text: MATERIALS_TR,
-          formatting: { fontWeight: "bold" },
-        },
-      ]),
-      block("instructions", INSTRUCTIONS_TR, 1),
-      block("glossary", GLOSSARY_TR, 2, glossaryFormattingRegions()),
-    ], 1);
-
-    const result = buildStaticTemplateTranslationResponse(
-      p,
-      translationBlocksFor(p),
-      "en",
-      docContext(),
+  it("supports the real Canva 3-block Page 2 inventory (Buzu-style)", () => {
+    const p = page(
+      [
+        block("materials", MATERIALS_TR, 0, [
+          {
+            index: 0,
+            length: MATERIALS_TR.length,
+            text: MATERIALS_TR,
+            formatting: { fontWeight: "bold" },
+          },
+        ]),
+        block("instructions", INSTRUCTIONS_TR, 1),
+        block("glossary", GLOSSARY_TR, 2, glossaryFormattingRegions()),
+      ],
+      1,
     );
 
-    expect(result).toBeDefined();
-    expect(byId(result, "materials")?.translated).toBe(MATERIALS_TR);
-    expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
-    expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.en);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
 
-    for (const translation of result?.translations ?? []) {
+    expect(result).toBeDefined();
+    expect(result?.materialsBlockId).toBe("materials");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
+
+    for (const translation of result?.deterministicTranslations ?? []) {
       expect(translation.errors).toEqual([]);
       expect(translation.warnings).toEqual([]);
       expect(translation.valid).toBe(true);
     }
+  });
+
+  it("does not recognize a page with the wrong block count", () => {
+    const p = page(
+      [
+        block("materials", MATERIALS_TR, 0),
+        block("instructions", INSTRUCTIONS_TR, 1),
+      ],
+      1,
+    );
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
+  });
+
+  it("does not recognize a page whose instructions/glossary text doesn't match the known templates", () => {
+    const p = buildPage2(MATERIALS_TR, "Some unrelated Turkish paragraph.", GLOSSARY_TR);
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
+  });
+});
+
+describe("recognizePage2Hybrid: headings-shape Page 2 (Malzemeler / Açıklamalar / Terimler as separate blocks)", () => {
+  const MATERIALS_TR =
+    "✦ 1 Catania 162 Dark Brown\n✦ 1 Catania 105 Ecru\n✦ 1 Puppets Eldorado C.075";
+
+  const buildHeadingsPage2 = (
+    materialsText = MATERIALS_TR,
+    includeDot = true,
+  ) =>
+    page(
+      [
+        block("materials-heading", MATERIALS_HEADING_TR, 0),
+        block("materials", materialsText, 1),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 2),
+        block("instructions", INSTRUCTIONS_TR, 3),
+        block("abbreviations-heading", ABBREVIATIONS_HEADING_TR, 4),
+        ...(includeDot ? [block("decorative", ".", 5)] : []),
+        block("glossary", GLOSSARY_TR, includeDot ? 6 : 5),
+      ],
+      1,
+    );
+
+  it("identifies the materials body as the single block needing LLM translation (6-block, no dot)", () => {
+    const p = buildHeadingsPage2(MATERIALS_TR, false);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
+  });
+
+  it("identifies the materials body as the single block needing LLM translation (7-block, with dot)", () => {
+    const p = buildHeadingsPage2(MATERIALS_TR, true);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
+  });
+
+  it("translates all three headings deterministically to English", () => {
+    const p = buildHeadingsPage2();
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "materials-heading")?.translated).toBe(MATERIALS_HEADING.en);
+    expect(deterministicById(result, "explanations-heading")?.translated).toBe(EXPLANATIONS_HEADING.en);
+    expect(deterministicById(result, "abbreviations-heading")?.translated).toBe(ABBREVIATIONS_HEADING.en);
+  });
+
+  it("translates all three headings deterministically to Spanish", () => {
+    const p = buildHeadingsPage2();
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "es");
+    expect(deterministicById(result, "materials-heading")?.translated).toBe(MATERIALS_HEADING.es);
+    expect(deterministicById(result, "explanations-heading")?.translated).toBe(EXPLANATIONS_HEADING.es);
+    expect(deterministicById(result, "abbreviations-heading")?.translated).toBe(ABBREVIATIONS_HEADING.es);
+  });
+
+  it("still produces the approved instructions/glossary bodies deterministically", () => {
+    const p = buildHeadingsPage2();
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
+  });
+
+  it("leaves the decorative '.' block unchanged when present, and omits it when absent", () => {
+    const withDot = buildHeadingsPage2(MATERIALS_TR, true);
+    const resultWithDot = recognizePage2Hybrid(withDot, translationBlocksFor(withDot), "en");
+    expect(deterministicById(resultWithDot, "decorative")?.translated).toBe(".");
+
+    const withoutDot = buildHeadingsPage2(MATERIALS_TR, false);
+    const resultWithoutDot = recognizePage2Hybrid(withoutDot, translationBlocksFor(withoutDot), "en");
+    expect(resultWithoutDot?.deterministicTranslations.some((t) => t.id === "decorative")).toBe(false);
+  });
+
+  it("never includes the materials body in deterministicTranslations", () => {
+    const p = buildHeadingsPage2();
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(deterministicById(result, "materials")).toBeUndefined();
+  });
+
+  it("identifies the materials body regardless of its content (pattern-specific)", () => {
+    const differentMaterials = "✦ Some completely different pattern's yarn list";
+    const p = buildHeadingsPage2(differentMaterials);
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
+  });
+
+  it("does not depend on block ordering -- headings/bodies may appear in any order", () => {
+    const p = page(
+      [
+        block("glossary", GLOSSARY_TR, 0),
+        block("materials-heading", MATERIALS_HEADING_TR, 1),
+        block("abbreviations-heading", ABBREVIATIONS_HEADING_TR, 2),
+        block("materials", MATERIALS_TR, 3),
+        block("instructions", INSTRUCTIONS_TR, 4),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 5),
+      ],
+      1,
+    );
+    const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
+    expect(result?.materialsBlockId).toBe("materials");
+    expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
+  });
+
+  it("fails closed (returns undefined) when a required heading is missing", () => {
+    const p = page(
+      [
+        block("materials", MATERIALS_TR, 0),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 1),
+        block("instructions", INSTRUCTIONS_TR, 2),
+        block("abbreviations-heading", ABBREVIATIONS_HEADING_TR, 3),
+        block("glossary", GLOSSARY_TR, 4),
+      ],
+      1,
+    );
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
+  });
+
+  it("fails closed (returns undefined) when a heading is duplicated", () => {
+    const p = page(
+      [
+        block("materials-heading", MATERIALS_HEADING_TR, 0),
+        block("materials-heading-2", MATERIALS_HEADING_TR, 1),
+        block("materials", MATERIALS_TR, 2),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 3),
+        block("instructions", INSTRUCTIONS_TR, 4),
+        block("abbreviations-heading", ABBREVIATIONS_HEADING_TR, 5),
+        block("glossary", GLOSSARY_TR, 6),
+      ],
+      1,
+    );
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
+  });
+
+  it("fails closed (returns undefined) when there is more than one unmatched block (ambiguous materials body)", () => {
+    const p = page(
+      [
+        block("materials-heading", MATERIALS_HEADING_TR, 0),
+        block("materials", MATERIALS_TR, 1),
+        block("mystery", "Some other unrecognized paragraph.", 2),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 3),
+        block("instructions", INSTRUCTIONS_TR, 4),
+        block("abbreviations-heading", ABBREVIATIONS_HEADING_TR, 5),
+        block("glossary", GLOSSARY_TR, 6),
+      ],
+      1,
+    );
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
+  });
+
+  it("does not recognize a page with the wrong block count", () => {
+    const p = page(
+      [
+        block("materials-heading", MATERIALS_HEADING_TR, 0),
+        block("materials", MATERIALS_TR, 1),
+        block("explanations-heading", EXPLANATIONS_HEADING_TR, 2),
+        block("instructions", INSTRUCTIONS_TR, 3),
+      ],
+      1,
+    );
+    expect(recognizePage2Hybrid(p, translationBlocksFor(p), "en")).toBeUndefined();
   });
 });
 
@@ -765,12 +959,13 @@ describe("realistic Canva-style granular glossary formatting regression", () => 
       order: block.order,
     }));
 
-    const result = buildStaticTemplateTranslationResponse(page, blocks, "en", docContext());
-    const glossary = result?.translations.find(
+    const hybrid = recognizePage2Hybrid(page, blocks, "en");
+
+    const glossary = hybrid?.deterministicTranslations.find(
       (translation) => translation.id === "glossary",
     );
 
-    expect(result).toBeDefined();
+    expect(hybrid).toBeDefined();
     expect(glossary?.translated).toBe(GLOSSARY.en);
     expect(glossary?.errors).toEqual([]);
     expect(glossary?.warnings).toEqual([]);
@@ -796,5 +991,70 @@ describe("realistic Canva-style granular glossary formatting regression", () => 
         sorted[index - 1]!.end,
       );
     }
+  });
+});
+
+describe("recognizePage2Hybrid: real Canva Turkish-I heading variant", () => {
+  it("recognizes ASCII-I TERIMLER as the canonical Terimler heading", () => {
+    const p = page(
+      [
+        block("materials", "✦ 2 adet Catania TR263\nTen rengi", 0),
+        block("instructions", INSTRUCTIONS_TR, 1),
+        block("glossary", GLOSSARY_TR, 2),
+        block("materials-heading", "MALZEMELER", 3),
+        block("abbreviations-heading", "TERIMLER", 4),
+        block("explanations-heading", "AÇIKLAMALAR", 5),
+      ],
+      1,
+    );
+
+    const result = recognizePage2Hybrid(
+      p,
+      translationBlocksFor(p),
+      "en",
+    );
+
+    expect(result).toBeDefined();
+    expect(result?.materialsBlockId).toBe("materials");
+
+    expect(
+      deterministicById(result, "materials-heading")?.translated,
+    ).toBe("Materials");
+
+    expect(
+      deterministicById(result, "abbreviations-heading")?.translated,
+    ).toBe("Abbreviations");
+
+    expect(
+      deterministicById(result, "explanations-heading")?.translated,
+    ).toBe("Explanations");
+
+    expect(
+      deterministicById(result, "instructions")?.translated,
+    ).toBe(INSTRUCTIONS.en);
+
+    expect(
+      deterministicById(result, "glossary")?.translated,
+    ).toBe(GLOSSARY.en);
+  });
+});
+
+describe("static Turkish-I normalization safety", () => {
+  it("does not turn genuinely different heading words into Terimler", () => {
+    const p = page(
+      [
+        block("materials", "✦ Some materials", 0),
+        block("instructions", INSTRUCTIONS_TR, 1),
+        block("glossary", GLOSSARY_TR, 2),
+        block("materials-heading", "MALZEMELER", 3),
+        block("abbreviations-heading", "TARIMLER", 4),
+        block("explanations-heading", "AÇIKLAMALAR", 5),
+      ],
+      1,
+    );
+
+    expect(
+      recognizePage2Hybrid(p, translationBlocksFor(p), "en"),
+    ).toBeUndefined();
   });
 });

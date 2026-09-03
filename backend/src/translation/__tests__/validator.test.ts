@@ -552,3 +552,35 @@ describe("validateReturnedBlockIds", () => {
     );
   });
 });
+
+describe("validateTranslation materials profile", () => {
+  it("allows natural-language changes inside materials parentheses without pattern-specific diagnostics", () => {
+    const result = validateTranslation(
+      "2.5mm Elektrik Teli (kol, gövde)",
+      "2.5mm Electrical Wire (arm, body)",
+      "en",
+      { contentKind: "materials" },
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+    expect(errorCodes(result)).not.toContain("LOST_PATTERN_NOTATION");
+    expect(result.warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "MANUAL_REVIEW_RECOMMENDED" }),
+      ]),
+    );
+  });
+
+  it("still rejects changed numeric values in materials", () => {
+    const result = validateTranslation(
+      "2.5mm Elektrik Teli, 55cm",
+      "3mm Electrical Wire, 60cm",
+      "en",
+      { contentKind: "materials" },
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+});

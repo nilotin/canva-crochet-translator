@@ -48,4 +48,5 @@ export class CanvaConnectDesigns implements CanvaDesignCopier {
       editUrl: parsed.data.design.urls.edit_url,
     };
   }
+
 }

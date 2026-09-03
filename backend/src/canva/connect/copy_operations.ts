@@ -11,6 +11,50 @@ import {
   type PersistedCopyOperation,
 } from "./copy_operation_store.js";
 
+// Feature: automatic target-copy naming.
+//
+// Recognizes a TRAILING language label ("Turkish" / "English" /
+// "Spanish", as a whole final word, case-insensitive) on the SOURCE
+// title and replaces it with the target language's label -- e.g.
+// "Selene Doll Turkish" -> "Selene Doll English". Only a trailing
+// label is touched; the same word appearing earlier in the title
+// ("Turkish Delight - My Pattern") is left alone. If there is no
+// recognized trailing label, the target label is safely appended
+// instead ("My Pattern" -> "My Pattern English"). Repeated while there
+// is still a trailing label to strip, so a title that already stacked
+// multiple labels (from an earlier bug, or a manually-renamed source)
+// converges on exactly one trailing label rather than accumulating
+// duplicates.
+//
+// This NEVER touches the source design -- it only computes the string
+// used to (best-effort) rename the newly-created COPY. See
+// CanvaCopyOperations.run below for where that rename is applied.
+const RECOGNIZED_LANGUAGE_LABELS = ["Turkish", "English", "Spanish"] as const;
+
+const TARGET_LANGUAGE_LABEL: Record<CopyTargetLanguage, string> = {
+  en: "English",
+  es: "Spanish",
+};
+
+const trailingLanguageLabelPattern = new RegExp(
+  `\\s+(?:${RECOGNIZED_LANGUAGE_LABELS.join("|")})$`,
+  "iu",
+);
+
+export const deriveTargetDesignTitle = (
+  sourceTitle: string,
+  language: CopyTargetLanguage,
+): string => {
+  const trimmed = sourceTitle.trim();
+  let base = trimmed.length > 0 ? trimmed : "Untitled design";
+
+  while (trailingLanguageLabelPattern.test(base)) {
+    base = base.replace(trailingLanguageLabelPattern, "").trimEnd();
+  }
+
+  return `${base} ${TARGET_LANGUAGE_LABEL[language]}`;
+};
+
 export class CanvaCopyOperations {
   private readonly pending = new Map<
     string,
@@ -115,21 +159,27 @@ export class CanvaCopyOperations {
       input.designId,
       input.userId,
     );
-    const suffix = input.language === "en" ? "EN" : "ES";
+    const desiredTitle = deriveTargetDesignTitle(
+      input.sourceTitle ?? "",
+      input.language,
+    );
+
     return {
       ...copy,
       language: input.language,
-      desiredTitle: `${input.sourceTitle?.trim() || "Untitled design"} - ${suffix}`,
+      desiredTitle,
     };
   }
 
   private toResult(operation: PersistedCopyOperation) {
-    const suffix = operation.targetLanguage === "en" ? "EN" : "ES";
     return {
       copiedDesignId: operation.copiedDesignId,
       editUrl: operation.editUrl,
       language: operation.targetLanguage,
-      desiredTitle: `${operation.sourceTitle} - ${suffix}`,
+      desiredTitle: deriveTargetDesignTitle(
+        operation.sourceTitle,
+        operation.targetLanguage,
+      ),
     };
   }
 }

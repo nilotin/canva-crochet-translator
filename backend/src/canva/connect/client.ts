@@ -67,4 +67,5 @@ export class CanvaConnectClient {
             : "CANVA_UNAVAILABLE";
     throw new CanvaConnectApiError(code, response.status);
   }
+
 }

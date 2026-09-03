@@ -39,7 +39,12 @@ import {
   projectFormattingRegionsFromPieces,
 } from "./formatting_projection.js";
 
-type TranslatorOptions = { provider?: TranslationProvider };
+type TranslationContentKind = "pattern" | "materials";
+
+type TranslatorOptions = {
+  provider?: TranslationProvider;
+  contentKind?: TranslationContentKind;
+};
 
 const annotateSegment = <TCode extends string>(
   segmentIndex: number,
@@ -67,11 +72,19 @@ const translateSegment = async (
   segmentIndex: number,
   targetLanguage: TargetLanguage,
   provider: TranslationProvider,
+  contentKind: TranslationContentKind = "pattern",
 ) => {
-  const instruction = extractLeadingInstruction(block.text);
+  const instruction =
+    contentKind === "pattern"
+      ? extractLeadingInstruction(block.text)
+      : undefined;
   const sourceBody = instruction?.body ?? block.text;
   const normalized = normalizeSourceNaturalLanguage(sourceBody, targetLanguage);
-  const protectedSource = protectImmutablePattern(normalized, 0);
+  const protectedSource = protectImmutablePattern(
+    normalized,
+    0,
+    contentKind,
+  );
   const protectedBlock = { ...block, text: protectedSource.text };
   const patternOnly = isPatternOnlyProtectedText(protectedSource);
   const mixed = lexMixedSegment(normalized, targetLanguage, block.id);
@@ -81,7 +94,7 @@ const translateSegment = async (
     | undefined;
   let structuralErrors: ValidationDiagnostic<ValidationCode>[];
 
-  if (mixed.classification === "mixed") {
+  if (contentKind === "pattern" && mixed.classification === "mixed") {
     if (!mixed.valid) {
       structuralErrors = mixed.errors.map((message) => ({
         code: "INTERNAL_MIXED_LEXER_ERROR" as const,
@@ -223,6 +236,7 @@ const translateSegment = async (
   }
   const validation = validateTranslation(block.text, restored, targetLanguage, {
     notationCaseInsensitive: true,
+    contentKind,
   });
   const errors = annotateSegment(segmentIndex, [
     ...structuralErrors,
@@ -247,6 +261,7 @@ const translateFormattingUnits = async (
   block: TranslationBlock,
   targetLanguage: TargetLanguage,
   provider: TranslationProvider,
+  contentKind: TranslationContentKind = "pattern",
 ): Promise<TranslationResult | undefined> => {
   const units = buildFormattingTranslationUnits(block);
 
@@ -283,6 +298,28 @@ const translateFormattingUnits = async (
       unit.text.length - trailingWhitespace.length,
     );
 
+    // Canva frequently stores decorative bullets/separators such as "✦"
+    // in their own formatting region. In materials mode these contain no
+    // translatable language and must never consume a provider call.
+    if (
+      contentKind === "materials" &&
+      !/[\p{L}\p{N}]/u.test(coreText)
+    ) {
+      const translatedUnit =
+        leadingWhitespace + coreText + trailingWhitespace;
+
+      translatedUnits.push(translatedUnit);
+
+      targetFormattingRegions.push({
+        id: unit.id,
+        start: targetCursor,
+        end: targetCursor + translatedUnit.length,
+      });
+
+      targetCursor += translatedUnit.length;
+      continue;
+    }
+
     const segments = segmentTranslationBlock(coreText);
     const translatedSegments: string[] = [];
 
@@ -306,6 +343,7 @@ const translateFormattingUnits = async (
         segment.index,
         targetLanguage,
         provider,
+        contentKind,
       );
 
       translatedSegments.push(result.translated);
@@ -335,7 +373,10 @@ const translateFormattingUnits = async (
     block.text,
     translated,
     targetLanguage,
-    { notationCaseInsensitive: true },
+    {
+        notationCaseInsensitive: true,
+        contentKind,
+      },
   );
 
   const errors = uniqueDiagnostics([...unitErrors, ...fullValidation.errors]);
@@ -362,6 +403,7 @@ export const translateBlocks = async (
   options: TranslatorOptions = {},
 ): Promise<TranslationResult[]> => {
   const provider = options.provider ?? createTranslationProvider();
+  const contentKind = options.contentKind ?? "pattern";
   const results: TranslationResult[] = [];
 
   for (const block of blocks) {
@@ -369,6 +411,7 @@ export const translateBlocks = async (
       block,
       targetLanguage,
       provider,
+      contentKind,
     );
 
     if (formattedResult) {
@@ -404,6 +447,7 @@ export const translateBlocks = async (
         segment.index,
         targetLanguage,
         provider,
+        contentKind,
       );
       translatedSegments.push(result.translated);
       segmentErrors.push(...result.errors);
@@ -419,7 +463,10 @@ export const translateBlocks = async (
       block.text,
       translated,
       targetLanguage,
-      { notationCaseInsensitive: true },
+      {
+        notationCaseInsensitive: true,
+        contentKind,
+      },
     );
     const errors = uniqueDiagnostics([
       ...segmentErrors,

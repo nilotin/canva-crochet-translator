@@ -31,6 +31,27 @@ export const GLOSSARY = {
   es: "✦ cad: cadena\n✦ am: anillo mágico\n✦ pb: punto bajo\n✦ *: número de repeticiones\n✦ aum: aumento\n✦ dism: disminución\n✦ W: 3 puntos bajos en el mismo punto\n✦ mpa: medio punto alto\n✦ aum-mpa: aumento de medio punto alto\n✦ pa: punto alto\n✦ aum-pa: aumento de punto alto\n✦ dism-pa: disminución de punto alto\n✦ pd: punto deslizado\n✦ Flo: tejer por la hebra delantera\n✦ Blo: tejer por la hebra trasera\n✦ M: disminuir 3 puntos juntos\n✦ pa-tri: punto alto triple\n✦ aum-pa-tri: 2 puntos altos triples en el mismo punto\n✦ pa-ex: punto alto extendido\n✦ W-pa-ex: 3 pa-ex en el mismo punto\n✦ aum-pa-ex: aumento de punto alto extendido",
 } as const;
 
+// Page 2's three heading labels. Unlike INSTRUCTIONS_TR/GLOSSARY_TR
+// (long, specific bullet-list bodies), these are short single/double
+// words -- still matched with the SAME conservative normalizeForStaticMatch
+// used everywhere else in this module (never a loose/partial/regex
+// match), so a real Page 2 heading is recognized reliably while an
+// unrelated short block is not accidentally swept in.
+export const MATERIALS_HEADING_TR = "Malzemeler";
+export const MATERIALS_HEADING = { en: "Materials", es: "Materiales" } as const;
+
+export const EXPLANATIONS_HEADING_TR = "Açıklamalar";
+export const EXPLANATIONS_HEADING = {
+  en: "Explanations",
+  es: "Explicaciones",
+} as const;
+
+export const ABBREVIATIONS_HEADING_TR = "Terimler";
+export const ABBREVIATIONS_HEADING = {
+  en: "Abbreviations",
+  es: "Abreviaturas",
+} as const;
+
 export const CLOSING_TR = [
   "TEBRIKLER!!",
   "Ördüklerinizi görmek için sabırsızlanıyorum.\nİnstagramda Buzu paylaşımlarınızı bekliyor olacağım.\nPaylaşımlarınızda beni de etiketlerseniz ördüğünüz güzel Buzu’ları görmekten mutluluk duyarım. \nBir sonraki tasarımda görüşmek üzere.\nSevgiyle ve Hoşça kalın!!",
@@ -146,16 +167,13 @@ const normalizeForStaticMatch = (text: string): string =>
     .replace(/[‘’‛]/gu, "'")
     .replace(/[“”‟]/gu, '"')
     .replace(/[–—]/gu, "-")
-    // Turkish source text is sometimes typed with the correct capital
-    // dotted İ and sometimes with a plain ASCII "I" standing in for it,
-    // depending on the author's keyboard/input method. toLocaleLowerCase("tr")
-    // treats these as genuinely different letters (İ -> i, ASCII I -> ı),
-    // so without this fold an otherwise-identical universal template string
-    // (e.g. "TEBRIKLER!!" vs "TEBRİKLER!!") would be treated as a real
-    // content difference. Folding İ to ASCII "I" before lowercasing makes
-    // matching robust to this specific, well-known authoring inconsistency,
-    // regardless of which form a given pattern's real Canva source used.
-    .replace(/İ/gu, "I")
+    // Canva source text is not consistent about Turkish dotted/dotless I.
+    // For deterministic TEMPLATE RECOGNITION ONLY, fold all four variants
+    // to the same form. This never changes source or translated output.
+    // Examples that must match:
+    //   TERIMLER <-> Terimler
+    //   TEBRIKLER <-> TEBRİKLER
+    .replace(/[Iİı]/gu, "i")
     .replace(/\s+/gu, " ")
     .trim()
     .toLocaleLowerCase("tr");
@@ -383,76 +401,11 @@ export const buildStaticTemplateTranslationResponse = (
     };
   }
 
-  // Page 2:
-  // materials are pattern-specific and intentionally untouched.
-  // instructions + glossary are universal and deterministic.
-  //
-  // Canva may expose this page as either:
-  //   3 blocks: materials, instructions, glossary
-  //   4 blocks: materials, instructions, decorative ".", glossary
-  //
-  // The decorative dot is not semantically relevant and is not always
-  // present in the text inventory, so support both representations.
-  const page2HasThreeBlocks =
-    orderedPageBlocks.length === 3 &&
-    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
-    sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", GLOSSARY_TR);
-
-  const page2HasFourBlocks =
-    orderedPageBlocks.length === 4 &&
-    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
-    sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", ".") &&
-    sameTemplateText(orderedPageBlocks[3]?.sourceText ?? "", GLOSSARY_TR);
-
-  if (page2HasThreeBlocks || page2HasFourBlocks) {
-    const materialsResult = translationResult(
-      orderedBlocks[0]!,
-      orderedPageBlocks[0]!,
-      orderedPageBlocks[0]!.sourceText,
-      "keep",
-    );
-
-    const instructionsResult = translationResult(
-      orderedBlocks[1]!,
-      orderedPageBlocks[1]!,
-      INSTRUCTIONS[language],
-      "replace",
-    );
-
-    if (page2HasThreeBlocks) {
-      return {
-        translations: [
-          materialsResult,
-          instructionsResult,
-          translationResult(
-            orderedBlocks[2]!,
-            orderedPageBlocks[2]!,
-            GLOSSARY[language],
-            "replace",
-          ),
-        ],
-      };
-    }
-
-    return {
-      translations: [
-        materialsResult,
-        instructionsResult,
-        translationResult(
-          orderedBlocks[2]!,
-          orderedPageBlocks[2]!,
-          ".",
-          "keep",
-        ),
-        translationResult(
-          orderedBlocks[3]!,
-          orderedPageBlocks[3]!,
-          GLOSSARY[language],
-          "replace",
-        ),
-      ],
-    };
-  }
+  // Page 2 recognition/translation now lives in recognizePage2Hybrid
+  // below (materials BODY is no longer static -- see Feature 3: it must
+  // go through the LLM, which this pure/synchronous function cannot do).
+  // bulk_translation.ts tries recognizePage2Hybrid separately, before
+  // falling back to this function.
 
   // Closing page (the FINAL page of the document -- for the current Buzu
   // test pattern that happens to be Page 9, but this must not depend on
@@ -502,5 +455,281 @@ export const buildStaticTemplateTranslationResponse = (
   }
 
   // Unknown/changed template: do not guess.
+  return undefined;
+};
+
+// ---------------------------------------------------------------------
+// Page 2: HYBRID translation (Feature 3).
+//
+// Page 2's materials body is pattern-specific ordinary natural-language
+// content (yarn brands/codes, colors, hook sizes, measurements, crochet
+// notation) -- it is NOT one of the fixed/universal template blocks, so
+// unlike the rest of this module it genuinely needs real translation,
+// not a pinned constant. That means it cannot be resolved by this pure,
+// synchronous module alone (there is no LLM call here) -- instead this
+// module only RECOGNIZES the page and returns:
+//   - which block is the materials body (to be sent to the existing
+//     /api/translate pipeline, and ONLY that one block -- see
+//     bulk_translation.ts, the sole caller);
+//   - the fully-resolved deterministic translations for every OTHER
+//     block on the page (headings, explanations/instructions body,
+//     abbreviations/glossary body, decorative "." if present).
+// The caller merges the LLM's single-block result for the materials
+// body into this deterministic skeleton to form the complete
+// TranslationResponse for the page.
+//
+// Two known Page 2 shapes are recognized, exactly as before:
+//   (a) the plain shape (no separate heading blocks) -- Canva may
+//       expose this as 3 blocks (materials, instructions, glossary) or
+//       4 blocks (materials, instructions, ".", glossary). This is the
+//       ALREADY-LIVE-TESTED shape for Buzu and Selene Doll.
+//   (b) a shape with three additional heading blocks (Malzemeler /
+//       Açıklamalar / Terimler) -- 6 blocks without the decorative dot,
+//       7 with it. This shape has not yet been confirmed against a live
+//       Canva document, so it is recognized purely by CONTENT (every
+//       block except the materials body and the optional "." must
+//       exact-match one specific known heading/body text), never by a
+//       fixed block order/position -- see classifyPage2HeadingsShape
+//       below. If a live document turns out to order these blocks
+//       differently than expected, content-based recognition still
+//       works; only a genuinely different or missing heading fails to
+//       recognize (falls through to normal review, never guesses).
+// ---------------------------------------------------------------------
+
+type Page2PlainShape = {
+  materialsIndex: number;
+  instructionsIndex: number;
+  glossaryIndex: number;
+  dotIndex?: number;
+};
+
+const classifyPage2PlainShape = (
+  orderedPageBlocks: Page["blocks"],
+): Page2PlainShape | undefined => {
+  if (
+    orderedPageBlocks.length === 3 &&
+    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
+    sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", GLOSSARY_TR)
+  ) {
+    return { materialsIndex: 0, instructionsIndex: 1, glossaryIndex: 2 };
+  }
+
+  if (
+    orderedPageBlocks.length === 4 &&
+    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
+    sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", ".") &&
+    sameTemplateText(orderedPageBlocks[3]?.sourceText ?? "", GLOSSARY_TR)
+  ) {
+    return {
+      materialsIndex: 0,
+      instructionsIndex: 1,
+      dotIndex: 2,
+      glossaryIndex: 3,
+    };
+  }
+
+  return undefined;
+};
+
+type Page2HeadingsShape = {
+  materialsHeadingIndex: number;
+  materialsBodyIndex: number;
+  explanationsHeadingIndex: number;
+  explanationsBodyIndex: number;
+  abbreviationsHeadingIndex: number;
+  abbreviationsBodyIndex: number;
+  dotIndex?: number;
+};
+
+// Content-driven, NOT position-driven: every block except the one
+// pattern-specific materials body (and the optional decorative ".")
+// must exact-match one specific known atom. Never a loose/partial
+// match, and never more than one block claiming the same role -- either
+// of those makes recognition fail closed (return undefined), which
+// falls through to normal review rather than guessing.
+const classifyPage2HeadingsShape = (
+  orderedPageBlocks: Page["blocks"],
+): Page2HeadingsShape | undefined => {
+  if (orderedPageBlocks.length !== 6 && orderedPageBlocks.length !== 7) {
+    return undefined;
+  }
+
+  let materialsHeadingIndex: number | undefined;
+  let explanationsHeadingIndex: number | undefined;
+  let abbreviationsHeadingIndex: number | undefined;
+  let explanationsBodyIndex: number | undefined;
+  let abbreviationsBodyIndex: number | undefined;
+  let dotIndex: number | undefined;
+  const unmatched: number[] = [];
+
+  orderedPageBlocks.forEach((block, index) => {
+    const text = block.sourceText;
+
+    if (sameTemplateText(text, MATERIALS_HEADING_TR)) {
+      if (materialsHeadingIndex !== undefined) unmatched.push(index);
+      else materialsHeadingIndex = index;
+    } else if (sameTemplateText(text, EXPLANATIONS_HEADING_TR)) {
+      if (explanationsHeadingIndex !== undefined) unmatched.push(index);
+      else explanationsHeadingIndex = index;
+    } else if (sameTemplateText(text, ABBREVIATIONS_HEADING_TR)) {
+      if (abbreviationsHeadingIndex !== undefined) unmatched.push(index);
+      else abbreviationsHeadingIndex = index;
+    } else if (sameTemplateText(text, INSTRUCTIONS_TR)) {
+      if (explanationsBodyIndex !== undefined) unmatched.push(index);
+      else explanationsBodyIndex = index;
+    } else if (sameTemplateText(text, GLOSSARY_TR)) {
+      if (abbreviationsBodyIndex !== undefined) unmatched.push(index);
+      else abbreviationsBodyIndex = index;
+    } else if (sameTemplateText(text, ".")) {
+      if (dotIndex !== undefined) unmatched.push(index);
+      else dotIndex = index;
+    } else {
+      unmatched.push(index);
+    }
+  });
+
+  if (
+    materialsHeadingIndex === undefined ||
+    explanationsHeadingIndex === undefined ||
+    abbreviationsHeadingIndex === undefined ||
+    explanationsBodyIndex === undefined ||
+    abbreviationsBodyIndex === undefined ||
+    unmatched.length !== 1
+  ) {
+    return undefined;
+  }
+
+  // 7 blocks requires the "." to have been found (otherwise the 7th
+  // block would itself be a second "unmatched" entry, already rejected
+  // above); 6 blocks requires it to be absent. Both are already implied
+  // by the checks above given the length gate at the top, but this
+  // keeps the invariant explicit rather than relying on arithmetic.
+  if (orderedPageBlocks.length === 7 !== (dotIndex !== undefined)) {
+    return undefined;
+  }
+
+  return {
+    materialsHeadingIndex,
+    materialsBodyIndex: unmatched[0]!,
+    explanationsHeadingIndex,
+    explanationsBodyIndex,
+    abbreviationsHeadingIndex,
+    abbreviationsBodyIndex,
+    dotIndex,
+  };
+};
+
+export type Page2HybridSkeleton = {
+  // The block whose SOURCE text must be sent through the existing
+  // /api/translate pipeline (and ONLY this block -- see
+  // bulk_translation.ts). Every other Page 2 block is already fully
+  // resolved below.
+  materialsBlockId: string;
+  // Complete TranslationResponse entries for every Page 2 block EXCEPT
+  // the materials body -- headings, explanations/instructions,
+  // abbreviations/glossary, and the decorative "." if present. The
+  // caller appends the materials body's LLM-translated entry to this
+  // array to form the complete page response.
+  deterministicTranslations: TranslationResponse["translations"];
+};
+
+export const recognizePage2Hybrid = (
+  page: Page,
+  blocks: readonly CanvaTranslationBlock[],
+  language: TargetLanguage,
+): Page2HybridSkeleton | undefined => {
+  const orderedPageBlocks = [...page.blocks].sort((a, b) => a.order - b.order);
+  const orderedBlocks = [...blocks].sort((a, b) => a.order - b.order);
+
+  if (orderedPageBlocks.length !== orderedBlocks.length) return undefined;
+
+  const plain = classifyPage2PlainShape(orderedPageBlocks);
+
+  if (plain) {
+    const deterministicTranslations: TranslationResponse["translations"] = [
+      translationResult(
+        orderedBlocks[plain.instructionsIndex]!,
+        orderedPageBlocks[plain.instructionsIndex]!,
+        INSTRUCTIONS[language],
+        "replace",
+      ),
+      translationResult(
+        orderedBlocks[plain.glossaryIndex]!,
+        orderedPageBlocks[plain.glossaryIndex]!,
+        GLOSSARY[language],
+        "replace",
+      ),
+    ];
+
+    if (plain.dotIndex !== undefined) {
+      deterministicTranslations.push(
+        translationResult(
+          orderedBlocks[plain.dotIndex]!,
+          orderedPageBlocks[plain.dotIndex]!,
+          ".",
+          "keep",
+        ),
+      );
+    }
+
+    return {
+      materialsBlockId: orderedBlocks[plain.materialsIndex]!.localId,
+      deterministicTranslations,
+    };
+  }
+
+  const headings = classifyPage2HeadingsShape(orderedPageBlocks);
+
+  if (headings) {
+    const deterministicTranslations: TranslationResponse["translations"] = [
+      translationResult(
+        orderedBlocks[headings.materialsHeadingIndex]!,
+        orderedPageBlocks[headings.materialsHeadingIndex]!,
+        MATERIALS_HEADING[language],
+        "replace",
+      ),
+      translationResult(
+        orderedBlocks[headings.explanationsHeadingIndex]!,
+        orderedPageBlocks[headings.explanationsHeadingIndex]!,
+        EXPLANATIONS_HEADING[language],
+        "replace",
+      ),
+      translationResult(
+        orderedBlocks[headings.abbreviationsHeadingIndex]!,
+        orderedPageBlocks[headings.abbreviationsHeadingIndex]!,
+        ABBREVIATIONS_HEADING[language],
+        "replace",
+      ),
+      translationResult(
+        orderedBlocks[headings.explanationsBodyIndex]!,
+        orderedPageBlocks[headings.explanationsBodyIndex]!,
+        INSTRUCTIONS[language],
+        "replace",
+      ),
+      translationResult(
+        orderedBlocks[headings.abbreviationsBodyIndex]!,
+        orderedPageBlocks[headings.abbreviationsBodyIndex]!,
+        GLOSSARY[language],
+        "replace",
+      ),
+    ];
+
+    if (headings.dotIndex !== undefined) {
+      deterministicTranslations.push(
+        translationResult(
+          orderedBlocks[headings.dotIndex]!,
+          orderedPageBlocks[headings.dotIndex]!,
+          ".",
+          "keep",
+        ),
+      );
+    }
+
+    return {
+      materialsBlockId: orderedBlocks[headings.materialsBodyIndex]!.localId,
+      deterministicTranslations,
+    };
+  }
+
   return undefined;
 };

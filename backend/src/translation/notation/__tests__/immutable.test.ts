@@ -64,3 +64,42 @@ describe("immutable pattern protection", () => {
     ).toBe(false);
   });
 });
+
+describe("materials immutable protection", () => {
+  it("protects alphanumeric product codes as a whole while leaving prose punctuation translatable", () => {
+    const protectedSource = protectImmutablePattern(
+      "Catania TR263 (kol, gövde) 2.5mm",
+      0,
+      "materials",
+    );
+
+    expect(protectedSource.tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "TR263" }),
+        expect.objectContaining({ kind: "number", source: "2.5" }),
+      ]),
+    );
+
+    expect(protectedSource.tokens).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "(" }),
+        expect.objectContaining({ source: ")" }),
+      ]),
+    );
+
+    expect(protectedSource.text).toContain("(kol, gövde)");
+    expect(protectedSource.text).not.toContain("TR263");
+    expect(protectedSource.text).not.toContain("2.5");
+
+    expect(
+      restoreImmutablePattern(
+        protectedSource.text,
+        protectedSource,
+        "en",
+      ),
+    ).toMatchObject({
+      valid: true,
+      text: "Catania TR263 (kol, gövde) 2.5mm",
+    });
+  });
+});

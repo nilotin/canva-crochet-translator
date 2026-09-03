@@ -56,8 +56,10 @@ const diagnostic = (
 export const protectImmutablePattern = (
   source: string,
   startIndex = 0,
+  profile: "pattern" | "materials" = "pattern",
 ): ProtectedImmutableText => {
-  const notation = tokenizeSourceNotation(source);
+  const notation =
+    profile === "pattern" ? tokenizeSourceNotation(source) : [];
   const occurrences: Occurrence[] = notation.map(({ entry, start, end }) => ({
     start,
     end,
@@ -77,17 +79,31 @@ export const protectImmutablePattern = (
     });
   }
 
-  const structuralPattern =
-    notation.length > 0
-      ? /[()=*,]|(?<=\d)-(?=\d)/gu
-      : /[()=*]|(?<=\d)-(?=\d)/gu;
-  for (const match of source.matchAll(structuralPattern)) {
-    if (match.index === undefined) continue;
-    occurrences.push({
-      start: match.index,
-      end: match.index + match[0].length,
-      token: { kind: "structure", source: match[0] },
-    });
+  if (profile === "materials") {
+    for (const match of source.matchAll(/\b[A-Za-z]{1,6}\d{2,}\b/gu)) {
+      if (match.index === undefined) continue;
+      occurrences.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        token: { kind: "structure", source: match[0] },
+      });
+    }
+  }
+
+  if (profile === "pattern") {
+    const structuralPattern =
+      notation.length > 0
+        ? /[()=*,]|(?<=\d)-(?=\d)/gu
+        : /[()=*]|(?<=\d)-(?=\d)/gu;
+
+    for (const match of source.matchAll(structuralPattern)) {
+      if (match.index === undefined) continue;
+      occurrences.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        token: { kind: "structure", source: match[0] },
+      });
+    }
   }
 
   occurrences.sort(
