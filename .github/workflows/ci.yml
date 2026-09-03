@@ -30,3 +30,28 @@ jobs:
         run: npm run lint:types
       - name: Run build
         run: npm run build
+
+  backend-ci:
+    name: backend ci (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v6
+      - name: Set up node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+      - name: NPM ci
+        run: npm ci
+      - name: npm test
+        run: npm test
+      - name: Run typecheck
+        run: npm run typecheck
+      - name: Run eslint
+        run: npm run lint

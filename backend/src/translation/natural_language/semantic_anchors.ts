@@ -4,7 +4,10 @@ import type {
   ValidationDiagnostic,
   WarningCode,
 } from "../types.js";
-import { findHighRiskInstructionConcepts } from "../review_risk.js";
+import {
+  findHighRiskInstructionConcepts,
+  stripRowTransitionIdiom,
+} from "../review_risk.js";
 
 type SemanticAnchor = {
   id: string;
@@ -93,7 +96,20 @@ export const validateSemanticAnchors = (
   const criticalPlacement = findHighRiskInstructionConcepts(source).length >= 2;
 
   for (const anchor of SEMANTIC_ANCHORS) {
-    if (!anchor.source.test(source)) continue;
+    // "bir üst sıraya geçiyoruz" / "bir alt sıraya geçiyoruz" is the
+    // ordinary row-transition idiom (see stripRowTransitionIdiom):
+    // "move to the next row" is a complete, faithful translation of it
+    // even though it says neither "üst"/"alt" nor "above"/"below". The
+    // "upper"/"lower" anchors must not demand a literal above/below/upper
+    // term for that occurrence specifically -- but a genuinely separate
+    // "üst"/"alt" occurrence elsewhere in the same text (not part of the
+    // idiom) must still be checked normally, so only the idiom text is
+    // stripped before testing, not the whole anchor skipped outright.
+    const anchorSource =
+      anchor.id === "upper" || anchor.id === "lower"
+        ? stripRowTransitionIdiom(source)
+        : source;
+    if (!anchor.source.test(anchorSource)) continue;
     const targetTerms = anchor[targetLanguage];
     if (targetTerms.some((term) => translatedLower.includes(term))) continue;
 

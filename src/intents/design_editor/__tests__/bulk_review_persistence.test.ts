@@ -1,3 +1,5 @@
+import type { getDesignToken } from "@canva/design";
+import type { auth as canvaUserAuth } from "@canva/user";
 import {
   loadBulkReview,
   loadBulkReviews,
@@ -10,10 +12,10 @@ const overrides = (fetcher: jest.Mock) => ({
   getDesignToken: async () =>
     ({
       token: "design-jwt",
-    }) as Awaited<ReturnType<typeof import("@canva/design").getDesignToken>>,
+    }) as Awaited<ReturnType<typeof getDesignToken>>,
   getUserToken: async () =>
     "user-jwt" as Awaited<
-      ReturnType<typeof import("@canva/user").auth.getCanvaUserToken>
+      ReturnType<typeof canvaUserAuth.getCanvaUserToken>
     >,
   fetch: fetcher as typeof fetch,
   backendHost: "http://backend",
@@ -180,7 +182,7 @@ describe("bulk review persistence client", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       pageId: "page-1",
       fingerprint: "page-content-v1-abc",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v6",
       status: "ready",
       acknowledged: false,
       blocks: review.blocks,

@@ -13,6 +13,7 @@ import {
   type BulkReviewQueue,
 } from "./whole_document_queue";
 import { saveBulkReview } from "./bulk_review_persistence";
+import { buildStaticTemplateTranslationResponse } from "./static_template_translation";
 
 type Dependencies = {
   getDesignToken: typeof getDesignToken;
@@ -94,12 +95,37 @@ export const translatePendingBulkPages = async (
       const blocks = translationBlocksForPage(page);
       const formattingSnapshots = formattingSnapshotsForPage(page);
 
-      const [{ token: designToken }, userToken] = await Promise.all([
-        deps.getDesignToken(),
-        deps.getUserToken(),
-      ]);
+      // Attempted for EVERY page, unconditionally -- deliberately not
+      // gated behind initialEntry.templateCandidate (a heuristic
+      // classification used only for diagnostics and as a hint to the
+      // backend's separate exact-fingerprint registry bypass below).
+      // buildStaticTemplateTranslationResponse is itself exact/structural
+      // (block count + per-block content match, see
+      // static_template_translation.ts) and safely returns undefined for
+      // anything that is not one of the known fixed pages, so trying it
+      // first for every page costs nothing and means a classification
+      // miss can never by itself cause a known static page (front cover /
+      // materials-instructions-glossary / closing) to reach the provider.
+      // This call happens before any authentication or network work
+      // below, so a match costs zero provider/API calls AND zero network
+      // round-trips.
+      const staticTemplateResult = buildStaticTemplateTranslationResponse(
+        page,
+        blocks,
+        language,
+      );
 
-      const response = await deps.fetch(
+      let result: TranslationResponse;
+
+      if (staticTemplateResult) {
+        result = staticTemplateResult;
+      } else {
+        const [{ token: designToken }, userToken] = await Promise.all([
+          deps.getDesignToken(),
+          deps.getUserToken(),
+        ]);
+
+        const response = await deps.fetch(
         `${deps.backendHost.replace(/\/$/u, "")}/api/translate`,
         {
           method: "POST",
@@ -132,11 +158,12 @@ export const translatePendingBulkPages = async (
         },
       );
 
-      if (!response.ok) {
-        throw new Error("Translation request failed.");
-      }
+        if (!response.ok) {
+          throw new Error("Translation request failed.");
+        }
 
-      const result = (await response.json()) as TranslationResponse;
+        result = (await response.json()) as TranslationResponse;
+      }
 
       const review = buildPageReview(blocks, formattingSnapshots, result);
 

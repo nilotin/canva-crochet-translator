@@ -860,6 +860,8 @@ describe("Crochet Translator", () => {
         contextId: "bulk-apply-context",
         language: "en",
       },
+      {},
+      new Set(),
     );
 
     expect(
@@ -1003,7 +1005,7 @@ describe("Crochet Translator", () => {
     const persistedReview = {
       pageId: "page-review",
       fingerprint: "fingerprint-review",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v5",
       status: "needs_review" as const,
       acknowledged: false,
       blocks: [
@@ -1115,10 +1117,15 @@ describe("Crochet Translator", () => {
     fireEvent.click(applyButton);
 
     await waitFor(() => expect(applyRemaining).toHaveBeenCalledTimes(1));
-    expect(applyRemaining).toHaveBeenCalledWith(["page-review"], {
-      contextId: "bulk-review-context",
-      language: "en",
-    });
+    expect(applyRemaining).toHaveBeenCalledWith(
+      ["page-review"],
+      {
+        contextId: "bulk-review-context",
+        language: "en",
+      },
+      {},
+      new Set(),
+    );
   });
 
   it("excludes a ready page from Bulk Apply while it has an unsaved local edit", async () => {
@@ -1168,7 +1175,7 @@ describe("Crochet Translator", () => {
     const persistedReview = {
       pageId: "page-ready",
       fingerprint: "fingerprint-ready",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v5",
       status: "ready" as const,
       acknowledged: false,
       blocks: [
@@ -1291,7 +1298,7 @@ describe("Crochet Translator", () => {
     const persistedReview = {
       pageId: "page-review",
       fingerprint: "fingerprint-review",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v5",
       status: "needs_review" as const,
       acknowledged: true,
       blocks: [
@@ -1413,7 +1420,7 @@ describe("Crochet Translator", () => {
     const persistedReview = {
       pageId: "page-review",
       fingerprint: "fingerprint-review",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v5",
       status: "needs_review" as const,
       acknowledged: false,
       blocks: [
@@ -1509,10 +1516,310 @@ describe("Crochet Translator", () => {
     fireEvent.click(applyButton);
 
     await waitFor(() => expect(applyRemaining).toHaveBeenCalledTimes(1));
-    expect(applyRemaining).toHaveBeenCalledWith(["page-review"], {
-      contextId: "bulk-dirty-save-context",
-      language: "en",
+    expect(applyRemaining).toHaveBeenCalledWith(
+      ["page-review"],
+      {
+        contextId: "bulk-dirty-save-context",
+        language: "en",
+      },
+      {},
+      new Set(),
+    );
+  });
+
+  it("never discards a newer edit made while a Save for the same page is still in flight", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-ready",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-ready",
+          status: "ready" as const,
+          blockIds: ["page-page-ready-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 1,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: { queue, translatedPages: 1, failedPages: 0 },
+    }));
+
+    const persistedReview = {
+      pageId: "page-ready",
+      fingerprint: "fingerprint-ready",
+      pipelineRevision: "translation-pipeline-v5",
+      status: "ready" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: "page-page-ready-block-1",
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    const loadBulkReviews = jest.fn(async () => [persistedReview]);
+
+    // The first Save call hangs until resolveFirstSave() is invoked, so the
+    // test can make a second local edit while it is still in flight.
+    let resolveFirstSave: (() => void) | undefined;
+    const firstSavePending = new Promise<void>((resolve) => {
+      resolveFirstSave = resolve;
     });
+    const saveBulkReview = jest.fn(async () => {
+      if (saveBulkReview.mock.calls.length === 1) {
+        await firstSavePending;
+      }
+      return undefined;
+    });
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-race-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        saveBulkReview={saveBulkReview as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+    await result.findByText("Remaining-page translation review completed.");
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+
+    const input = await result.findByRole("textbox", { name: "Translation" });
+    const applyButton = result.getByRole("button", {
+      name: "Apply ready pages",
+    });
+
+    fireEvent.change(input, { target: { value: "Ear (edit 1)" } });
+    fireEvent.click(result.getByRole("button", { name: "Save edits" }));
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+    expect(saveBulkReview).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        pageId: "page-ready",
+        blocks: [
+          expect.objectContaining({ editedTranslation: "Ear (edit 1)" }),
+        ],
+      }),
+    );
+
+    // A second, newer edit is made while the first Save is still pending.
+    fireEvent.change(input, { target: { value: "Ear (edit 2)" } });
+
+    // Still dirty: the in-flight save was snapshotted before this edit, so
+    // it must not be treated as covering it.
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    // Let the first (now-stale) save resolve.
+    resolveFirstSave?.();
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+
+    // The newer edit must survive untouched -- not reverted to "Ear (edit 1)".
+    expect((input as HTMLTextAreaElement).value).toBe("Ear (edit 2)");
+    // And the page must still be excluded from Bulk Apply: the stale save's
+    // completion must not have cleared the dirty flag for unsaved text.
+    expect(applyButton.getAttribute("aria-disabled")).toBe("true");
+
+    // Saving the newer edit for real must work normally afterward.
+    fireEvent.click(result.getByRole("button", { name: "Save edits" }));
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(2));
+    expect(saveBulkReview).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        pageId: "page-ready",
+        blocks: [
+          expect.objectContaining({ editedTranslation: "Ear (edit 2)" }),
+        ],
+      }),
+    );
+    await waitFor(() =>
+      expect(applyButton.getAttribute("aria-disabled")).not.toBe("true"),
+    );
+  });
+
+  it("keeps bulk-review save status scoped to the selected page", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-1",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-1",
+          status: "ready" as const,
+          blockIds: ["page-page-1-block-1"],
+        },
+        {
+          pageId: "page-2",
+          discoveryIndex: 1,
+          fingerprint: "fingerprint-2",
+          status: "ready" as const,
+          blockIds: ["page-page-2-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 2,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 2,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: { queue, translatedPages: 2, failedPages: 0 },
+    }));
+
+    const reviewFor = (pageId: string, fingerprint: string) => ({
+      pageId,
+      fingerprint,
+      pipelineRevision: "translation-pipeline-v5",
+      status: "ready" as const,
+      acknowledged: false,
+      blocks: [
+        {
+          id: `page-${pageId}-block-1`,
+          source: "Kulak",
+          translated: "Ear",
+          editedTranslation: "Ear",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    });
+
+    const loadBulkReviews = jest.fn(async () => [
+      reviewFor("page-1", "fingerprint-1"),
+      reviewFor("page-2", "fingerprint-2"),
+    ]);
+
+    let resolveSave: (() => void) | undefined;
+    const savePending = new Promise<void>((resolve) => {
+      resolveSave = resolve;
+    });
+    const saveBulkReview = jest.fn(async () => {
+      await savePending;
+      return undefined;
+    });
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-status-scope-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        loadBulkReviews={loadBulkReviews as never}
+        saveBulkReview={saveBulkReview as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+    await result.findByText("Remaining-page translation review completed.");
+
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+    fireEvent.click(result.getByRole("button", { name: "Save edits" }));
+
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+    expect(await result.findByText("Saving review...")).toBeTruthy();
+
+    // Switching to Page 2 while Page 1's save is still in flight must not
+    // carry Page 1's "saving" status onto Page 2.
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 2 —/ }),
+    );
+    expect(result.queryByText("Saving review...")).toBeNull();
+    expect(
+      result.getByRole("button", { name: "Save edits" }).getAttribute(
+        "aria-disabled",
+      ),
+    ).not.toBe("true");
+
+    // Resolving Page 1's save while Page 2 is selected must not surface
+    // Page 1's "saved" message under Page 2.
+    resolveSave?.();
+    await waitFor(() => expect(saveBulkReview).toHaveBeenCalledTimes(1));
+    expect(result.queryByText("Review saved.")).toBeNull();
+
+    // Switching back to Page 1 must show its own, now-resolved status.
+    fireEvent.click(
+      await result.findByRole("button", { name: /Page 1 —/ }),
+    );
+    expect(await result.findByText("Review saved.")).toBeTruthy();
   });
 
   it("keeps a blocked page non-applicable in the bulk review UI", async () => {
@@ -1562,7 +1869,7 @@ describe("Crochet Translator", () => {
     const persistedReview = {
       pageId: "page-blocked",
       fingerprint: "fingerprint-blocked",
-      pipelineRevision: "translation-pipeline-v4",
+      pipelineRevision: "translation-pipeline-v5",
       status: "blocked" as const,
       acknowledged: false,
       blocks: [
@@ -1845,5 +2152,87 @@ describe("Crochet Translator", () => {
     expect(
       result.getByRole("button", { name: "Review current page again" }),
     ).toBeTruthy();
+  });
+
+  describe("developer template snapshot export (development-only)", () => {
+    it("is absent when development tools are disabled (e.g. a production build)", async () => {
+      const captureTemplateSnapshotExport = jest.fn();
+      const result = renderInTestProvider(
+        <App
+          loadSourceContext={async () => verifiedContext}
+          initialDesignRole={{ status: "source" }}
+          isDevelopmentTools={false}
+          captureTemplateSnapshotExport={captureTemplateSnapshotExport}
+        />,
+      );
+
+      await result.findByText("Source design detected");
+
+      expect(
+        result.queryByRole("button", {
+          name: "Export template candidate snapshots",
+        }),
+      ).toBeNull();
+      expect(captureTemplateSnapshotExport).not.toHaveBeenCalled();
+    });
+
+    it("does nothing automatically when development tools are enabled -- only an explicit click triggers a capture", async () => {
+      const captureTemplateSnapshotExport = jest.fn().mockResolvedValue([]);
+      const result = renderInTestProvider(
+        <App
+          loadSourceContext={async () => verifiedContext}
+          initialDesignRole={{ status: "source" }}
+          isDevelopmentTools={true}
+          captureTemplateSnapshotExport={captureTemplateSnapshotExport}
+        />,
+      );
+
+      const exportButton = await result.findByRole("button", {
+        name: "Export template candidate snapshots",
+      });
+
+      expect(captureTemplateSnapshotExport).not.toHaveBeenCalled();
+
+      fireEvent.click(exportButton);
+
+      await waitFor(() =>
+        expect(captureTemplateSnapshotExport).toHaveBeenCalledTimes(1),
+      );
+    });
+
+    it("shows the exported JSON after an explicit click, without sending it anywhere else", async () => {
+      const rows = [
+        {
+          pageNumber: 1,
+          kind: "front_cover" as const,
+          fingerprint: "page-content-v1-abc123",
+          sourceBlockCount: 1,
+          blocks: [{ id: "b1", order: 0, sourceText: "Sample Doll" }],
+        },
+      ];
+      const captureTemplateSnapshotExport = jest.fn().mockResolvedValue(rows);
+      const result = renderInTestProvider(
+        <App
+          loadSourceContext={async () => verifiedContext}
+          initialDesignRole={{ status: "source" }}
+          isDevelopmentTools={true}
+          captureTemplateSnapshotExport={captureTemplateSnapshotExport}
+        />,
+      );
+
+      const exportButton = await result.findByRole("button", {
+        name: "Export template candidate snapshots",
+      });
+      fireEvent.click(exportButton);
+
+      await waitFor(() =>
+        expect(result.getByText(/1 template candidate page/u)).toBeTruthy(),
+      );
+
+      const textarea = result.container.querySelector("textarea");
+      expect(textarea?.value).toContain("page-content-v1-abc123");
+      expect(textarea?.value).toContain("Sample Doll");
+      expect(captureTemplateSnapshotExport).toHaveBeenCalledTimes(1);
+    });
   });
 });

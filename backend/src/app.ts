@@ -1,4 +1,5 @@
 import { TokenVerificationError } from "@canva/app-middleware";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { rateLimit } from "express-rate-limit";
@@ -26,6 +27,7 @@ import {
 } from "./translation/providers/index.js";
 import { translateBlocks } from "./translation/translator.js";
 import { translateRequestSchema } from "./translation/types.js";
+import { buildDeterministicTranslationResult } from "./translation/deterministic_bypass.js";
 import {
   JsonDeterministicTemplateRegistry,
   type DeterministicTemplateRegistry,
@@ -44,6 +46,10 @@ import {
   getBulkPreferences,
   saveBulkPreferences,
 } from "./canva/bulk_preferences/controller.js";
+import {
+  getWarningPreferences,
+  saveWarningPreferences,
+} from "./canva/warning_preferences/controller.js";
 
 type BackendDependencies = {
   canvaTokenVerification: CanvaTokenVerificationService;
@@ -56,7 +62,12 @@ export const createBackendApp = ({
   canvaConnect = {},
   deterministicTemplateRegistry = new JsonDeterministicTemplateRegistry(
     process.env.DETERMINISTIC_TEMPLATE_REGISTRY_PATH ??
-      ".data/private-deterministic-templates.json",
+      fileURLToPath(
+        new URL(
+          "../../.data/private-deterministic-templates.json",
+          import.meta.url,
+        ),
+      ),
   ),
 }: BackendDependencies) => {
   const app = express();
@@ -275,6 +286,34 @@ export const createBackendApp = ({
     response.status(result.status).json(result.body);
   });
 
+  app.post("/api/canva/warning-preferences/get", async (request, response) => {
+    const result = await getWarningPreferences(
+      {
+        verification: canvaTokenVerification,
+        copyStore: canvaConnect.store ?? canvaConnect.operations?.store,
+        warningPreferencesStore: canvaConnect.warningPreferencesStore,
+      },
+      request.body,
+      request.header("authorization"),
+    );
+
+    response.status(result.status).json(result.body);
+  });
+
+  app.post("/api/canva/warning-preferences/save", async (request, response) => {
+    const result = await saveWarningPreferences(
+      {
+        verification: canvaTokenVerification,
+        copyStore: canvaConnect.store ?? canvaConnect.operations?.store,
+        warningPreferencesStore: canvaConnect.warningPreferencesStore,
+      },
+      request.body,
+      request.header("authorization"),
+    );
+
+    response.status(result.status).json(result.body);
+  });
+
   app.post("/api/canva/page-state/get", async (request, response) => {
     const result = await getPageTranslationState(
       {
@@ -401,17 +440,54 @@ export const createBackendApp = ({
             deterministicTranslations.length === input.blocks.length
           ) {
             response.json({
-              translations: input.blocks.map((block, index) => ({
-                id: block.id,
-                source: block.text,
-                translated: deterministicTranslations[index]!,
-                valid: true,
-                errors: [],
-                warnings: [],
-              })),
+              translations: input.blocks.map((block, index) =>
+                buildDeterministicTranslationResult(
+                  block,
+                  deterministicTranslations[index]!,
+                  input.targetLanguage,
+                ),
+              ),
             });
             return;
           }
+
+          // Development-only diagnostics for why the exact-match
+          // deterministic bypass was skipped. Never log block/translation
+          // text -- only structural, non-sensitive facts (a fingerprint is
+          // an opaque hash, not customer content; template "kind" is a
+          // fixed enum, not customer content). The exact-match requirement
+          // itself is unchanged: this only makes a silent fallthrough
+          // observable.
+          if (process.env.NODE_ENV !== "production") {
+            if (!template) {
+              console.warn("Deterministic template bypass skipped.", {
+                reason: "fingerprint_not_registered",
+                pageFingerprint: input.pageFingerprint,
+              });
+            } else if (!deterministicTranslations) {
+              console.warn("Deterministic template bypass skipped.", {
+                reason: "no_translations_for_target_language",
+                pageFingerprint: input.pageFingerprint,
+                templateKind: template.kind,
+                targetLanguage: input.targetLanguage,
+              });
+            } else {
+              console.warn("Deterministic template bypass skipped.", {
+                reason: "block_count_mismatch",
+                pageFingerprint: input.pageFingerprint,
+                templateKind: template.kind,
+                expectedBlockCount: deterministicTranslations.length,
+                actualBlockCount: input.blocks.length,
+              });
+            }
+          }
+        } else if (process.env.NODE_ENV !== "production") {
+          console.warn("Deterministic template bypass skipped.", {
+            reason: target
+              ? "target_language_mismatch"
+              : "no_matching_copy_target_record",
+            pageFingerprint: input.pageFingerprint,
+          });
         }
       }
 

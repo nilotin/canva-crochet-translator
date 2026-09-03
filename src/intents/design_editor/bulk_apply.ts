@@ -1,7 +1,7 @@
 import { openDesign, type DesignEditing } from "@canva/design";
 import type { PersistedBulkPageReview } from "./bulk_review_state";
 import { loadBulkReviews } from "./bulk_review_persistence";
-import { isBulkReviewFresh } from "./bulk_review_state";
+import { isBulkReviewFresh, isEffectivelyAcknowledged } from "./bulk_review_state";
 import {
   collectTextRanges,
   readWholeDocumentInventory,
@@ -55,6 +55,7 @@ const pageById = (
 export const preflightBulkApply = (
   inventory: WholeDocumentInventory,
   reviews: readonly PersistedBulkPageReview[],
+  autoAcknowledgedWarningCodes: ReadonlySet<string> = new Set(),
 ): BulkApplyPreflightResult => {
   const pages = pageById(inventory);
   const issues: BulkApplyPreflightIssue[] = [];
@@ -104,7 +105,10 @@ export const preflightBulkApply = (
       continue;
     }
 
-    if (review.status === "needs_review" && !review.acknowledged) {
+    if (
+      review.status === "needs_review" &&
+      !isEffectivelyAcknowledged(review, autoAcknowledgedWarningCodes)
+    ) {
       issues.push({ pageId: review.pageId, code: "REVIEW_REQUIRED" });
       continue;
     }
@@ -177,6 +181,7 @@ const bulkApplyDependencies = (
 export const prepareBulkApply = async (
   pageIds: readonly string[],
   overrides: Partial<BulkApplyDependencies> = {},
+  autoAcknowledgedWarningCodes: ReadonlySet<string> = new Set(),
 ): Promise<BulkApplyPreflightResult> => {
   const dependencies = bulkApplyDependencies(overrides);
 
@@ -203,7 +208,7 @@ export const prepareBulkApply = async (
     };
   }
 
-  return preflightBulkApply(inventory, reviews);
+  return preflightBulkApply(inventory, reviews, autoAcknowledgedWarningCodes);
 };
 
 export const digestBulkReviewSourceSnapshot = (
@@ -297,6 +302,7 @@ export const preflightBulkApplySession = async (
   overrides: {
     openDesign?: typeof openDesign;
   } = {},
+  autoAcknowledgedWarningCodes: ReadonlySet<string> = new Set(),
 ): Promise<BulkApplySessionPreflightResult> => {
   const open = overrides.openDesign ?? openDesign;
   const requestedPageIds = new Set(reviews.map((review) => review.pageId));
@@ -348,7 +354,7 @@ export const preflightBulkApplySession = async (
   };
 
   return {
-    preflight: preflightBulkApply(inventory, reviews),
+    preflight: preflightBulkApply(inventory, reviews, autoAcknowledgedWarningCodes),
     mappings,
   };
 };
@@ -374,6 +380,7 @@ export const prepareVerifiedBulkApply = async (
     language: TargetLanguage;
   },
   overrides: Partial<VerifiedBulkApplyDependencies> = {},
+  autoAcknowledgedWarningCodes: ReadonlySet<string> = new Set(),
 ): Promise<BulkApplySessionPreflightResult> => {
   const dependencies: VerifiedBulkApplyDependencies = {
     verifyTarget: loadTargetContext,
@@ -414,9 +421,11 @@ export const prepareVerifiedBulkApply = async (
     };
   }
 
-  return preflightBulkApplySession(reviews, {
-    openDesign: dependencies.openDesign,
-  });
+  return preflightBulkApplySession(
+    reviews,
+    { openDesign: dependencies.openDesign },
+    autoAcknowledgedWarningCodes,
+  );
 };
 
 
@@ -436,6 +445,7 @@ export const applyBulkReviews = async (
     language: TargetLanguage;
   },
   overrides: Partial<BulkApplyMutationDependencies> = {},
+  autoAcknowledgedWarningCodes: ReadonlySet<string> = new Set(),
 ): Promise<BulkApplyResult> => {
   const dependencies: BulkApplyMutationDependencies = {
     verifyTarget: loadTargetContext,
@@ -450,6 +460,7 @@ export const applyBulkReviews = async (
     pageIds,
     expectedTarget,
     dependencies,
+    autoAcknowledgedWarningCodes,
   );
 
   if (!prepared.preflight.ok) {
@@ -524,6 +535,7 @@ export const applyBulkReviews = async (
                   skippedPages: [],
                 },
                 [review],
+                autoAcknowledgedWarningCodes,
               );
 
               if (!pagePreflight.ok) {
@@ -567,6 +579,10 @@ export const applyBulkReviews = async (
               });
 
               for (const { block, currentBlock, reference } of mapped) {
+                if (block.editedTranslation === currentBlock.sourceText) {
+                  continue;
+                }
+
                 reference.replaceText(
                   {
                     index: 0,

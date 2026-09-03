@@ -7,6 +7,10 @@ import {
   prepareBulkApply,
   prepareVerifiedBulkApply,
 } from "../bulk_apply";
+import {
+  isEffectivelyAcknowledged,
+  type PersistedBulkPageReview,
+} from "../bulk_review_state";
 import { TRANSLATION_PIPELINE_REVISION } from "../bulk_review_state";
 import { pageContentFingerprint } from "../whole_document_classification";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
@@ -608,6 +612,117 @@ describe("bulk apply mutation", () => {
     expect(result.verificationFailedPageIds).toEqual([]);
     expect(result.persistedAppliedPageIds).toEqual([]);
     expect(result.persistenceFailedPageIds).toEqual(["page-1"]);
+  });
+
+  it("skips mutation entirely for unchanged reviewed blocks", async () => {
+    const unchangedRange = makeRange("Malzemeler");
+    const changedRange = makeRange("Talimat");
+    const sync = jest.fn();
+
+    const page = {
+      type: "absolute",
+      id: "page-2",
+      locked: false,
+      elements: {
+        toArray: () => [
+          { type: "text", text: unchangedRange },
+          { type: "text", text: changedRange },
+        ],
+      },
+    };
+
+    const pageRef = { type: "absolute" };
+
+    const openDesign = jest.fn(async (_options, callback) => {
+      const openPage = jest.fn(async (_pageRef, pageCallback) => {
+        await pageCallback({ page, helpers: {} });
+        return { status: "executed" as const };
+      });
+
+      await callback({
+        pageRefs: {
+          toArray: () => [pageRef],
+        },
+        helpers: { openPage },
+        sync,
+      });
+    });
+
+    const review = {
+      ...reviewFor("page-2"),
+      fingerprint: pageContentFingerprint([
+        {
+          id: "page-page-2-block-1",
+          sourceText: "Malzemeler",
+          order: 0,
+          formattingRegions: [
+            {
+              index: 0,
+              length: "Malzemeler".length,
+              text: "Malzemeler",
+              formatting: {},
+            },
+          ],
+        },
+        {
+          id: "page-page-2-block-2",
+          sourceText: "Talimat",
+          order: 1,
+          formattingRegions: [
+            {
+              index: 0,
+              length: "Talimat".length,
+              text: "Talimat",
+              formatting: {},
+            },
+          ],
+        },
+      ]),
+      blocks: [
+        {
+          id: "page-page-2-block-1",
+          source: "Malzemeler",
+          translated: "Malzemeler",
+          editedTranslation: "Malzemeler",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+        {
+          id: "page-page-2-block-2",
+          source: "Talimat",
+          translated: "Instruction",
+          editedTranslation: "Instruction",
+          validation: "PASS" as const,
+          errors: [],
+          warnings: [],
+        },
+      ],
+    };
+
+    const result = await applyBulkReviews(
+      ["page-2"],
+      {
+        contextId: "target-context",
+        language: "en",
+      },
+      {
+        verifyTarget: verifiedTarget,
+        loadReviews: async () => [review],
+        openDesign: openDesign as never,
+      },
+    );
+
+    expect(unchangedRange.replaceText).not.toHaveBeenCalled();
+    expect(unchangedRange.formatText).not.toHaveBeenCalled();
+
+    expect(changedRange.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "Talimat".length },
+      "Instruction",
+    );
+
+    expect(sync).toHaveBeenCalledTimes(1);
+    expect(result.appliedPageIds).toEqual(["page-2"]);
   });
 
   it("projects preserved formatting after replacing translated text", async () => {
@@ -1389,5 +1504,157 @@ describe("bulk apply preflight", () => {
     const result = preflightBulkApply(inventory, [review]);
 
     expect(result.issues[0]?.code).toBe("FORMATTING_EDIT_CONFLICT");
+  });
+});
+
+describe("bulk apply preflight with warning-family preferences", () => {
+  const withWarning = (
+    pageId: string,
+    codes: string[],
+    overrides: Record<string, unknown> = {},
+  ): PersistedBulkPageReview => {
+    const review = reviewFor(pageId, {
+      status: "needs_review",
+      ...overrides,
+    }) as PersistedBulkPageReview;
+    return {
+      ...review,
+      blocks: review.blocks.map((block, index) =>
+        index === 0
+          ? {
+              ...block,
+              warnings: codes.map((code) => ({
+                code,
+                message: `warning: ${code}`,
+              })),
+            }
+          : block,
+      ),
+    };
+  };
+
+  it("keeps needs_review pages ungated by default (no preference set passed)", () => {
+    const result = preflightBulkApply(inventory, [
+      withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"]),
+    ]);
+
+    expect(result.issues[0]?.code).toBe("REVIEW_REQUIRED");
+    expect(result.readyPageIds).toEqual([]);
+  });
+
+  it("makes a page Apply-eligible when its only warning family is approved, without page-level acknowledgement", () => {
+    const review = withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"]);
+    expect(review.acknowledged).not.toBe(true);
+
+    const result = preflightBulkApply(
+      inventory,
+      [review],
+      new Set(["MANUAL_REVIEW_RECOMMENDED"]),
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      issues: [],
+      readyPageIds: ["page-1"],
+    });
+  });
+
+  it("keeps the warning visible on the review even once its family is approved", () => {
+    const review = withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"]);
+
+    preflightBulkApply(inventory, [review], new Set(["MANUAL_REVIEW_RECOMMENDED"]));
+
+    expect(review.blocks[0]!.warnings).toEqual([
+      { code: "MANUAL_REVIEW_RECOMMENDED", message: "warning: MANUAL_REVIEW_RECOMMENDED" },
+    ]);
+  });
+
+  it("keeps a page needs_review when it has an approved family plus one unapproved warning", () => {
+    const review = withWarning("page-1", [
+      "MANUAL_REVIEW_RECOMMENDED",
+      "SUSPICIOUSLY_SHORT_TRANSLATION",
+    ]);
+
+    const result = preflightBulkApply(
+      inventory,
+      [review],
+      new Set(["MANUAL_REVIEW_RECOMMENDED"]),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toContainEqual({
+      pageId: "page-1",
+      code: "REVIEW_REQUIRED",
+    });
+  });
+
+  it("keeps a blocked page blocked even when its warning family is approved", () => {
+    const review = withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"], {
+      status: "blocked",
+    });
+
+    const result = preflightBulkApply(
+      inventory,
+      [review],
+      new Set(["MANUAL_REVIEW_RECOMMENDED"]),
+    );
+
+    expect(result.issues[0]?.code).toBe("BLOCKED_REVIEW");
+    expect(result.readyPageIds).toEqual([]);
+  });
+
+  it("never lets a preference whitelist a critical placement-loss warning", () => {
+    const review = withWarning("page-1", ["SEMANTIC_ANCHOR_MISSING"]);
+
+    const result = preflightBulkApply(
+      inventory,
+      [review],
+      new Set(["SEMANTIC_ANCHOR_MISSING"]),
+    );
+
+    expect(result.issues[0]?.code).toBe("REVIEW_REQUIRED");
+  });
+
+  it("does not resurrect a stale page acknowledgement after an edit, even with an approved family", () => {
+    // Simulates app.tsx's editBulkReviewBlock: any edit resets the
+    // page-level acknowledged flag. If the edited review still carries a
+    // warning outside the approved set, it must require a fresh
+    // acknowledgement rather than reusing the old acknowledged: true.
+    const editedReview = withWarning(
+      "page-1",
+      ["MANUAL_REVIEW_RECOMMENDED", "SUSPICIOUSLY_SHORT_TRANSLATION"],
+      { acknowledged: false },
+    );
+
+    const result = preflightBulkApply(
+      inventory,
+      [editedReview],
+      new Set(["MANUAL_REVIEW_RECOMMENDED"]),
+    );
+
+    expect(result.issues[0]?.code).toBe("REVIEW_REQUIRED");
+  });
+
+  it("threads the preference through prepareBulkApply", async () => {
+    const review = withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"]);
+
+    const result = await prepareBulkApply(
+      ["page-1"],
+      {
+        readInventory: async () => inventory,
+        loadReviews: async () => [review],
+      },
+      new Set(["MANUAL_REVIEW_RECOMMENDED"]),
+    );
+
+    expect(result).toEqual({ ok: true, issues: [], readyPageIds: ["page-1"] });
+  });
+
+  it("preflightBulkApply and isEffectivelyAcknowledged agree (single source of truth)", () => {
+    const review = withWarning("page-1", ["MANUAL_REVIEW_RECOMMENDED"]);
+    const approved = new Set(["MANUAL_REVIEW_RECOMMENDED"]);
+
+    expect(isEffectivelyAcknowledged(review, approved)).toBe(true);
+    expect(preflightBulkApply(inventory, [review], approved).ok).toBe(true);
   });
 });

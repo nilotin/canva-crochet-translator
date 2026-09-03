@@ -9,6 +9,7 @@ import type { CopyOperationStore } from "./copy_operation_store.js";
 import type { PageTranslationStateStore } from "../page_state/store.js";
 import type { BulkReviewStore } from "../bulk_review/store.js";
 import type { BulkPreferencesStore } from "../bulk_preferences/store.js";
+import type { WarningPreferencesStore } from "../warning_preferences/store.js";
 
 const copySchema = z
   .object({
@@ -30,6 +31,7 @@ export type ConnectDependencies = {
   pageStateStore?: PageTranslationStateStore;
   bulkReviewStore?: BulkReviewStore;
   bulkPreferencesStore?: BulkPreferencesStore;
+  warningPreferencesStore?: WarningPreferencesStore;
   auth?: CanvaConnectAuth;
 };
 

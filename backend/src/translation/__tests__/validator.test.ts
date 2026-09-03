@@ -108,6 +108,40 @@ describe("validateTranslation", () => {
     );
   });
 
+  it.each([
+    ["Bir üst sıraya geçiyoruz.", "Move to the next row.", "en"],
+    ["Bir alt sıraya geçiyoruz.", "Move to the next row down.", "en"],
+    ["Bir üst sıraya geçiyoruz.", "Pasamos a la siguiente vuelta.", "es"],
+  ] as const)(
+    "does not require a literal above/below term for the ordinary row-transition idiom: %s -> %s (%s)",
+    (source, translated, targetLanguage) => {
+      const result = validateTranslation(source, translated, targetLanguage);
+
+      expect(errorCodes(result)).not.toContain("SEMANTIC_ANCHOR_MISSING");
+      expect(result.warnings).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "SEMANTIC_ANCHOR_MISSING" }),
+        ]),
+      );
+      expect(result.valid).toBe(true);
+    },
+  );
+
+  it("still flags a genuine, non-idiomatic üst reference even when the row-transition idiom also appears in the same text", () => {
+    // The idiom-exclusion above is scoped to the specific "üst sıra"/
+    // "alt sıra" occurrence, not a blanket skip of the "upper" anchor: a
+    // second, genuinely spatial "üst" reference in the same block (here,
+    // sewing a piece onto the head's upper side) must still be caught if
+    // the translation drops it.
+    const result = validateTranslation(
+      "Bir üst sıraya geçiyoruz. Parçanın üst kısmını başın ön tarafına dikiyoruz.",
+      "Move to the next row. We sew the piece to the front of the head.",
+      "en",
+    );
+
+    expect(errorCodes(result)).toContain("SEMANTIC_ANCHOR_MISSING");
+  });
+
   it("recommends manual review for spatial and directional instructions", () => {
     const result = validateTranslation(
       "Arkadan giriş yapıyoruz. Ön tarafta üstten çıkış yapıp alta giriyoruz.",
@@ -388,6 +422,33 @@ describe("validateTranslation", () => {
     },
   );
 
+  it.each(["sc", "Sc", "SC"])(
+    "treats %s as a valid single-crochet target casing when notationCaseInsensitive is set " +
+      "(the same option translateSegment now passes at the segment level, matching the " +
+      "full-block validation call sites)",
+    (targetCasing) => {
+      const result = validateTranslation("x örüyoruz", `${targetCasing} we work`, "en", {
+        notationCaseInsensitive: true,
+      });
+
+      expect(errorCodes(result)).not.toContain("LOST_PATTERN_NOTATION");
+    },
+  );
+
+  it("still flags a genuinely lost sc notation even with notationCaseInsensitive set", () => {
+    const result = validateTranslation("x örüyoruz", "we work", "en", {
+      notationCaseInsensitive: true,
+    });
+
+    expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
+  });
+
+  it("rejects mismatched sc casing by default (case sensitivity is opt-in, not the default)", () => {
+    const result = validateTranslation("x örüyoruz", "Sc we work", "en");
+
+    expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
+  });
+
   it("rejects an unconverted Turkish abbreviation", () => {
     const result = validateTranslation(
       "6x, v, 6x, CC",
@@ -404,6 +465,15 @@ describe("validateTranslation", () => {
     ["es", "aum-mpa"],
   ] as const)("converts hdcv for %s", (targetLanguage, translated) => {
     expect(validateTranslation("hdcv", translated, targetLanguage).valid).toBe(
+      true,
+    );
+  });
+
+  it.each([
+    ["en", "tr-inc"],
+    ["es", "aum-pa-tri"],
+  ] as const)("converts trv for %s", (targetLanguage, translated) => {
+    expect(validateTranslation("trv", translated, targetLanguage).valid).toBe(
       true,
     );
   });

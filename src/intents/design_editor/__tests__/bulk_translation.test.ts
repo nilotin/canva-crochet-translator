@@ -1,6 +1,12 @@
 import { translatePendingBulkPages } from "../bulk_translation";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
 import type { BulkReviewQueue } from "../whole_document_queue";
+import {
+  FRONT_NOTICE_TR,
+  INSTRUCTIONS_TR,
+  GLOSSARY_TR,
+  CLOSING_TR,
+} from "../static_template_translation";
 
 const inventory: WholeDocumentInventory = {
   pages: [
@@ -394,6 +400,283 @@ describe("bulk translation", () => {
     expect(result.translatedPages).toBe(1);
     expect(result.failedPages).toBe(1);
     expect(saveReview).toHaveBeenCalledTimes(1);
+  });
+
+
+  it(
+    "never acquires design/user tokens or calls fetch for a static " +
+    "front-cover page, even without the templateCandidate hint",
+    async () => {
+      const frontCoverInventory: WholeDocumentInventory = {
+        pages: [
+          {
+            pageId: "front-page",
+            discoveryIndex: 0,
+            locked: false,
+            blocks: [
+              {
+                id: "title-block",
+                sourceText: "Buzu Amigurumi Pattern",
+                order: 0,
+                formattingRegions: [],
+              },
+              {
+                id: "notice-block",
+                sourceText: FRONT_NOTICE_TR,
+                order: 1,
+                formattingRegions: [],
+              },
+            ],
+          },
+        ],
+        skippedPages: [],
+      };
+
+      const frontCoverQueue: BulkReviewQueue = {
+        entries: [
+          {
+            pageId: "front-page",
+            discoveryIndex: 0,
+            fingerprint: "fp-front",
+            status: "pending",
+            blockIds: ["title-block", "notice-block"],
+            // Deliberately omitted: proves the static match does not
+            // depend on the templateCandidate heuristic hint.
+          },
+        ],
+        counts: {
+          pending: 1,
+          translating: 0,
+          ready: 0,
+          needs_review: 0,
+          blocked: 0,
+          failed: 0,
+        },
+      };
+
+      const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
+      const getUserTokenSpy = jest.fn(async () => "user-jwt");
+      const fetcher = jest.fn();
+      const saveReview = jest.fn(async () => undefined);
+
+      const result = await translatePendingBulkPages(
+        "en",
+        frontCoverInventory,
+        frontCoverQueue,
+        {
+          fetch: fetcher as unknown as typeof fetch,
+          getDesignToken: getDesignTokenSpy as never,
+          getUserToken: getUserTokenSpy as never,
+          backendHost: "http://backend",
+          saveReview,
+        },
+      );
+
+      expect(getDesignTokenSpy).not.toHaveBeenCalled();
+      expect(getUserTokenSpy).not.toHaveBeenCalled();
+      expect(fetcher).not.toHaveBeenCalled();
+
+      expect(result.queue.entries[0]?.status).toBe("ready");
+      expect(result.translatedPages).toBe(1);
+      expect(result.failedPages).toBe(0);
+    },
+  );
+
+  it("never acquires design/user tokens or calls fetch for the static materials/instructions/glossary page", async () => {
+    const page2Inventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            {
+              id: "materials-block",
+              sourceText: "300gr bej ip, 2mm tığ, oyuncak gözü",
+              order: 0,
+              formattingRegions: [],
+            },
+            {
+              id: "instructions-block",
+              sourceText: INSTRUCTIONS_TR,
+              order: 1,
+              formattingRegions: [],
+            },
+            {
+              id: "dot-block",
+              sourceText: ".",
+              order: 2,
+              formattingRegions: [],
+            },
+            {
+              id: "glossary-block",
+              sourceText: GLOSSARY_TR,
+              order: 3,
+              formattingRegions: [],
+            },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const page2Queue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "materials-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-materials",
+          status: "pending",
+          blockIds: [
+            "materials-block",
+            "instructions-block",
+            "dot-block",
+            "glossary-block",
+          ],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
+    const getUserTokenSpy = jest.fn(async () => "user-jwt");
+    const fetcher = jest.fn();
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      page2Inventory,
+      page2Queue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        getDesignToken: getDesignTokenSpy as never,
+        getUserToken: getUserTokenSpy as never,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(getDesignTokenSpy).not.toHaveBeenCalled();
+    expect(getUserTokenSpy).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    // Materials block must be passed through byte-for-byte untouched.
+    expect(saveReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: "materials-page",
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "materials-block",
+            translated: "300gr bej ip, 2mm tığ, oyuncak gözü",
+          }),
+        ]),
+      }),
+    );
+
+    expect(result.queue.entries[0]?.status).toBe("ready");
+    expect(result.translatedPages).toBe(1);
+    expect(result.failedPages).toBe(0);
+  });
+
+  it("never acquires design/user tokens or calls fetch for the static closing page", async () => {
+    const closingInventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "closing-page",
+          discoveryIndex: 8,
+          locked: false,
+          blocks: CLOSING_TR.map((text, index) => ({
+            id: `closing-block-${index}`,
+            sourceText: text,
+            order: index,
+            formattingRegions: [],
+          })),
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const closingQueue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "closing-page",
+          discoveryIndex: 8,
+          fingerprint: "fp-closing",
+          status: "pending",
+          blockIds: CLOSING_TR.map((_, index) => `closing-block-${index}`),
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
+    const getUserTokenSpy = jest.fn(async () => "user-jwt");
+    const fetcher = jest.fn();
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      closingInventory,
+      closingQueue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        getDesignToken: getDesignTokenSpy as never,
+        getUserToken: getUserTokenSpy as never,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(getDesignTokenSpy).not.toHaveBeenCalled();
+    expect(getUserTokenSpy).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    expect(result.queue.entries[0]?.status).toBe("ready");
+    expect(result.translatedPages).toBe(1);
+    expect(result.failedPages).toBe(0);
+  });
+
+  it("still uses the authenticated backend for an ordinary (non-static) page -- regression guard", async () => {
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "bulk-block-1",
+            source: "Kulak",
+            translated: "Ear",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    const saveReview = jest.fn(async () => undefined);
+
+    await translatePendingBulkPages("en", inventory, queue, {
+      fetch: fetcher as unknown as typeof fetch,
+      ...translationAuth,
+      backendHost: "http://backend",
+      saveReview,
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("marks persistence failure as failed instead of pretending the page is resumable", async () => {

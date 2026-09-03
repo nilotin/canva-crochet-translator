@@ -13,7 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings=0",
     "test": "vitest run src",
-    "qa:translation": "tsx src/translation/qa.ts"
+    "qa:translation": "tsx src/translation/qa.ts",
+    "generate:deterministic-template": "tsx src/translation/deterministic_templates/generate_template.ts"
   },
   "dependencies": {
     "@canva/app-middleware": "^0.0.0-beta.8",

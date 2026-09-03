@@ -42,6 +42,42 @@ describe("formatting translation units", () => {
     ).toBeUndefined();
   });
 
+  it("allows a formatting boundary between a digit and a letter", () => {
+    // A boundary right after a number or notation token (styling just
+    // "12" in "12x artırma") is ordinary Canva formatting, not a split
+    // word: numbers/notation reconstruct correctly regardless of which
+    // unit they land in, so splitting here is safe.
+    const units = buildFormattingTranslationUnits({
+      id: "block",
+      text: "12x artırma",
+      formattingRegions: [
+        { id: "fmt-0", start: 0, end: 2 },
+        { id: "fmt-1", start: 2, end: 11 },
+      ],
+    });
+
+    expect(units?.map(({ id, text }) => ({ id, text }))).toEqual([
+      { id: "fmt-0", text: "12" },
+      { id: "fmt-1", text: "x artırma" },
+    ]);
+  });
+
+  it("still refuses a boundary inside a multi-letter notation abbreviation", () => {
+    // Unlike digits, splitting a letter-only abbreviation (e.g. "cc")
+    // across two units would send each half to the translator as if it
+    // were prose -- genuinely unsafe, so this must remain blocked.
+    expect(
+      buildFormattingTranslationUnits({
+        id: "block",
+        text: "ccx artırma",
+        formattingRegions: [
+          { id: "fmt-0", start: 0, end: 1 },
+          { id: "fmt-1", start: 1, end: 11 },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
   it("refuses gaps or overlaps in formatting coverage", () => {
     expect(
       buildFormattingTranslationUnits({

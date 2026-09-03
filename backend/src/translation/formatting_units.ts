@@ -7,7 +7,19 @@ export type FormattingTranslationUnit = {
   end: number;
 };
 
-const wordCharacter = /[\p{L}\p{N}]/u;
+// Only a letter-to-letter boundary can split a genuine natural-language
+// word (or a multi-letter notation abbreviation) into two independently
+// translated fragments, which would corrupt the translation. A boundary
+// touching a digit is always safe to split on: numbers and crochet
+// notation are protected/reconstructed deterministically per formatting
+// unit, so the concatenated result is identical whether or not a number
+// is split across units (e.g. "12x" as "1"+"2x" still reconstructs to
+// "12sc"). Digits were previously included here, which made the common
+// pattern of styling just a leading number or notation token (a very
+// ordinary Canva formatting choice) fall through to the fully
+// deterministic fallback, where a genuinely translated multi-style block
+// has no way to be projected and is blocked outright.
+const wordCharacter = /\p{L}/u;
 
 const boundarySplitsWord = (source: string, index: number): boolean => {
   if (index <= 0 || index >= source.length) return false;

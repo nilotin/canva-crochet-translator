@@ -127,6 +127,22 @@ export const PROJECT_NOTATION: readonly CrochetNotationEntry[] = [
     en: { abbreviation: "tr", description: "Treble crochet" },
     es: { abbreviation: "pa-tri", description: "punto alto triple" },
   },
+
+  {
+    concept: "treble_crochet_increase",
+    tr: {
+      abbreviation: "trv",
+      description: "aynı sık iğne içine 2 tane 3'lü trabzan",
+    },
+    en: {
+      abbreviation: "tr-inc",
+      description: "Treble Crochet Increase",
+    },
+    es: {
+      abbreviation: "aum-pa-tri",
+      description: "aumento de punto alto triple",
+    },
+  },
   {
     concept: "extended_double_crochet",
     tr: {

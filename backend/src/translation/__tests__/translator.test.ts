@@ -71,6 +71,37 @@ describe("translateBlocks provider boundary", () => {
     expect(provider.protectedTexts.join(" ")).not.toContain("__XQ");
   });
 
+  it.each([
+    "12x - 6v",
+    "12x / 6v",
+    "12x; 6v",
+    "x - v",
+    "x: v",
+    "x/dc",
+  ])(
+    "never calls the provider for a mixed segment with no natural-language span: %s",
+    async (text) => {
+      // Regression: an abbreviations-legend row like "x - dc" contains a
+      // notation token (making the segment "mixed", not "pattern_only")
+      // but no actual prose to translate. Calling the provider with an
+      // empty blocks array previously produced an
+      // UNEXPECTED_RETURNED_BLOCK_ID error (observed in production as a
+      // hallucinated "__placeholder__" id) instead of translating
+      // deterministically.
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks([{ id: "row", text }], "en", {
+        provider,
+      });
+
+      expect(provider.requests).toHaveLength(0);
+      expect(
+        result?.errors.map(({ code }) => code),
+      ).not.toContain("UNEXPECTED_RETURNED_BLOCK_ID");
+      expect(result?.errors).toEqual([]);
+    },
+  );
+
   it("sends recognized natural-language shorthand as target-language meaning", async () => {
     const provider = new InspectingProvider();
 
@@ -768,7 +799,39 @@ describe("translateBlocks provider boundary", () => {
     ]);
   });
 
-  it("returns projected formatting regions for deterministic notation translation", async () => {
+  it("maps formatting regions across a digit/notation-adjacent style boundary that needs real translation", async () => {
+    // Regression: a formatting boundary immediately after a number or
+    // notation token (e.g. bolding just "12" in "12x artırma") is
+    // ordinary Canva styling, not a split natural-language word. It must
+    // not fall back to the deterministic-only projection path, which
+    // cannot handle a unit that genuinely needs the provider ("artırma").
+    const provider = new InspectingProvider();
+    const source = "12x artırma";
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "digit-boundary",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: 2 },
+            { id: "fmt-1", start: 2, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-0", start: 0, end: 2 },
+      { id: "fmt-1", start: 2, end: result?.translated.length },
+    ]);
+  });
+
+    it("returns projected formatting regions for deterministic notation translation", async () => {
     const provider = new InspectingProvider();
 
     const [result] = await translateBlocks(

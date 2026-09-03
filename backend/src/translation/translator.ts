@@ -88,6 +88,26 @@ const translateSegment = async (
         message,
       }));
       restored = block.text;
+    } else if (mixed.spans.length === 0) {
+      // The segment contains at least one immutable/notation token (hence
+      // "mixed") but zero natural-language spans -- e.g. "x - dc" or
+      // "x: v" in an abbreviations legend. There is nothing for the
+      // provider to translate; calling it with an empty blocks array is
+      // both wasteful and prone to the model inventing a spurious
+      // response item (observed as an unexpected placeholder block ID).
+      // Reconstruct deterministically instead, exactly like a
+      // pattern-only segment.
+      const reconstructed = reconstructMixedSegmentWithProjection(
+        mixed.tokens,
+        new Map(),
+      );
+
+      restored = restoreLeadingInstruction(instruction, reconstructed.text);
+      structuralErrors = [];
+
+      if (instruction === undefined && normalized === block.text) {
+        mixedProjectionPieces = reconstructed.pieces;
+      }
     } else {
       const providerSpans = mixed.spans.map((span, index) => ({
         ...span,
@@ -201,7 +221,9 @@ const translateSegment = async (
       ...(restoration?.errors ?? []),
     ];
   }
-  const validation = validateTranslation(block.text, restored, targetLanguage);
+  const validation = validateTranslation(block.text, restored, targetLanguage, {
+    notationCaseInsensitive: true,
+  });
   const errors = annotateSegment(segmentIndex, [
     ...structuralErrors,
     ...validation.errors,

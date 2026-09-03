@@ -58,11 +58,24 @@ import {
   loadBulkReviews as loadPersistedBulkReviews,
   saveBulkReview as savePersistedBulkReview,
 } from "./bulk_review_persistence";
-import type { PersistedBulkPageReview } from "./bulk_review_state";
+import {
+  isEffectivelyAcknowledged,
+  isWarningCodeEligibleForAutoAcknowledge,
+  type PersistedBulkPageReview,
+} from "./bulk_review_state";
+import {
+  loadWarningPreferences as loadPersistedWarningPreferences,
+  saveWarningPreferences as savePersistedWarningPreferences,
+} from "./warning_preferences_persistence";
 import {
   applyBulkReviews,
   type BulkApplyResult,
 } from "./bulk_apply";
+import {
+  captureTemplateCandidateSnapshotExport,
+  serializeTemplateCandidateSnapshotExport,
+  type TemplateCandidateSnapshotExportRow,
+} from "./template_snapshot_export";
 
 const ENGLISH = "en";
 const SPANISH = "es";
@@ -108,8 +121,20 @@ type AppProps = {
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
   loadBulkReviews?: typeof loadPersistedBulkReviews;
   saveBulkReview?: typeof savePersistedBulkReview;
+  loadWarningPreferences?: typeof loadPersistedWarningPreferences;
+  saveWarningPreferences?: typeof savePersistedWarningPreferences;
   pagePollIntervalMs?: number;
   initialDesignRole?: DesignRoleState;
+  // Development-only template-candidate source-snapshot export (see
+  // template_snapshot_export.ts). Never rendered or reachable in a
+  // production build -- isDevelopmentTools defaults to the same
+  // isDevelopment convention used elsewhere (source_design_context.ts,
+  // whole_document_workflow.ts), and captureTemplateSnapshotExport
+  // defaults to the real, development-gated implementation, which
+  // itself refuses to run outside development even if this prop were
+  // somehow forced on.
+  isDevelopmentTools?: boolean;
+  captureTemplateSnapshotExport?: () => Promise<TemplateCandidateSnapshotExportRow[]>;
 };
 
 type CopyState =
@@ -150,6 +175,8 @@ export const TargetReview = ({
   saveBulkPreferences = savePersistedBulkPreferences,
   loadBulkReviews = loadPersistedBulkReviews,
   saveBulkReview = savePersistedBulkReview,
+  loadWarningPreferences = loadPersistedWarningPreferences,
+  saveWarningPreferences = savePersistedWarningPreferences,
   pagePollIntervalMs,
 }: {
   context: TranslationTargetContext;
@@ -186,6 +213,8 @@ export const TargetReview = ({
   saveBulkPreferences?: typeof savePersistedBulkPreferences;
   loadBulkReviews?: typeof loadPersistedBulkReviews;
   saveBulkReview?: typeof savePersistedBulkReview;
+  loadWarningPreferences?: typeof loadPersistedWarningPreferences;
+  saveWarningPreferences?: typeof savePersistedWarningPreferences;
   pagePollIntervalMs: number;
 }) => {
   const [review, setReview] = useState<PageReview>();
@@ -211,6 +240,16 @@ export const TargetReview = ({
     ReadonlySet<string>
   >(new Set());
 
+  // Warning-family "always accept this warning type" preferences. Purely
+  // a convenience layer on top of acknowledgement (see
+  // bulk_review_state.isEffectivelyAcknowledged) -- Bulk Apply remains
+  // gated the same way it always was, and this state never bypasses a
+  // blocked page or a hard error.
+  const [autoAcknowledgedWarningCodes, setAutoAcknowledgedWarningCodes] =
+    useState<ReadonlySet<string>>(new Set());
+  const [warningPreferenceSaveStatus, setWarningPreferenceSaveStatus] =
+    useState<"idle" | "saving" | "error">("idle");
+
   const [bulkStatus, setBulkStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -223,15 +262,30 @@ export const TargetReview = ({
     Map<string, PersistedBulkPageReview>
   >(new Map());
   const [selectedBulkPageId, setSelectedBulkPageId] = useState<string>();
-  const [bulkReviewSaveStatus, setBulkReviewSaveStatus] = useState<
-    "idle" | "saving" | "saved" | "error"
-  >("idle");
+  // Save status is tracked per page (not as one global value): switching
+  // the selected page must never show a different page's saving/saved/
+  // error state, and a stale save resolving for a page that is no longer
+  // selected must not clobber whatever the currently-selected page shows.
+  const [bulkReviewSaveStatusByPageId, setBulkReviewSaveStatusByPageId] =
+    useState<ReadonlyMap<string, "idle" | "saving" | "saved" | "error">>(
+      new Map(),
+    );
+  const bulkReviewSaveStatus = selectedBulkPageId
+    ? (bulkReviewSaveStatusByPageId.get(selectedBulkPageId) ?? "idle")
+    : "idle";
   // Pages with local, unsaved bulk-review edits. A dirty page is never
   // Apply-eligible: Bulk Apply must not use an older persisted review while
   // the UI shows newer, unsaved text.
   const [dirtyBulkReviewPageIds, setDirtyBulkReviewPageIds] = useState<
     ReadonlySet<string>
   >(new Set());
+  // Bumped synchronously (a ref, not state) on every local bulk-review
+  // edit for a page. saveBulkReviewChanges snapshots this per-page counter
+  // before its async persistence call and re-checks it after: if it moved,
+  // a newer edit was made while the save was in flight, and the save's
+  // now-superseded snapshot must not overwrite that newer local state or
+  // clear its dirty flag.
+  const bulkReviewEditVersionsRef = useRef<Map<string, number>>(new Map());
   const [pageIdentity, setPageIdentity] = useState<PageIdentity>();
   const [pageNotice, setPageNotice] = useState<"new" | "changed">();
   const [restoreNotice, setRestoreNotice] = useState<"restored" | "stale">();
@@ -273,8 +327,13 @@ export const TargetReview = ({
         if (dirtyBulkReviewPageIds.has(entry.pageId)) return false;
         if (entry.status === "ready") return true;
         if (entry.status === "needs_review") {
+          const entryReview = bulkReviewsByPageId.get(entry.pageId);
           return (
-            bulkReviewsByPageId.get(entry.pageId)?.acknowledged === true
+            entryReview !== undefined &&
+            isEffectivelyAcknowledged(
+              entryReview,
+              autoAcknowledgedWarningCodes,
+            )
           );
         }
         return false;
@@ -409,6 +468,27 @@ export const TargetReview = ({
 
   useEffect(() => {
     let active = true;
+
+    loadWarningPreferences()
+      .then((preferences) => {
+        if (!active) return;
+        setAutoAcknowledgedWarningCodes(
+          new Set(preferences.autoAcknowledgedWarningCodes),
+        );
+      })
+      .catch(() => {
+        // Warning-family preferences are optional convenience state: if
+        // this fails, every warning simply requires its normal explicit
+        // acknowledgement, same as before this feature existed.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [context.contextId, loadWarningPreferences]);
+
+  useEffect(() => {
+    let active = true;
     const detect = async () => {
       try {
         const next = await getPageIdentity();
@@ -474,7 +554,7 @@ export const TargetReview = ({
     setBulkApplyResult(undefined);
     setBulkReviewsByPageId(new Map());
     setSelectedBulkPageId(undefined);
-    setBulkReviewSaveStatus("idle");
+    setBulkReviewSaveStatusByPageId(new Map());
     setDirtyBulkReviewPageIds(new Set());
 
     try {
@@ -496,12 +576,7 @@ export const TargetReview = ({
 
       setBulkPlan(result);
       setBulkPlanStatus("ready");
-    } catch (cause) {
-      console.error("Remaining pages inspection failed.", {
-        name: cause instanceof Error ? cause.name : typeof cause,
-        message: cause instanceof Error ? cause.message : String(cause),
-      });
-
+    } catch {
       setBulkPlanStatus("error");
     }
   };
@@ -513,7 +588,7 @@ export const TargetReview = ({
     setBulkApplyResult(undefined);
     setBulkReviewsByPageId(new Map());
     setSelectedBulkPageId(undefined);
-    setBulkReviewSaveStatus("idle");
+    setBulkReviewSaveStatusByPageId(new Map());
     setDirtyBulkReviewPageIds(new Set());
 
     try {
@@ -547,6 +622,8 @@ export const TargetReview = ({
           contextId: context.contextId,
           language: context.language,
         },
+        {},
+        autoAcknowledgedWarningCodes,
       );
 
       setBulkApplyResult(result);
@@ -578,6 +655,10 @@ export const TargetReview = ({
     blockId: string,
     editedTranslation: string,
   ) => {
+    bulkReviewEditVersionsRef.current.set(
+      pageId,
+      (bulkReviewEditVersionsRef.current.get(pageId) ?? 0) + 1,
+    );
     setBulkReviewsByPageId((current) => {
       const existing = current.get(pageId);
       if (!existing) return current;
@@ -594,7 +675,9 @@ export const TargetReview = ({
     setDirtyBulkReviewPageIds(
       (current) => new Set(current).add(pageId),
     );
-    setBulkReviewSaveStatus("idle");
+    setBulkReviewSaveStatusByPageId((current) =>
+      new Map(current).set(pageId, "idle"),
+    );
   };
 
   // Persists edits (and, optionally, explicit acknowledgement) through the
@@ -602,12 +685,30 @@ export const TargetReview = ({
   // Bulk Apply remains the only path that touches the design. Clears the
   // page's dirty flag on success, since the persisted review now matches
   // what the UI shows.
+  //
+  // The user can keep editing the same page while this request is in
+  // flight. bulkReviewEditVersionsRef is bumped synchronously by every
+  // edit, so the version captured here before the await can be compared
+  // against its current value afterward: if it changed, a newer local
+  // edit exists that this save's snapshot does not reflect. In that case
+  // the save's own persistence call already succeeded (harmlessly, for
+  // the older text), but applying its snapshot to local state would
+  // silently discard the newer edit and incorrectly clear the dirty flag
+  // for text that was never actually saved -- so it is skipped entirely,
+  // leaving the newer edit's own "idle"/dirty state (set by
+  // editBulkReviewBlock) in place until it is saved in turn.
   const saveBulkReviewChanges = async (
     pageId: string,
     options: { acknowledged?: boolean } = {},
   ) => {
     const review = bulkReviewsByPageId.get(pageId);
     if (!review) return;
+
+    const versionAtSaveStart =
+      bulkReviewEditVersionsRef.current.get(pageId) ?? 0;
+    const isStale = () =>
+      (bulkReviewEditVersionsRef.current.get(pageId) ?? 0) !==
+      versionAtSaveStart;
 
     // Any content edit must re-earn acknowledgement; only an explicit
     // acknowledge action may set it to true.
@@ -616,9 +717,14 @@ export const TargetReview = ({
       acknowledged: options.acknowledged ?? false,
     };
 
-    setBulkReviewSaveStatus("saving");
+    setBulkReviewSaveStatusByPageId((current) =>
+      new Map(current).set(pageId, "saving"),
+    );
     try {
       await saveBulkReview(nextReview);
+
+      if (isStale()) return;
+
       setBulkReviewsByPageId((current) =>
         new Map(current).set(pageId, nextReview),
       );
@@ -628,14 +734,45 @@ export const TargetReview = ({
         next.delete(pageId);
         return next;
       });
-      setBulkReviewSaveStatus("saved");
+      setBulkReviewSaveStatusByPageId((current) =>
+        new Map(current).set(pageId, "saved"),
+      );
     } catch {
-      setBulkReviewSaveStatus("error");
+      if (isStale()) return;
+      setBulkReviewSaveStatusByPageId((current) =>
+        new Map(current).set(pageId, "error"),
+      );
     }
   };
 
   const acknowledgeBulkReview = (pageId: string) =>
     saveBulkReviewChanges(pageId, { acknowledged: true });
+
+  // "Always accept this warning type": a product UX improvement on top
+  // of acknowledgement, not a second acknowledgement path. This never
+  // touches the current page's acknowledged flag or its warnings -- it
+  // only records that, from now on, this warning code should count as
+  // pre-approved wherever it appears (see
+  // bulk_review_state.isEffectivelyAcknowledged, which every Apply
+  // eligibility check -- both this UI's bulkReadyPageIds and the
+  // authoritative bulk_apply preflight -- consults). The warning itself
+  // stays visible in the review UI either way.
+  const approveWarningFamily = async (code: string) => {
+    if (!isWarningCodeEligibleForAutoAcknowledge(code)) return;
+    if (autoAcknowledgedWarningCodes.has(code)) return;
+
+    const next = new Set(autoAcknowledgedWarningCodes);
+    next.add(code);
+
+    setAutoAcknowledgedWarningCodes(next);
+    setWarningPreferenceSaveStatus("saving");
+    try {
+      await saveWarningPreferences(next);
+      setWarningPreferenceSaveStatus("idle");
+    } catch {
+      setWarningPreferenceSaveStatus("error");
+    }
+  };
 
   const apply = async () => {
     if (!review || hasBlockingReviewIntegrity(review) || !pageIdentity) return;
@@ -804,7 +941,7 @@ export const TargetReview = ({
                   setBulkApplyResult(undefined);
                   setBulkReviewsByPageId(new Map());
                   setSelectedBulkPageId(undefined);
-                  setBulkReviewSaveStatus("idle");
+                  setBulkReviewSaveStatusByPageId(new Map());
                   setDirtyBulkReviewPageIds(new Set());
                 }}
               />
@@ -905,7 +1042,6 @@ export const TargetReview = ({
                           }
                           onClick={() => {
                             setSelectedBulkPageId(entry.pageId);
-                            setBulkReviewSaveStatus("idle");
                           }}
                         >
                           {label}
@@ -950,9 +1086,30 @@ export const TargetReview = ({
                           </Alert>
                         ))}
                         {block.warnings.map((warning) => (
-                          <Alert key={warning.code} tone="warn">
-                            {warning.message}
-                          </Alert>
+                          <Rows key={warning.code} spacing="0.5u">
+                            <Alert tone="warn">{warning.message}</Alert>
+                            {isWarningCodeEligibleForAutoAcknowledge(
+                              warning.code,
+                            ) && (
+                              <Button
+                                variant="tertiary"
+                                disabled={
+                                  autoAcknowledgedWarningCodes.has(
+                                    warning.code,
+                                  ) || warningPreferenceSaveStatus === "saving"
+                                }
+                                onClick={() =>
+                                  void approveWarningFamily(warning.code)
+                                }
+                              >
+                                {autoAcknowledgedWarningCodes.has(
+                                  warning.code,
+                                )
+                                  ? "Always accepted"
+                                  : "Always accept this warning type"}
+                              </Button>
+                            )}
+                          </Rows>
                         ))}
                       </Rows>
                     ))}
@@ -993,6 +1150,12 @@ export const TargetReview = ({
                     {bulkReviewSaveStatus === "error" && (
                       <Alert tone="critical">
                         Could not save the review.
+                      </Alert>
+                    )}
+                    {warningPreferenceSaveStatus === "error" && (
+                      <Alert tone="critical">
+                        Could not save the warning-type preference. The
+                        warning still shows on this page.
                       </Alert>
                     )}
                   </Rows>
@@ -1244,8 +1407,12 @@ export const App = ({
   saveBulkPreferences: saveBulkPreferencesProp = savePersistedBulkPreferences,
   loadBulkReviews: loadBulkReviewsProp = loadPersistedBulkReviews,
   saveBulkReview: saveBulkReviewProp = savePersistedBulkReview,
+  loadWarningPreferences: loadWarningPreferencesProp = loadPersistedWarningPreferences,
+  saveWarningPreferences: saveWarningPreferencesProp = savePersistedWarningPreferences,
   pagePollIntervalMs = 1000,
   initialDesignRole = { status: "loading" },
+  isDevelopmentTools = process.env.NODE_ENV !== "production",
+  captureTemplateSnapshotExport = () => captureTemplateCandidateSnapshotExport(),
 }: AppProps) => {
   const intl = useIntl();
   const [targetLanguages, setTargetLanguages] = useState<string[]>([]);
@@ -1333,6 +1500,37 @@ export const App = ({
       void createOne(language as TargetLanguage);
   };
 
+  // Development-only: explicit trigger for exporting deterministic
+  // template-candidate source snapshots (see template_snapshot_export.ts).
+  // Nothing here runs automatically -- this state only changes in
+  // response to the dev-only button's onClick below, and the underlying
+  // captureTemplateCandidateSnapshotExport() itself refuses to run
+  // outside development regardless of how it is invoked.
+  const [templateSnapshotExportState, setTemplateSnapshotExportState] =
+    useState<
+      | { status: "idle" }
+      | { status: "loading" }
+      | { status: "ready"; json: string; rowCount: number }
+      | { status: "error"; message: string }
+    >({ status: "idle" });
+
+  const handleExportTemplateSnapshots = async () => {
+    setTemplateSnapshotExportState({ status: "loading" });
+    try {
+      const rows = await captureTemplateSnapshotExport();
+      setTemplateSnapshotExportState({
+        status: "ready",
+        json: serializeTemplateCandidateSnapshotExport(rows),
+        rowCount: rows.length,
+      });
+    } catch (error) {
+      setTemplateSnapshotExportState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
+
   const languageName = (language: TargetLanguage) =>
     language === "en" ? "English" : "Spanish";
 
@@ -1355,6 +1553,8 @@ export const App = ({
         saveBulkPreferences={saveBulkPreferencesProp}
         loadBulkReviews={loadBulkReviewsProp}
         saveBulkReview={saveBulkReviewProp}
+        loadWarningPreferences={loadWarningPreferencesProp}
+        saveWarningPreferences={saveWarningPreferencesProp}
         pagePollIntervalMs={pagePollIntervalMs}
       />
     );
@@ -1464,6 +1664,51 @@ export const App = ({
             </Alert>
           )}
         </Rows>
+
+        {/* eslint-disable formatjs/no-literal-string-in-jsx -- Development-only tooling, deliberately not localized. */}
+        {isDevelopmentTools && (
+          <Rows spacing="0.5u">
+            <Title size="small" tagName="h3">
+              Developer: export template snapshots
+            </Title>
+            <Text tone="secondary">
+              Captures fingerprint, kind, and ordered source blocks for
+              every template-candidate page in this source design. Never
+              sent to the backend or written to disk automatically -- copy
+              the JSON below by hand into a snapshot file for
+              generate:deterministic-template.
+            </Text>
+            <Button
+              variant="secondary"
+              onClick={() => void handleExportTemplateSnapshots()}
+              disabled={templateSnapshotExportState.status === "loading"}
+            >
+              Export template candidate snapshots
+            </Button>
+            {templateSnapshotExportState.status === "loading" && (
+              <Text tone="secondary">Reading document…</Text>
+            )}
+            {templateSnapshotExportState.status === "error" && (
+              <Alert tone="critical">
+                {templateSnapshotExportState.message}
+              </Alert>
+            )}
+            {templateSnapshotExportState.status === "ready" && (
+              <Rows spacing="0.5u">
+                <Text tone="secondary">
+                  {templateSnapshotExportState.rowCount} template candidate
+                  page(s). Select all and copy:
+                </Text>
+                <MultilineInput
+                  value={templateSnapshotExportState.json}
+                  readOnly
+                  autoGrow
+                />
+              </Rows>
+            )}
+          </Rows>
+        )}
+        {/* eslint-enable formatjs/no-literal-string-in-jsx */}
 
         <Rows spacing="1u">
           <Title size="small" tagName="h2">
