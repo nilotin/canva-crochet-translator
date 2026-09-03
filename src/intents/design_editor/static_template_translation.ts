@@ -209,19 +209,51 @@ const translationResult = (
       })()),
 });
 
+// Position context for the whole document, needed because the front-cover
+// and closing templates are identified by BOTH document position (first /
+// final page) AND recognized content -- content matching alone is not
+// enough (an arbitrary first or last page must not be captured), and
+// position alone is not enough either (matching closing-looking text on a
+// non-final page must not activate the closing route). totalPages must
+// count every page discovered in the document (translatable pages AND
+// skipped/locked ones) -- see bulk_translation.ts's call site, which
+// derives it from inventory.pages.length + inventory.skippedPages.length
+// rather than just the pages eligible for translation, so a locked or
+// unreadable final page does not make an earlier page look "final".
+export type StaticTemplateDocumentContext = {
+  totalPages: number;
+};
+
 export const buildStaticTemplateTranslationResponse = (
   page: Page,
   blocks: readonly CanvaTranslationBlock[],
   language: TargetLanguage,
+  documentContext: StaticTemplateDocumentContext,
 ): TranslationResponse | undefined => {
   const orderedPageBlocks = [...page.blocks].sort((a, b) => a.order - b.order);
   const orderedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
   if (orderedPageBlocks.length !== orderedBlocks.length) return undefined;
 
+  // Document-position safety conditions. Page position is a SAFETY
+  // CONDITION, not a template identity -- these booleans gate recognition
+  // alongside content matching below; neither position nor content is
+  // sufficient on its own. discoveryIndex is the document's own 0-based
+  // page ordering (see whole_document_inventory.ts), already used
+  // elsewhere in this codebase for first-page detection
+  // (whole_document_classification.ts's guessTemplateCandidateKind), so
+  // this reuses that existing signal rather than inventing a new one.
+  // Never hard-code a specific page number or page count here -- a
+  // pattern's front cover is always discoveryIndex 0, and its closing
+  // page is always the last discoveryIndex, regardless of how many pages
+  // the pattern has.
+  const isFirstPage = page.discoveryIndex === 0;
+  const isFinalPage = page.discoveryIndex === documentContext.totalPages - 1;
+
   // Page 1:
   // pattern title stays untouched; only the universal notice changes.
   if (
+    isFirstPage &&
     orderedPageBlocks.length === 2 &&
     sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", FRONT_NOTICE_TR)
   ) {
@@ -314,9 +346,13 @@ export const buildStaticTemplateTranslationResponse = (
     };
   }
 
-  // Page 9:
+  // Closing page (the FINAL page of the document -- for the current Buzu
+  // test pattern that happens to be Page 9, but this must not depend on
+  // that: see isFinalPage above, computed from actual document position,
+  // never a hard-coded page number/discoveryIndex/pageId):
   // all visible copy is universal for this template family.
   if (
+    isFinalPage &&
     orderedPageBlocks.length === 4 &&
     orderedPageBlocks.every(
       (block, index) => sameTemplateText(block.sourceText, CLOSING_TR[index] ?? ""),

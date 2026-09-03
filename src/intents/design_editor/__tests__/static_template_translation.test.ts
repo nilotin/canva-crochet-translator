@@ -35,6 +35,12 @@ const translationBlocksFor = (p: Page): CanvaTranslationBlock[] =>
 const byId = (translations: ReturnType<typeof buildStaticTemplateTranslationResponse>, id: string) =>
   translations?.translations.find((t) => t.id === id);
 
+// Buzu's live document happens to be 9 pages; used as the default
+// document size for fixtures that don't care about exercising a
+// different page count. The 30-page test below proves nothing depends
+// on this specific number.
+const docContext = (totalPages = 9) => ({ totalPages });
+
 const assertNoOverlapsOrOOB = (
   regions: readonly { start: number; end: number }[] | undefined,
   textLength: number,
@@ -54,6 +60,8 @@ const assertNoOverlapsOrOOB = (
 };
 
 describe("buildStaticTemplateTranslationResponse: Page 1 (front cover)", () => {
+  // discoveryIndex defaults to 0 via page()'s own default -- i.e. these
+  // fixtures are, by construction, the document's first page.
   const buildPage1 = (title = "BUZU", noticeText = FRONT_NOTICE_TR) =>
     page([
       block("title", title, 0, [{ index: 0, length: title.length, text: title, formatting: {} }]),
@@ -62,20 +70,20 @@ describe("buildStaticTemplateTranslationResponse: Page 1 (front cover)", () => {
 
   it("keeps the pattern title unchanged, byte-for-byte", () => {
     const p = buildPage1("BUZU");
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "title")?.translated).toBe("BUZU");
     expect(byId(result, "title")?.source).toBe("BUZU");
   });
 
   it("replaces the notice with the exact approved English text", () => {
     const p = buildPage1();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.en);
   });
 
   it("replaces the notice with the exact approved Spanish text", () => {
     const p = buildPage1();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.es);
   });
 
@@ -85,21 +93,38 @@ describe("buildStaticTemplateTranslationResponse: Page 1 (front cover)", () => {
       "Tarif\nkişisel   kullanım\nİçindir.".replace("İçindir", "içindir"),
     );
     const p = buildPage1("BUZU", noisyNotice);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.en);
   });
 
   it("still matches when the live source uses smart quotes/dashes instead of plain punctuation", () => {
     const noisyNotice = FRONT_NOTICE_TR.replace(/'/gu, "’");
     const p = buildPage1("BUZU", noisyNotice);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.en);
   });
 
   it("returns valid, non-overlapping, in-bounds target formatting ranges", () => {
     const p = buildPage1();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     assertNoOverlapsOrOOB(byId(result, "notice")?.targetFormattingRegions, FRONT_NOTICE.en.length);
+  });
+
+  it("does NOT trigger the front-cover route for an otherwise-exact match that is not the document's first page", () => {
+    // Same 2-block shape, same exact pinned notice text -- only the
+    // document position differs. Position is a safety condition, not
+    // just a heuristic hint: content matching alone must never be
+    // enough to activate this route.
+    const p = page(
+      [
+        block("title", "BUZU", 0, [{ index: 0, length: 4, text: "BUZU", formatting: {} }]),
+        block("notice", FRONT_NOTICE_TR, 1),
+      ],
+      1,
+    );
+    expect(
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext()),
+    ).toBeUndefined();
   });
 });
 
@@ -146,51 +171,51 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
 
   it("leaves the materials block completely untouched, byte-for-byte", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "materials")?.translated).toBe(MATERIALS_TR);
     expect(byId(result, "materials")?.source).toBe(MATERIALS_TR);
   });
 
   it("keeps the materials block's formatting mapping identity/safe (no shifted or invented ranges)", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     const regions = byId(result, "materials")?.targetFormattingRegions;
     expect(regions).toEqual([{ id: "fmt-0", start: 0, end: MATERIALS_TR.length }]);
   });
 
   it("produces the exact approved English instructions", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
   });
 
   it("produces the exact approved Spanish instructions", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
     expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.es);
   });
 
   it("produces the exact approved English glossary", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.en);
   });
 
   it("produces the exact approved Spanish glossary", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
     expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.es);
   });
 
   it("leaves the decorative '.' block unchanged", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "decorative")?.translated).toBe(".");
   });
 
   it("never produces the normal-pipeline notation-mismatch/manual-review warnings or errors", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     for (const t of result!.translations) {
       expect(t.errors).toEqual([]);
       expect(t.warnings).toEqual([]);
@@ -200,7 +225,7 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
 
   it("produces only valid, non-overlapping, in-bounds target formatting ranges for every block", () => {
     const p = buildPage2();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     assertNoOverlapsOrOOB(byId(result, "materials")?.targetFormattingRegions, MATERIALS_TR.length);
     assertNoOverlapsOrOOB(byId(result, "glossary")?.targetFormattingRegions, GLOSSARY.en.length);
   });
@@ -211,14 +236,14 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
       "kullanabilirsiniz.\n  ",
     ).trim();
     const p = buildPage2(MATERIALS_TR, noisyInstructions, GLOSSARY_TR);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
   });
 
   it("still matches materials-independent of the materials content (pattern-specific)", () => {
     const differentMaterials = "✦ Some completely different pattern's yarn list";
     const p = buildPage2(differentMaterials);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
     expect(byId(result, "materials")?.translated).toBe(differentMaterials);
     expect(byId(result, "instructions")?.translated).toBe(INSTRUCTIONS.en);
     expect(byId(result, "glossary")?.translated).toBe(GLOSSARY.en);
@@ -243,6 +268,7 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
       p,
       translationBlocksFor(p),
       "en",
+      docContext(),
     );
 
     expect(result).toBeDefined();
@@ -258,18 +284,24 @@ describe("buildStaticTemplateTranslationResponse: Page 2 (materials / instructio
   });
 });
 
-describe("buildStaticTemplateTranslationResponse: closing page", () => {
-  const buildClosing = (blocks = CLOSING_TR) =>
-    page([
-      block("headline", blocks[0]!, 0),
-      block("body", blocks[1]!, 1),
-      block("completed", blocks[2]!, 2),
-      block("decorative", blocks[3]!, 3),
-    ]);
+describe("buildStaticTemplateTranslationResponse: closing page (the document's FINAL page)", () => {
+  // discoveryIndex 8 of a 9-page document -- i.e. the actual final page,
+  // matching the current live Buzu pattern's observed shape. The
+  // "does not depend on page 9" tests below prove this is not load-bearing.
+  const buildClosing = (blocks = CLOSING_TR, discoveryIndex = 8) =>
+    page(
+      [
+        block("headline", blocks[0]!, 0),
+        block("body", blocks[1]!, 1),
+        block("completed", blocks[2]!, 2),
+        block("decorative", blocks[3]!, 3),
+      ],
+      discoveryIndex,
+    );
 
   it("produces the exact approved English closing text for every fixed block", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9));
     expect(byId(result, "headline")?.translated).toBe(CLOSING.en[0]);
     expect(byId(result, "body")?.translated).toBe(CLOSING.en[1]);
     expect(byId(result, "completed")?.translated).toBe(CLOSING.en[2]);
@@ -277,7 +309,7 @@ describe("buildStaticTemplateTranslationResponse: closing page", () => {
 
   it("produces the exact approved Spanish closing text for every fixed block", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext(9));
     expect(byId(result, "headline")?.translated).toBe(CLOSING.es[0]);
     expect(byId(result, "body")?.translated).toBe(CLOSING.es[1]);
     expect(byId(result, "completed")?.translated).toBe(CLOSING.es[2]);
@@ -285,8 +317,37 @@ describe("buildStaticTemplateTranslationResponse: closing page", () => {
 
   it("leaves the decorative '.' block unchanged", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en");
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9));
     expect(byId(result, "decorative")?.translated).toBe(".");
+  });
+
+  it("does NOT trigger the closing route when the exact same content is on a NON-final page", () => {
+    // Same exact 4-block Buzu closing text, same document size -- only
+    // moved off the final page (discoveryIndex 3 of 9, not 8 of 9).
+    // Content matching alone must never be enough to activate this route.
+    const p = buildClosing(CLOSING_TR, 3);
+    expect(
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9)),
+    ).toBeUndefined();
+  });
+
+  it("recognizes the final closing page regardless of how many pages the document has (30-page document, closing on page 30)", () => {
+    // Proves nothing here depends on page number 9 / discoveryIndex 8 /
+    // any Buzu-specific total page count: a 30-page document whose
+    // closing template happens to be its last page (discoveryIndex 29)
+    // must still be recognized purely from document position + content.
+    const p = buildClosing(CLOSING_TR, 29);
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(30));
+    expect(result).toBeDefined();
+    expect(byId(result, "headline")?.translated).toBe(CLOSING.en[0]);
+    expect(byId(result, "decorative")?.translated).toBe(".");
+  });
+
+  it("does NOT recognize the closing template on the second-to-last page of a 30-page document", () => {
+    const p = buildClosing(CLOSING_TR, 28);
+    expect(
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(30)),
+    ).toBeUndefined();
   });
 });
 
@@ -297,7 +358,7 @@ describe("buildStaticTemplateTranslationResponse: unknown/changed pages fall bac
       block("b2", "6x sık iğne örüyoruz", 1),
     ], 4);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en"),
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext()),
     ).toBeUndefined();
   });
 
@@ -307,11 +368,11 @@ describe("buildStaticTemplateTranslationResponse: unknown/changed pages fall bac
       block("instructions", INSTRUCTIONS_TR, 1),
     ], 1);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en"),
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext()),
     ).toBeUndefined();
   });
 
-  it("returns undefined when the closing text has genuinely changed (a different pattern name)", () => {
+  it("returns undefined when the closing text has genuinely changed (a different pattern name), even on the actual final page", () => {
     const p = page([
       block("headline", "TEBRIKLER!!", 0),
       block("body", CLOSING_TR[1]!.replace("Buzu", "Miki"), 1),
@@ -319,17 +380,17 @@ describe("buildStaticTemplateTranslationResponse: unknown/changed pages fall bac
       block("decorative", ".", 3),
     ], 8);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en"),
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9)),
     ).toBeUndefined();
   });
 
-  it("does not incorrectly match a front-cover-shaped page whose second block isn't the real notice", () => {
+  it("does not incorrectly match a front-cover-shaped page whose second block isn't the real notice, even on the actual first page", () => {
     const p = page([
       block("title", "SOME OTHER PATTERN", 0),
       block("notice", "This is just some unrelated two-block page.", 1),
     ], 0);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en"),
+      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext()),
     ).toBeUndefined();
   });
 });
@@ -443,7 +504,7 @@ describe("realistic Canva-style granular glossary formatting regression", () => 
       order: block.order,
     }));
 
-    const result = buildStaticTemplateTranslationResponse(page, blocks, "en");
+    const result = buildStaticTemplateTranslationResponse(page, blocks, "en", docContext());
     const glossary = result?.translations.find(
       (translation) => translation.id === "glossary",
     );

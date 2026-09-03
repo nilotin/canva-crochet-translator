@@ -586,6 +586,19 @@ describe("bulk translation", () => {
   });
 
   it("never acquires design/user tokens or calls fetch for the static closing page", async () => {
+    // The closing route now requires the page to be the document's
+    // ACTUAL final page (see static_template_translation.ts's
+    // isFinalPage), not merely a fixed discoveryIndex -- so this
+    // fixture must reflect a realistic 9-page document (matching the
+    // live Buzu pattern's observed shape) rather than a single isolated
+    // page. In the real product, "isolating" the closing page via
+    // exclusion still reads the FULL document inventory (see
+    // translate_remaining_workflow.ts -- exclusion only affects which
+    // queue entries are pending, never what readWholeDocumentInventory
+    // returns), so a realistic fixture keeps all page slots present.
+    // These 8 filler slots use skippedPages (no blocks needed) purely
+    // to make the document's total page count realistic; they are not
+    // in the queue below, so the routing loop never looks at them.
     const closingInventory: WholeDocumentInventory = {
       pages: [
         {
@@ -600,7 +613,10 @@ describe("bulk translation", () => {
           })),
         },
       ],
-      skippedPages: [],
+      skippedPages: Array.from({ length: 8 }, (_, discoveryIndex) => ({
+        discoveryIndex,
+        reason: "not relevant to this test",
+      })),
     };
 
     const closingQueue: BulkReviewQueue = {

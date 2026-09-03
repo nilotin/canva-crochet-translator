@@ -103,7 +103,7 @@ describe("persisted page-state client", () => {
         appliedCount: 3,
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v6",
+          pipelineRevision: "translation-pipeline-v7",
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           status: "needs_review",
@@ -175,7 +175,7 @@ describe("persisted page-state client", () => {
         },
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v6",
+          pipelineRevision: "translation-pipeline-v7",
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           appliedSnapshotDigest: digestWholeDocumentPage(page),
@@ -226,7 +226,7 @@ describe("persisted page-state client", () => {
         },
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v6",
+          pipelineRevision: "translation-pipeline-v7",
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           appliedSnapshotDigest: digestWholeDocumentPage(persistedPage),
@@ -337,7 +337,7 @@ describe("persisted page-state client", () => {
     expect(body).toMatchObject({
       designToken: "design-jwt",
       pageIdentity: "page:absolute-page-id",
-      pipelineRevision: "translation-pipeline-v6",
+      pipelineRevision: "translation-pipeline-v7",
       sourceSnapshotDigest: "whole-source-digest",
       expectedAppliedSnapshotDigest: "whole-expected-digest",
       appliedSnapshotDigest: "whole-applied-digest",
@@ -365,7 +365,7 @@ describe("persisted page-state client", () => {
     expect(body).toMatchObject({
       designToken: "design-jwt",
       pageIdentity: "page:one",
-      pipelineRevision: "translation-pipeline-v6",
+      pipelineRevision: "translation-pipeline-v7",
       status: "needs_review",
       blocks: [{ editedTranslation: "manually edited 6sc" }],
     });

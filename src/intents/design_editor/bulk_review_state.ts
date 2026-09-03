@@ -13,7 +13,16 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // the static/deterministic bypass -- see static_template_translation.ts).
 // v5: fixed the Page 1/2/9 static-template bypass to match reliably
 // (see static_template_translation.ts's normalizeForStaticMatch).
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v6";
+// v6: Page 2's static matcher now also accepts the real live 3-block
+// Canva shape (materials/instructions/glossary, no exposed "." block).
+// v7: front-cover and closing static recognition now additionally
+// require actual document position (first page / final page), not
+// content match alone -- see static_template_translation.ts's
+// isFirstPage/isFinalPage. This is strictly more conservative than
+// before (a page that is genuinely first/last still matches exactly as
+// it did), but any stale review from a document shape where that safety
+// condition would have mattered should not be silently reused.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v7";
 
 export type PersistedBulkPageReview = {
   pageId: string;

@@ -113,6 +113,13 @@ export const translatePendingBulkPages = async (
         page,
         blocks,
         language,
+        // totalPages counts every page discoveryIndex found in the whole
+        // document -- both translatable pages AND skipped/locked ones --
+        // so front-cover/closing recognition is judged against the
+        // document's real page count, not just the pages this bulk run
+        // happens to be translating. See
+        // static_template_translation.ts's StaticTemplateDocumentContext.
+        { totalPages: inventory.pages.length + inventory.skippedPages.length },
       );
 
       let result: TranslationResponse;
