@@ -113,13 +113,22 @@ export const translatePendingBulkPages = async (
         page,
         blocks,
         language,
-        // totalPages counts every page discoveryIndex found in the whole
-        // document -- both translatable pages AND skipped/locked ones --
-        // so front-cover/closing recognition is judged against the
-        // document's real page count, not just the pages this bulk run
-        // happens to be translating. See
-        // static_template_translation.ts's StaticTemplateDocumentContext.
-        { totalPages: inventory.pages.length + inventory.skippedPages.length },
+        {
+          // totalPages counts every page discoveryIndex found in the
+          // whole document -- both translatable pages AND skipped/locked
+          // ones -- so front-cover/closing recognition is judged against
+          // the document's real page count, not just the pages this bulk
+          // run happens to be translating. See
+          // static_template_translation.ts's StaticTemplateDocumentContext.
+          totalPages: inventory.pages.length + inventory.skippedPages.length,
+          // The document's actual first page, from this SAME inventory --
+          // used only to derive pattern identity for closing-page
+          // recognition (a locked/unreadable first page lives in
+          // skippedPages, not pages, so it is simply absent here, which
+          // safely disables closing-page pattern-identity matching for
+          // this run rather than guessing).
+          firstPage: inventory.pages.find((p) => p.discoveryIndex === 0),
+        },
       );
 
       let result: TranslationResponse;

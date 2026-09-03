@@ -11,8 +11,8 @@ export const FRONT_NOTICE_TR =
   "Tarifimi satın aldığınız için çok teşekkür ederim. \nTarif kişisel kullanım içindir. Ördüğünüz oyuncağı satabilirsiniz fakat bu tarif kesinlikle paylaşılamaz, satılamaz ve izin alınmadan başka dillere tercüme edilemez. Ücretli tarif olup ücretsiz bir şekilde başka platformlarda dağıtılıp örülmesine kesinlikle rızam yoktur.\n@suen.baby.amigurumi";
 
 export const FRONT_NOTICE = {
-  en: "Thank you very much for purchasing my pattern.\nThis pattern is for personal use only. You may sell the toy you make, but this pattern may not be shared, sold, or translated into other languages without permission under any circumstances. This is a paid pattern, and I absolutely do not consent to it being distributed free of charge or used on other platforms without permission.\n@suen.baby.amigurumi",
-  es: "Muchas gracias por comprar mi patrón.\nEste patrón es únicamente para uso personal. Puedes vender el muñeco que realices, pero este patrón no puede compartirse, venderse ni traducirse a otros idiomas sin permiso bajo ninguna circunstancia. Este es un patrón de pago y no doy mi consentimiento para que se distribuya gratuitamente ni se utilice en otras plataformas sin autorización.\n@suen.baby.amigurumi",
+  en: "Thank you very much for purchasing my pattern. This pattern is for personal use only. You may sell the toy you make, but this pattern may not be shared, sold, or translated into other languages without permission under any circumstances. This is a paid pattern, and I absolutely do not consent to it being distributed free of charge or used on other platforms without permission. @suen.baby.amigurumi",
+  es: "Muchas gracias por comprar mi patrón. Este patrón es únicamente para uso personal. Puedes vender el muñeco que realices, pero este patrón no puede compartirse, venderse ni traducirse a otros idiomas sin permiso bajo ninguna circunstancia. Este es un patrón de pago y no doy mi consentimiento para que se distribuya gratuitamente ni se utilice en otras plataformas sin autorización. @suen.baby.amigurumi",
 } as const;
 
 export const INSTRUCTIONS_TR =
@@ -41,17 +41,82 @@ export const CLOSING_TR = [
 export const CLOSING = {
   en: [
     "CONGRATULATIONS!!",
-    "I can't wait to see what you've made.\nI'll be looking forward to seeing your Buzu posts on Instagram.\nIf you tag me in your posts, I'll be very happy to see the beautiful Buzus you've made.\nSee you in the next design.\nWith love, and goodbye!!",
+    "I can't wait to see what you've made. I'll be looking forward to seeing your Buzu posts on Instagram. If you tag me in your posts, I'll be very happy to see the beautiful Buzus you've made. See you in the next design. With love, and goodbye!!",
     "You've Completed Buzu!",
     ".",
   ],
   es: [
     "¡¡FELICIDADES!!",
-    "Estoy deseando ver lo que has tejido.\nEstaré esperando ver tus publicaciones de Buzu en Instagram.\nSi me etiquetas en tus publicaciones, me hará mucha ilusión ver los preciosos Buzu que has tejido.\nNos vemos en el próximo diseño.\n¡Con cariño y hasta pronto!",
+    "Estoy deseando ver lo que has tejido. Estaré esperando ver tus publicaciones de Buzu en Instagram. Si me etiquetas en tus publicaciones, me hará mucha ilusión ver los preciosos Buzu que has tejido. Nos vemos en el próximo diseño. ¡Con cariño y hasta pronto!",
     "¡Has Completado a Buzu!",
     ".",
   ],
 } as const;
+
+// Selene Doll's closing template family. Unlike front-cover/notice,
+// Page-2-instructions, and Page-2-glossary (which are byte-identical
+// universal text across every pattern from this creator), the closing
+// page's copy is NOT purely universal: the pattern name is woven into
+// the Turkish text using genuinely different grammatical constructions
+// per pattern -- Buzu takes a direct object suffix ("Buzu'yu
+// Tamamladınız!"), while Selene Doll takes an appended common noun
+// ("Selene Bebeği Tamamladınız!", literally "Selene Doll" rather than a
+// suffixed "Selene'yi"). This is real Turkish morphological variation
+// (further compounded by vowel-harmony-driven plural/possessive suffixes
+// -- "Buzu'ları" vs "Selene'leri") that cannot be safely derived from the
+// canonical pattern name by any simple, general rule -- and this module
+// is deliberately NOT attempting to build one (see CLOSING_TEMPLATES
+// below). Instead, each known pattern's exact closing text (source AND
+// pinned target output) is recorded explicitly, exactly like CLOSING_TR /
+// CLOSING above.
+export const SELENE_CLOSING_TR = [
+  "TEBRIKLER!!",
+  "Ördüklerinizi görmek için sabırsızlanıyorum. İnstagramda\nSelene Doll paylaşımlarınızı bekliyor olacağım.\nPaylaşımlarınızda beni de etiketlerseniz ördüğünüz güzel\nSelene’leri görmekten mutluluk duyarım. Bir sonraki\ntasarımda görüşmek üzere. Sevgiyle ve Hoşça kalın!!",
+  "Selene Bebeği Tamamladınız!",
+  ".",
+] as const;
+
+export const SELENE_CLOSING = {
+  en: [
+    "CONGRATULATIONS!!",
+    "I can't wait to see what you've made. I'll be looking forward to seeing your Selene Doll posts on Instagram. If you tag me in your posts, I'll be very happy to see the beautiful Selenes you've made. See you in the next design. With love, and goodbye!!",
+    "You've Completed Selene!",
+    ".",
+  ],
+  es: [
+    "¡¡FELICIDADES!!",
+    "Estoy deseando ver lo que has tejido. Estaré esperando ver tus publicaciones de Selene Doll en Instagram. Si me etiquetas en tus publicaciones, me hará mucha ilusión ver los preciosos Selene que has tejido. Nos vemos en el próximo diseño. ¡Con cariño y hasta pronto!",
+    "¡Has Completado a Selene!",
+    ".",
+  ],
+} as const;
+
+// The closing-template registry: maps a pattern's canonical front-cover
+// title to that pattern's exact closing source/target text. See
+// buildStaticTemplateTranslationResponse's closing-page branch for how
+// this is used -- a page matches ONLY when the front-cover title
+// extracted from the SAME document also matches a template's
+// canonicalTitle (compared with the same normalizeForStaticMatch used
+// everywhere else in this module), in addition to the closing page's own
+// content matching that same template's tr[] exactly. Adding support for
+// a new pattern means adding one entry here with that pattern's exact
+// recorded text -- never inventing a general name-substitution rule.
+type PatternClosingTemplate = {
+  canonicalTitle: string;
+  tr: readonly [string, string, string, string];
+  en: readonly [string, string, string, string];
+  es: readonly [string, string, string, string];
+};
+
+const CLOSING_TEMPLATES: readonly PatternClosingTemplate[] = [
+  { canonicalTitle: "BUZU", tr: CLOSING_TR, en: CLOSING.en, es: CLOSING.es },
+  {
+    canonicalTitle: "SELENE DOLL",
+    tr: SELENE_CLOSING_TR,
+    en: SELENE_CLOSING.en,
+    es: SELENE_CLOSING.es,
+  },
+];
 
 // Used ONLY to decide whether a block's text *is* one of the known
 // fixed/universal template blocks -- never to produce the block's
@@ -81,6 +146,16 @@ const normalizeForStaticMatch = (text: string): string =>
     .replace(/[‘’‛]/gu, "'")
     .replace(/[“”‟]/gu, '"')
     .replace(/[–—]/gu, "-")
+    // Turkish source text is sometimes typed with the correct capital
+    // dotted İ and sometimes with a plain ASCII "I" standing in for it,
+    // depending on the author's keyboard/input method. toLocaleLowerCase("tr")
+    // treats these as genuinely different letters (İ -> i, ASCII I -> ı),
+    // so without this fold an otherwise-identical universal template string
+    // (e.g. "TEBRIKLER!!" vs "TEBRİKLER!!") would be treated as a real
+    // content difference. Folding İ to ASCII "I" before lowercasing makes
+    // matching robust to this specific, well-known authoring inconsistency,
+    // regardless of which form a given pattern's real Canva source used.
+    .replace(/İ/gu, "I")
     .replace(/\s+/gu, " ")
     .trim()
     .toLocaleLowerCase("tr");
@@ -222,6 +297,39 @@ const translationResult = (
 // unreadable final page does not make an earlier page look "final".
 export type StaticTemplateDocumentContext = {
   totalPages: number;
+  // The document's actual first page (discoveryIndex 0), from the SAME
+  // whole-document inventory as the page currently being processed --
+  // never a different document/run. Used ONLY to derive pattern identity
+  // for closing-page recognition (see extractFrontCoverTitle below); it
+  // has no effect on front-cover or Page 2 recognition. Optional because
+  // a caller may not have it (e.g. the document's first page was
+  // unreadable/locked and landed in skippedPages instead of pages) -- in
+  // that case closing-page pattern-identity matching simply cannot
+  // succeed, which is the safe default (falls through to normal review).
+  firstPage?: Page;
+};
+
+// Mirrors the front-cover branch's own recognition condition below
+// (kept as a small, deliberate duplication rather than a shared
+// early-return helper, so the working front-cover branch itself stays
+// untouched). Extracts the pattern title ONLY when the supplied page
+// safely matches the known front-cover shape -- title + universal
+// notice -- never from an arbitrary 2-block page.
+const extractFrontCoverTitle = (
+  firstPage: Page | undefined,
+): string | undefined => {
+  if (!firstPage || firstPage.discoveryIndex !== 0) return undefined;
+
+  const ordered = [...firstPage.blocks].sort((a, b) => a.order - b.order);
+
+  if (
+    ordered.length !== 2 ||
+    !sameTemplateText(ordered[1]?.sourceText ?? "", FRONT_NOTICE_TR)
+  ) {
+    return undefined;
+  }
+
+  return ordered[0]?.sourceText;
 };
 
 export const buildStaticTemplateTranslationResponse = (
@@ -349,25 +457,48 @@ export const buildStaticTemplateTranslationResponse = (
   // Closing page (the FINAL page of the document -- for the current Buzu
   // test pattern that happens to be Page 9, but this must not depend on
   // that: see isFinalPage above, computed from actual document position,
-  // never a hard-coded page number/discoveryIndex/pageId):
-  // all visible copy is universal for this template family.
-  if (
-    isFinalPage &&
-    orderedPageBlocks.length === 4 &&
-    orderedPageBlocks.every(
-      (block, index) => sameTemplateText(block.sourceText, CLOSING_TR[index] ?? ""),
-    )
-  ) {
-    return {
-      translations: orderedBlocks.map((block, index) =>
-        translationResult(
-          block,
-          orderedPageBlocks[index]!,
-          CLOSING[language][index]!,
-          index === 3 ? "keep" : "replace",
+  // never a hard-coded page number/discoveryIndex/pageId).
+  //
+  // Recognition requires ALL of:
+  //   1. isFinalPage (position, computed above);
+  //   2. the page's 4 blocks match a KNOWN pattern's closing template
+  //      EXACTLY (never a loose/partial regex over a subset of words --
+  //      see CLOSING_TEMPLATES);
+  //   3. the SAME document's actual front cover (documentContext.firstPage)
+  //      is itself safely recognized as a front-cover page, and its
+  //      extracted title matches that SAME template's canonicalTitle.
+  // Content match alone is not enough (an unrelated final page whose
+  // closing text happens to line up with one pattern's exact TR words,
+  // but whose front cover says something else, must not match), position
+  // alone is not enough, and a template match without a corresponding,
+  // consistent front-cover identity is not enough either. Any of these
+  // failing falls through to the "do not guess" fallback below.
+  if (isFinalPage && orderedPageBlocks.length === 4) {
+    const firstPageTitle = extractFrontCoverTitle(documentContext.firstPage);
+
+    const matchedTemplate =
+      firstPageTitle === undefined
+        ? undefined
+        : CLOSING_TEMPLATES.find(
+            (template) =>
+              sameTemplateText(firstPageTitle, template.canonicalTitle) &&
+              orderedPageBlocks.every((block, index) =>
+                sameTemplateText(block.sourceText, template.tr[index] ?? ""),
+              ),
+          );
+
+    if (matchedTemplate) {
+      return {
+        translations: orderedBlocks.map((block, index) =>
+          translationResult(
+            block,
+            orderedPageBlocks[index]!,
+            matchedTemplate[language][index]!,
+            index === 3 ? "keep" : "replace",
+          ),
         ),
-      ),
-    };
+      };
+    }
   }
 
   // Unknown/changed template: do not guess.

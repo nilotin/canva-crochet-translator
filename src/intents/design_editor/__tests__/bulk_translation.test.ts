@@ -6,6 +6,7 @@ import {
   INSTRUCTIONS_TR,
   GLOSSARY_TR,
   CLOSING_TR,
+  SELENE_CLOSING_TR,
 } from "../static_template_translation";
 
 const inventory: WholeDocumentInventory = {
@@ -585,22 +586,33 @@ describe("bulk translation", () => {
     expect(result.failedPages).toBe(0);
   });
 
-  it("never acquires design/user tokens or calls fetch for the static closing page", async () => {
+  it("never acquires design/user tokens or calls fetch for the static closing page (Buzu)", async () => {
     // The closing route now requires the page to be the document's
     // ACTUAL final page (see static_template_translation.ts's
-    // isFinalPage), not merely a fixed discoveryIndex -- so this
-    // fixture must reflect a realistic 9-page document (matching the
-    // live Buzu pattern's observed shape) rather than a single isolated
-    // page. In the real product, "isolating" the closing page via
-    // exclusion still reads the FULL document inventory (see
-    // translate_remaining_workflow.ts -- exclusion only affects which
-    // queue entries are pending, never what readWholeDocumentInventory
-    // returns), so a realistic fixture keeps all page slots present.
-    // These 8 filler slots use skippedPages (no blocks needed) purely
-    // to make the document's total page count realistic; they are not
-    // in the queue below, so the routing loop never looks at them.
+    // isFinalPage) AND requires the document's actual front-cover title
+    // to be readable from this SAME inventory (see
+    // StaticTemplateDocumentContext.firstPage / extractFrontCoverTitle),
+    // so this fixture must include a real front-cover page at
+    // discoveryIndex 0 -- not just filler. In the real product,
+    // "isolating" the closing page via exclusion still reads the FULL
+    // document inventory (see translate_remaining_workflow.ts --
+    // exclusion only affects which queue entries are pending, never what
+    // readWholeDocumentInventory returns), so a realistic fixture keeps
+    // every page slot present: the real front cover, the closing page,
+    // and filler skippedPages for the pages in between. These filler
+    // slots are not in the queue below, so the routing loop never looks
+    // at them.
     const closingInventory: WholeDocumentInventory = {
       pages: [
+        {
+          pageId: "front-page",
+          discoveryIndex: 0,
+          locked: false,
+          blocks: [
+            { id: "title-block", sourceText: "BUZU", order: 0, formattingRegions: [] },
+            { id: "notice-block", sourceText: FRONT_NOTICE_TR, order: 1, formattingRegions: [] },
+          ],
+        },
         {
           pageId: "closing-page",
           discoveryIndex: 8,
@@ -613,8 +625,8 @@ describe("bulk translation", () => {
           })),
         },
       ],
-      skippedPages: Array.from({ length: 8 }, (_, discoveryIndex) => ({
-        discoveryIndex,
+      skippedPages: Array.from({ length: 7 }, (_, offset) => ({
+        discoveryIndex: offset + 1,
         reason: "not relevant to this test",
       })),
     };
@@ -660,6 +672,99 @@ describe("bulk translation", () => {
     expect(getDesignTokenSpy).not.toHaveBeenCalled();
     expect(getUserTokenSpy).not.toHaveBeenCalled();
     expect(fetcher).not.toHaveBeenCalled();
+
+    expect(result.queue.entries[0]?.status).toBe("ready");
+    expect(result.translatedPages).toBe(1);
+    expect(result.failedPages).toBe(0);
+  });
+
+  it("never acquires design/user tokens or calls fetch for the static closing page (Selene Doll, real 38-page document)", async () => {
+    // Same shape as the Buzu proof above, but for a different pattern
+    // name and a genuinely different (larger) document -- proves the
+    // zero-token static route is not Buzu-specific and does not depend
+    // on any particular total page count.
+    const closingInventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "front-page",
+          discoveryIndex: 0,
+          locked: false,
+          blocks: [
+            { id: "title-block", sourceText: "SELENE DOLL", order: 0, formattingRegions: [] },
+            { id: "notice-block", sourceText: FRONT_NOTICE_TR, order: 1, formattingRegions: [] },
+          ],
+        },
+        {
+          pageId: "closing-page",
+          discoveryIndex: 37,
+          locked: false,
+          blocks: SELENE_CLOSING_TR.map((text, index) => ({
+            id: `closing-block-${index}`,
+            sourceText: text,
+            order: index,
+            formattingRegions: [],
+          })),
+        },
+      ],
+      skippedPages: Array.from({ length: 36 }, (_, offset) => ({
+        discoveryIndex: offset + 1,
+        reason: "not relevant to this test",
+      })),
+    };
+
+    const closingQueue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "closing-page",
+          discoveryIndex: 37,
+          fingerprint: "fp-closing-selene",
+          status: "pending",
+          blockIds: SELENE_CLOSING_TR.map((_, index) => `closing-block-${index}`),
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const getDesignTokenSpy = jest.fn(async () => ({ token: "design-jwt" }));
+    const getUserTokenSpy = jest.fn(async () => "user-jwt");
+    const fetcher = jest.fn();
+    const saveReview = jest.fn(async () => undefined);
+
+    const result = await translatePendingBulkPages(
+      "en",
+      closingInventory,
+      closingQueue,
+      {
+        fetch: fetcher as unknown as typeof fetch,
+        getDesignToken: getDesignTokenSpy as never,
+        getUserToken: getUserTokenSpy as never,
+        backendHost: "http://backend",
+        saveReview,
+      },
+    );
+
+    expect(getDesignTokenSpy).not.toHaveBeenCalled();
+    expect(getUserTokenSpy).not.toHaveBeenCalled();
+    expect(fetcher).not.toHaveBeenCalled();
+
+    expect(saveReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageId: "closing-page",
+        blocks: expect.arrayContaining([
+          expect.objectContaining({
+            id: "closing-block-2",
+            translated: "You've Completed Selene!",
+          }),
+        ]),
+      }),
+    );
 
     expect(result.queue.entries[0]?.status).toBe("ready");
     expect(result.translatedPages).toBe(1);

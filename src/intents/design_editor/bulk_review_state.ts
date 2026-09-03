@@ -22,7 +22,22 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // before (a page that is genuinely first/last still matches exactly as
 // it did), but any stale review from a document shape where that safety
 // condition would have mattered should not be silently reused.
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v7";
+// v8: closing-page recognition is now pattern-aware -- it additionally
+// requires the document's actual front-cover title (read from the same
+// whole-document inventory) to match a known pattern's closing template
+// (see static_template_translation.ts's CLOSING_TEMPLATES /
+// extractFrontCoverTitle), instead of only ever recognizing Buzu's exact
+// closing text. Buzu's own recognized text and pinned output are
+// unchanged, but the recognition GATE changed (a persisted Buzu closing
+// review from before this change was produced without ever checking
+// front-cover identity), so stale reviews must not be silently reused.
+// v9: the pinned FRONT_NOTICE and CLOSING/SELENE_CLOSING target (EN/ES)
+// strings no longer contain internal "\n" line breaks -- each is now one
+// continuous paragraph so Canva can wrap it by text-box width itself.
+// Recognition logic is unchanged; only the persisted OUTPUT text differs
+// from every prior revision, so a stale review must not be silently
+// reused (it would still contain the old hard-wrapped text).
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v9";
 
 export type PersistedBulkPageReview = {
   pageId: string;

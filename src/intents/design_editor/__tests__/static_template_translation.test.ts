@@ -8,6 +8,8 @@ import {
   GLOSSARY_TR,
   INSTRUCTIONS,
   INSTRUCTIONS_TR,
+  SELENE_CLOSING,
+  SELENE_CLOSING_TR,
 } from "../static_template_translation";
 import type { CanvaTranslationBlock } from "../translation_review";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
@@ -39,7 +41,29 @@ const byId = (translations: ReturnType<typeof buildStaticTemplateTranslationResp
 // document size for fixtures that don't care about exercising a
 // different page count. The 30-page test below proves nothing depends
 // on this specific number.
-const docContext = (totalPages = 9) => ({ totalPages });
+//
+// firstPage is optional and only matters to closing-page recognition
+// (see extractFrontCoverTitle in the production module) -- tests that
+// don't exercise the closing page simply omit it.
+const docContext = (totalPages = 9, firstPage?: Page) => ({
+  totalPages,
+  firstPage,
+});
+
+// A minimal, safely-recognized front-cover page for a given pattern
+// title -- reused by the closing-page tests below to prove that closing
+// recognition is gated on the SAME document's actual front-cover
+// identity, not just on final-page position + closing content.
+const frontCoverPage = (title: string) =>
+  page(
+    [
+      block("title", title, 0, [
+        { index: 0, length: title.length, text: title, formatting: {} },
+      ]),
+      block("notice", FRONT_NOTICE_TR, 1),
+    ],
+    0,
+  );
 
 const assertNoOverlapsOrOOB = (
   regions: readonly { start: number; end: number }[] | undefined,
@@ -81,10 +105,22 @@ describe("buildStaticTemplateTranslationResponse: Page 1 (front cover)", () => {
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.en);
   });
 
+  it("produces a single continuous paragraph for the English notice -- no internal line breaks", () => {
+    const p = buildPage1();
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext());
+    expect(byId(result, "notice")?.translated).not.toContain("\n");
+  });
+
   it("replaces the notice with the exact approved Spanish text", () => {
     const p = buildPage1();
     const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
     expect(byId(result, "notice")?.translated).toBe(FRONT_NOTICE.es);
+  });
+
+  it("produces a single continuous paragraph for the Spanish notice -- no internal line breaks", () => {
+    const p = buildPage1();
+    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext());
+    expect(byId(result, "notice")?.translated).not.toContain("\n");
   });
 
   it("still matches when the live source has different internal line-wrap/newline placement", () => {
@@ -288,7 +324,7 @@ describe("buildStaticTemplateTranslationResponse: closing page (the document's F
   // discoveryIndex 8 of a 9-page document -- i.e. the actual final page,
   // matching the current live Buzu pattern's observed shape. The
   // "does not depend on page 9" tests below prove this is not load-bearing.
-  const buildClosing = (blocks = CLOSING_TR, discoveryIndex = 8) =>
+  const buildClosing = (blocks: readonly string[] = CLOSING_TR, discoveryIndex = 8) =>
     page(
       [
         block("headline", blocks[0]!, 0),
@@ -299,35 +335,81 @@ describe("buildStaticTemplateTranslationResponse: closing page (the document's F
       discoveryIndex,
     );
 
-  it("produces the exact approved English closing text for every fixed block", () => {
+  const buzuFrontCover = frontCoverPage("BUZU");
+  const seleneFrontCover = frontCoverPage("SELENE DOLL");
+
+  it("produces the exact approved English closing text for every fixed block (Buzu)", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9));
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(9, buzuFrontCover),
+    );
     expect(byId(result, "headline")?.translated).toBe(CLOSING.en[0]);
     expect(byId(result, "body")?.translated).toBe(CLOSING.en[1]);
     expect(byId(result, "completed")?.translated).toBe(CLOSING.en[2]);
   });
 
-  it("produces the exact approved Spanish closing text for every fixed block", () => {
+  it("produces a single continuous paragraph for the Buzu English closing body -- no internal line breaks", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "es", docContext(9));
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(9, buzuFrontCover),
+    );
+    expect(byId(result, "body")?.translated).not.toContain("\n");
+  });
+
+  it("produces the exact approved Spanish closing text for every fixed block (Buzu)", () => {
+    const p = buildClosing();
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "es",
+      docContext(9, buzuFrontCover),
+    );
     expect(byId(result, "headline")?.translated).toBe(CLOSING.es[0]);
     expect(byId(result, "body")?.translated).toBe(CLOSING.es[1]);
     expect(byId(result, "completed")?.translated).toBe(CLOSING.es[2]);
   });
 
-  it("leaves the decorative '.' block unchanged", () => {
+  it("produces a single continuous paragraph for the Buzu Spanish closing body -- no internal line breaks", () => {
     const p = buildClosing();
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9));
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "es",
+      docContext(9, buzuFrontCover),
+    );
+    expect(byId(result, "body")?.translated).not.toContain("\n");
+  });
+
+  it("leaves the decorative '.' block unchanged (Buzu)", () => {
+    const p = buildClosing();
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(9, buzuFrontCover),
+    );
     expect(byId(result, "decorative")?.translated).toBe(".");
   });
 
   it("does NOT trigger the closing route when the exact same content is on a NON-final page", () => {
-    // Same exact 4-block Buzu closing text, same document size -- only
-    // moved off the final page (discoveryIndex 3 of 9, not 8 of 9).
-    // Content matching alone must never be enough to activate this route.
+    // Same exact 4-block Buzu closing text, same document size, and a
+    // genuinely matching front cover -- only moved off the final page
+    // (discoveryIndex 3 of 9, not 8 of 9). Content + identity matching
+    // alone must never be enough to activate this route.
     const p = buildClosing(CLOSING_TR, 3);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9)),
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(9, buzuFrontCover),
+      ),
     ).toBeUndefined();
   });
 
@@ -335,9 +417,15 @@ describe("buildStaticTemplateTranslationResponse: closing page (the document's F
     // Proves nothing here depends on page number 9 / discoveryIndex 8 /
     // any Buzu-specific total page count: a 30-page document whose
     // closing template happens to be its last page (discoveryIndex 29)
-    // must still be recognized purely from document position + content.
+    // must still be recognized purely from document position + content +
+    // front-cover identity.
     const p = buildClosing(CLOSING_TR, 29);
-    const result = buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(30));
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(30, buzuFrontCover),
+    );
     expect(result).toBeDefined();
     expect(byId(result, "headline")?.translated).toBe(CLOSING.en[0]);
     expect(byId(result, "decorative")?.translated).toBe(".");
@@ -346,7 +434,171 @@ describe("buildStaticTemplateTranslationResponse: closing page (the document's F
   it("does NOT recognize the closing template on the second-to-last page of a 30-page document", () => {
     const p = buildClosing(CLOSING_TR, 28);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(30)),
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(30, buzuFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  // ---- Selene Doll: proves the closing template family is pattern-aware,
+  // not Buzu-specific -- and that pattern identity flows from the SAME
+  // document's actual front cover, never from the closing text alone. ----
+
+  it("produces the exact approved English closing text for every fixed block (Selene Doll, real 38-page document)", () => {
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(38, seleneFrontCover),
+    );
+    expect(result).toBeDefined();
+    expect(byId(result, "headline")?.translated).toBe(SELENE_CLOSING.en[0]);
+    expect(byId(result, "body")?.translated).toBe(SELENE_CLOSING.en[1]);
+    expect(byId(result, "completed")?.translated).toBe(SELENE_CLOSING.en[2]);
+    expect(byId(result, "decorative")?.translated).toBe(".");
+    for (const t of result!.translations) {
+      expect(t.errors).toEqual([]);
+      expect(t.warnings).toEqual([]);
+      expect(t.valid).toBe(true);
+    }
+  });
+
+  it("produces a single continuous paragraph for the Selene Doll English closing body -- no internal line breaks", () => {
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "en",
+      docContext(38, seleneFrontCover),
+    );
+    expect(byId(result, "body")?.translated).not.toContain("\n");
+  });
+
+  it("produces the exact approved Spanish closing text for every fixed block (Selene Doll)", () => {
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "es",
+      docContext(38, seleneFrontCover),
+    );
+    expect(byId(result, "headline")?.translated).toBe(SELENE_CLOSING.es[0]);
+    expect(byId(result, "body")?.translated).toBe(SELENE_CLOSING.es[1]);
+    expect(byId(result, "completed")?.translated).toBe(SELENE_CLOSING.es[2]);
+    expect(byId(result, "decorative")?.translated).toBe(".");
+  });
+
+  it("produces a single continuous paragraph for the Selene Doll Spanish closing body -- no internal line breaks", () => {
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    const result = buildStaticTemplateTranslationResponse(
+      p,
+      translationBlocksFor(p),
+      "es",
+      docContext(38, seleneFrontCover),
+    );
+    expect(byId(result, "body")?.translated).not.toContain("\n");
+  });
+
+  it("does NOT trigger the Selene closing route when the exact same content is on a NON-final page", () => {
+    const p = buildClosing(SELENE_CLOSING_TR, 10);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(38, seleneFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does NOT trigger the closing route when the final page's pattern identity does not match the document's actual front cover", () => {
+    // Front cover says ANOTHER DOLL, but the final page's closing text is
+    // Selene Doll's exact recognized text. Content matching a KNOWN
+    // template is not enough on its own -- the template's pattern
+    // identity must also be consistent with this document's own front
+    // cover.
+    const mismatchedFrontCover = frontCoverPage("ANOTHER DOLL");
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(38, mismatchedFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does NOT trigger the closing route when the front cover itself isn't safely recognized (no known template's identity can be established)", () => {
+    const unrecognizedFrontCover = page(
+      [
+        block("title", "SELENE DOLL", 0),
+        block("notice", "Some unrelated two-block first page.", 1),
+      ],
+      0,
+    );
+    const p = buildClosing(SELENE_CLOSING_TR, 37);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(38, unrecognizedFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does NOT static-match a corrupted completion heading, even with a consistent front cover on the actual final page", () => {
+    const corrupted = [...SELENE_CLOSING_TR] as string[];
+    corrupted[2] = "Selene Bebeği Bitirdiniz!"; // different wording than the known template
+    const p = buildClosing(corrupted, 37);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(38, seleneFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does NOT static-match a corrupted social/body paragraph, even with a consistent front cover on the actual final page", () => {
+    const corrupted = [...SELENE_CLOSING_TR] as string[];
+    corrupted[1] = corrupted[1]!.replace("İnstagramda", "Facebook'ta");
+    const p = buildClosing(corrupted, 37);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(38, seleneFrontCover),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("does NOT static-match Buzu's closing text against a Selene Doll front cover, or vice versa", () => {
+    const buzuClosingUnderSeleneCover = buildClosing(CLOSING_TR, 37);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        buzuClosingUnderSeleneCover,
+        translationBlocksFor(buzuClosingUnderSeleneCover),
+        "en",
+        docContext(38, seleneFrontCover),
+      ),
+    ).toBeUndefined();
+
+    const seleneClosingUnderBuzuCover = buildClosing(SELENE_CLOSING_TR, 8);
+    expect(
+      buildStaticTemplateTranslationResponse(
+        seleneClosingUnderBuzuCover,
+        translationBlocksFor(seleneClosingUnderBuzuCover),
+        "en",
+        docContext(9, buzuFrontCover),
+      ),
     ).toBeUndefined();
   });
 });
@@ -372,7 +624,11 @@ describe("buildStaticTemplateTranslationResponse: unknown/changed pages fall bac
     ).toBeUndefined();
   });
 
-  it("returns undefined when the closing text has genuinely changed (a different pattern name), even on the actual final page", () => {
+  it("returns undefined when the closing text has genuinely changed (a different pattern name), even on the actual final page with a genuinely matching Buzu front cover present", () => {
+    // The front cover IS a real, safely-recognized Buzu front cover here
+    // -- proving this rejects on CONTENT mismatch specifically (an
+    // unregistered "Miki" pattern), not merely because pattern identity
+    // information happened to be unavailable.
     const p = page([
       block("headline", "TEBRIKLER!!", 0),
       block("body", CLOSING_TR[1]!.replace("Buzu", "Miki"), 1),
@@ -380,7 +636,12 @@ describe("buildStaticTemplateTranslationResponse: unknown/changed pages fall bac
       block("decorative", ".", 3),
     ], 8);
     expect(
-      buildStaticTemplateTranslationResponse(p, translationBlocksFor(p), "en", docContext(9)),
+      buildStaticTemplateTranslationResponse(
+        p,
+        translationBlocksFor(p),
+        "en",
+        docContext(9, frontCoverPage("BUZU")),
+      ),
     ).toBeUndefined();
   });
 

@@ -182,7 +182,7 @@ describe("bulk review persistence client", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       pageId: "page-1",
       fingerprint: "page-content-v1-abc",
-      pipelineRevision: "translation-pipeline-v7",
+      pipelineRevision: "translation-pipeline-v9",
       status: "ready",
       acknowledged: false,
       blocks: review.blocks,
