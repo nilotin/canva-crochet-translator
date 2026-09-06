@@ -1,7 +1,7 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, within } from "@testing-library/react";
 import { TargetReview } from "../app";
 import type { PageIdentity } from "../page_identity";
-import type { PageReview } from "../translation_review";
+import { ApplyReviewError, type PageReview } from "../translation_review";
 import { renderInTestProvider } from "../../../utils/test_render";
 
 const emptyProgressSummary = {
@@ -346,6 +346,118 @@ describe("page-to-page translation workflow", () => {
     await result.findByText("The reviewed translation could not be applied.");
     expect(result.getByText("Applied: 0")).toBeTruthy();
   });
+
+  it("shows a dedicated manual-formatting conflict message", async () => {
+    const persistence = createPersistence();
+    const result = renderInTestProvider(
+      <TargetReview
+        context={context}
+        reviewPage={async () => pageReview}
+        applyReview={
+          jest.fn(async () => {
+            throw new ApplyReviewError("FORMATTING_EDIT_CONFLICT", {
+              blockId: "local-block-1",
+              reason: "AMBIGUOUS_ALIGNMENT",
+            });
+          }) as never
+        }
+        verifyTarget={async () => context}
+        getPageIdentity={async () => ({
+          key: "page-1",
+          source: "canva_page_id",
+        })}
+        {...persistence}
+        pagePollIntervalMs={60_000}
+      />,
+    );
+    const reviewButton = await result.findByRole("button", {
+      name: "Review current page",
+    });
+    await waitFor(() =>
+      expect(reviewButton.getAttribute("aria-disabled")).not.toBe("true"),
+    );
+    fireEvent.click(reviewButton);
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Apply translation to this page",
+      }),
+    );
+    await result.findByText(
+      "Your manual edit makes the original formatting mapping ambiguous. Simplify the edit or retranslate this block before applying.",
+    );
+    expect(
+      within(result.container).queryByText(
+        "The reviewed translation could not be applied.",
+      ),
+    ).toBeNull();
+    expect(result.getByText("Applied: 0")).toBeTruthy();
+  });
+
+  it.each([
+    [
+      "TARGET_VERIFICATION_FAILED",
+      "The target page no longer matches the reviewed page. Recheck the target page and review it again before applying.",
+    ],
+    [
+      "MISSING_MAPPING",
+      "Some translated text could not be matched safely to the target text. Review the page again before applying.",
+    ],
+    [
+      "SYNC_FAILED",
+      "The Canva edit may have completed, but the final state could not be synchronized. Refresh and verify the page before retrying.",
+    ],
+    [
+      "PERMISSION_REQUIRED",
+      "Canva write permission is required to apply reviewed translations.",
+    ],
+  ] as const)(
+    "shows a dedicated Apply message for %s",
+    async (code, expectedMessage) => {
+      const persistence = createPersistence();
+      const result = renderInTestProvider(
+        <TargetReview
+          context={context}
+          reviewPage={async () => pageReview}
+          applyReview={
+            jest.fn(async () => {
+              throw new ApplyReviewError(code);
+            }) as never
+          }
+          verifyTarget={async () => context}
+          getPageIdentity={async () => ({
+            key: "page-1",
+            source: "canva_page_id",
+          })}
+          {...persistence}
+          pagePollIntervalMs={60_000}
+        />,
+      );
+
+      const reviewButton = await result.findByRole("button", {
+        name: "Review current page",
+      });
+
+      await waitFor(() =>
+        expect(reviewButton.getAttribute("aria-disabled")).not.toBe("true"),
+      );
+
+      fireEvent.click(reviewButton);
+      fireEvent.click(
+        await result.findByRole("button", {
+          name: "Apply translation to this page",
+        }),
+      );
+
+      await result.findByText(expectedMessage);
+
+      expect(
+        within(result.container).queryByText(
+          "The reviewed translation could not be applied.",
+        ),
+      ).toBeNull();
+      expect(result.getByText("Applied: 0")).toBeTruthy();
+    },
+  );
 
   it("restores a persisted warning review without a translation call or acknowledgement", async () => {
     const reviewPage = jest.fn(async () => pageReview);

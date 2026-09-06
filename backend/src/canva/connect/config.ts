@@ -7,6 +7,7 @@ import { JsonCopyOperationStore } from "./copy_operation_store.js";
 import { JsonPageTranslationStateStore } from "../page_state/store.js";
 import { JsonBulkReviewStore } from "../bulk_review/store.js";
 import { JsonBulkPreferencesStore } from "../bulk_preferences/store.js";
+import { JsonWarningPreferencesStore } from "../warning_preferences/store.js";
 
 const createMockCopier = (): CanvaDesignCopier => ({
   async copyEntireDesign(sourceDesignId, userId) {
@@ -35,12 +36,18 @@ export const createConnectDependencies = () => {
     process.env.CANVA_BULK_PREFERENCES_STORE_PATH ??
       ".data/canva-bulk-preferences.json",
   );
+
+  const warningPreferencesStore = new JsonWarningPreferencesStore(
+    process.env.CANVA_WARNING_PREFERENCES_STORE_PATH ??
+      ".data/canva-warning-preferences.json",
+  );
   if (mode === "mock")
     return {
       store,
       pageStateStore,
       bulkReviewStore,
       bulkPreferencesStore,
+      warningPreferencesStore,
       operations: new CanvaCopyOperations(createMockCopier(), store),
     };
   if (mode !== "real")
@@ -49,6 +56,7 @@ export const createConnectDependencies = () => {
       pageStateStore,
       bulkReviewStore,
       bulkPreferencesStore,
+      warningPreferencesStore,
     };
   const clientId = process.env.CANVA_CONNECT_CLIENT_ID;
   const clientSecret = process.env.CANVA_CONNECT_CLIENT_SECRET;
@@ -65,6 +73,7 @@ export const createConnectDependencies = () => {
     pageStateStore,
     bulkReviewStore,
     bulkPreferencesStore,
+    warningPreferencesStore,
     operations: new CanvaCopyOperations(designs, store),
   };
 };

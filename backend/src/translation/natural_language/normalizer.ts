@@ -6,11 +6,153 @@ const targetPhrase = (
   spanish: string,
 ) => (targetLanguage === "en" ? english : spanish);
 
+const normalizeToolMaterialIntro = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): string => {
+  let normalized = source;
+
+  normalized = normalized.replace(
+    /\b(\d+(?:[.,]\d+)?)\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+örüyoruz\b/giu,
+    (
+      _match,
+      size: string,
+      yarnDescription: string,
+      yarnBrand: string,
+    ) => {
+      const description = yarnDescription.trim();
+      const brand = yarnBrand.trim();
+
+      return targetLanguage === "en"
+        ? `With a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
+        : `Con un ganchillo de ${size} mm y hilo ${description} ${brand}, tejemos de la siguiente manera`;
+    },
+  );
+
+  normalized = normalized.replace(
+    /\b(\d+(?:[.,]\d+)?)\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+ile\s+örüyoruz\b/giu,
+    (_match, size: string) =>
+      targetLanguage === "en"
+        ? `With a ${size} mm crochet hook, work as follows`
+        : `Con un ganchillo de ${size} mm, tejemos de la siguiente manera`,
+  );
+
+  normalized = normalized.replace(
+    /\b(\d+(?:[.,]\d+)?)\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+kullanıyoruz\b/giu,
+    (_match, size: string) =>
+      targetLanguage === "en"
+        ? `Use a ${size} mm crochet hook`
+        : `Usa un ganchillo de ${size} mm`,
+  );
+
+  return normalized;
+};
+
+const normalizeConditionalTechnique = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): string | undefined => {
+  const normalized = source
+    .toLocaleLowerCase("tr-TR")
+    .replace(/\s+/gu, " ")
+    .trim();
+
+  if (
+    /^çapraz\s+ya\s+da\s+düz\s+sık\s+iğne(?:\s+tekniği)?\s+ile\s+örenler$/u.test(
+      normalized,
+    )
+  ) {
+    return targetPhrase(
+      targetLanguage,
+      "using crossed or regular single crochet",
+      "usando punto bajo cruzado o punto bajo normal",
+    );
+  }
+
+  if (
+    /^çapraz\s+sık\s+iğne(?:\s+tekniği)?\s+ile\s+örenler$/u.test(normalized)
+  ) {
+    return targetPhrase(
+      targetLanguage,
+      "using crossed single crochet",
+      "usando punto bajo cruzado",
+    );
+  }
+
+  if (
+    /^düz\s+sık\s+iğne(?:\s+tekniği)?\s+ile\s+örenler$/u.test(normalized)
+  ) {
+    return targetPhrase(
+      targetLanguage,
+      "using regular single crochet",
+      "usando punto bajo normal",
+    );
+  }
+
+  return undefined;
+};
+
+const normalizeConditionalLoopInstruction = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): string =>
+  source.replace(
+    /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\s*\(\s*([^(),]+?)\s*,?\s*(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örecekler\s*\)(\s*[,.;:]?\s*)?/giu,
+    (
+      match,
+      defaultLoopRaw: string,
+      techniqueRaw: string,
+      alternativeLoopRaw: string,
+      trailingSeparator: string | undefined,
+    ) => {
+      const technique = normalizeConditionalTechnique(
+        techniqueRaw,
+        targetLanguage,
+      );
+
+      if (!technique) return match;
+
+      const defaultLoop = defaultLoopRaw.toUpperCase();
+      const alternativeLoop = alternativeLoopRaw.toUpperCase();
+
+      if (defaultLoop === alternativeLoop) return match;
+
+      const translated =
+        targetLanguage === "en"
+          ? `Work in ${defaultLoop}. If ${technique}, work in ${alternativeLoop} instead.`
+          : `Trabaja en ${defaultLoop}. Si ${technique}, trabaja en ${alternativeLoop} en su lugar.`;
+
+      const continuesAfterInstruction =
+        trailingSeparator !== undefined &&
+        /[,;:]/u.test(trailingSeparator);
+
+      return `${translated}${continuesAfterInstruction ? " " : ""}`;
+    },
+  );
+
+const normalizeSimpleLoopInstruction = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): string =>
+  source.replace(
+    /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\b/giu,
+    (_match, loopRaw: string) =>
+      targetLanguage === "en"
+        ? `Work in ${loopRaw.toUpperCase()}`
+        : `Trabaja en ${loopRaw.toUpperCase()}`,
+  );
+
 export const normalizeSourceNaturalLanguage = (
   source: string,
   targetLanguage: TargetLanguage,
 ): string =>
-  source
+  normalizeSimpleLoopInstruction(
+    normalizeConditionalLoopInstruction(
+      normalizeToolMaterialIntro(source, targetLanguage),
+      targetLanguage,
+    ),
+    targetLanguage,
+  )
     .replace(
       /(\d+)\s*x\s+sayıyoruz\b/giu,
       (_match, count: string) =>

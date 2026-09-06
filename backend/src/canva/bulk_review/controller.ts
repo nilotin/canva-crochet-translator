@@ -25,6 +25,8 @@ const saveSchema = z
     fingerprint: persistedBulkReviewSchema.shape.fingerprint,
 
     pipelineRevision: persistedBulkReviewSchema.shape.pipelineRevision,
+    sourceFormattingSignature:
+      persistedBulkReviewSchema.shape.sourceFormattingSignature,
     status: persistedBulkReviewSchema.shape.status,
     acknowledged: persistedBulkReviewSchema.shape.acknowledged,
     blocks: persistedBulkReviewSchema.shape.blocks,
@@ -117,6 +119,7 @@ export const getBulkReview = async (
               fingerprint: review.fingerprint,
 
               pipelineRevision: review.pipelineRevision,
+              sourceFormattingSignature: review.sourceFormattingSignature,
               status: review.status,
               acknowledged: review.acknowledged,
               blocks: review.blocks,
@@ -174,6 +177,7 @@ export const listBulkReviews = async (
           fingerprint: review.fingerprint,
 
           pipelineRevision: review.pipelineRevision,
+          sourceFormattingSignature: review.sourceFormattingSignature,
           status: review.status,
           acknowledged: review.acknowledged,
           updatedAt: review.updatedAt,
@@ -222,6 +226,7 @@ export const saveBulkReview = async (
       fingerprint: input.data.fingerprint,
 
       pipelineRevision: input.data.pipelineRevision,
+      sourceFormattingSignature: input.data.sourceFormattingSignature,
       status: input.data.status,
       acknowledged: input.data.acknowledged,
       blocks: input.data.blocks,

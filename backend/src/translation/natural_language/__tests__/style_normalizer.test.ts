@@ -109,4 +109,60 @@ describe("normalizeTranslationStyle", () => {
   ] as const)("leaves known-good %s notation unchanged", (language, text) => {
     expect(normalizeTranslationStyle("pattern", text, language)).toBe(text);
   });
+
+  it("uses back/front terminology in reverse single crochet explanations", () => {
+    const source =
+      "Ters sık iğne tekniğinde sık iğnelerin ters yüzü dışarı bakar, düz yüzü içeride kalır.";
+
+    expect(
+      normalizeTranslationStyle(
+        source,
+        "In the reverse single crochet technique, the wrong side of the single crochet stitches faces outward, while the right side of the single crochet stitches remains on the inside.",
+        "en",
+      ),
+    ).toBe(
+      "In the reverse single crochet technique, the back of the single crochet stitches faces outward, while the front of the single crochet stitches remains on the inside.",
+    );
+  });
+
+  it("does not globally replace wrong side and right side outside the crochet context", () => {
+    expect(
+      normalizeTranslationStyle(
+        "Parçanın ters yüzünü kontrol ediyoruz.",
+        "Check the wrong side of the piece.",
+        "en",
+      ),
+    ).toBe("Check the wrong side of the piece.");
+  });
+
+  it("does not infer reverse single crochet from ordinary fabric-side wording", () => {
+    const source =
+      "Sık iğnelerin ters yüzü dışarı bakıyor, düz yüzü içeride kalıyor.";
+
+    expect(
+      normalizeTranslationStyle(
+        source,
+        "The wrong side of the single crochet stitches faces outward, while the right side remains on the inside.",
+        "en",
+      ),
+    ).toBe(
+      "The wrong side of the single crochet stitches faces outward, while the right side remains on the inside.",
+    );
+  });
+
+  it("supports the shorter wrong-side/right-side wording in reverse single crochet context", () => {
+    const source =
+      "Ters sık iğne örerken ters yüz dışarıda, düz yüz içeride kalıyor.";
+
+    expect(
+      normalizeTranslationStyle(
+        source,
+        "The wrong side faces outward and the right side remains on the inside.",
+        "en",
+      ),
+    ).toBe(
+      "The back of the stitches faces outward and the front of the stitches remains on the inside.",
+    );
+  });
+
 });

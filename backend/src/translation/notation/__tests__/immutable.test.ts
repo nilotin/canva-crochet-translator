@@ -1,11 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
+  containsReservedPlaceholder,
   isPatternOnlyProtectedText,
   protectImmutablePattern,
   restoreImmutablePattern,
 } from "../immutable.js";
 
 describe("immutable pattern protection", () => {
+  it("recognizes only the reserved placeholder wrapper", () => {
+    expect(containsReservedPlaceholder("__XQZZZZQX__")).toBe(true);
+    expect(containsReservedPlaceholder("__XQRENAMEDQX__")).toBe(true);
+    expect(containsReservedPlaceholder("XQ")).toBe(false);
+    expect(containsReservedPlaceholder("__HELLO__")).toBe(false);
+    expect(containsReservedPlaceholder("XQZZZZQX")).toBe(false);
+  });
+
+  it("restores legitimate internal placeholders before final validation", () => {
+    const protectedSource = protectImmutablePattern("6x 2.20mm");
+    const restored = restoreImmutablePattern(
+      protectedSource.text,
+      protectedSource,
+      "en",
+    );
+
+    expect(restored).toMatchObject({ valid: true, text: "6sc 2.20 mm" });
+    expect(containsReservedPlaceholder(restored.text)).toBe(false);
+  });
+
   it("preserves decimal lexical representation", () => {
     const protectedSource = protectImmutablePattern("2.00 no tığ");
     expect(protectedSource.tokens[0]).toMatchObject({
@@ -76,7 +97,7 @@ describe("materials immutable protection", () => {
     expect(protectedSource.tokens).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ source: "TR263" }),
-        expect.objectContaining({ kind: "number", source: "2.5" }),
+        expect.objectContaining({ kind: "measurement", source: "2.5mm" }),
       ]),
     );
 
@@ -99,7 +120,7 @@ describe("materials immutable protection", () => {
       ),
     ).toMatchObject({
       valid: true,
-      text: "Catania TR263 (kol, gövde) 2.5mm",
+      text: "Catania TR263 (kol, gövde) 2.5 mm",
     });
   });
 });

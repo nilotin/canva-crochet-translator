@@ -44,6 +44,48 @@ class InspectingProvider implements TranslationProvider {
 }
 
 describe("translateBlocks provider boundary", () => {
+  it("rejects a reserved placeholder introduced by mixed prose output", async () => {
+    const provider = new StubProvider({
+      translations: [{ id: "span-0", translated: "__XQZZZZQX__" }],
+    });
+
+    const [result] = await translateBlocks(
+      [{ id: "mixed-placeholder", text: "6x örüyoruz" }],
+      "en",
+      { provider },
+    );
+
+    expect(result).toMatchObject({ valid: false });
+    expect(result?.translated).toContain("__XQZZZZQX__");
+    expect(result?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "RESERVED_PLACEHOLDER_LEAK" }),
+      ]),
+    );
+  });
+
+  it.each(["__XQZZZZQX__", "crochet __XQZZZZQX__"])(
+    "rejects reserved placeholder syntax in natural-language provider output: %s",
+    async (translated) => {
+      const provider = new StubProvider({
+        translations: [{ id: "natural-placeholder", translated }],
+      });
+
+      const [result] = await translateBlocks(
+        [{ id: "natural-placeholder", text: "Normal Türkçe metin." }],
+        "en",
+        { provider },
+      );
+
+      expect(result).toMatchObject({ valid: false });
+      expect(result?.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "RESERVED_PLACEHOLDER_LEAK" }),
+        ]),
+      );
+    },
+  );
+
   it("keeps prose-only segments on the full-sentence provider path", async () => {
     const provider = new InspectingProvider();
     await translateBlocks(
@@ -179,6 +221,30 @@ describe("translateBlocks provider boundary", () => {
     ).toBe(false);
   });
 
+  it("normalizes the live conditional FLO/BLO instruction through the full translation pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "conditional-loop-regression",
+          text:
+            "41) Bu sırayı Flo’dan örüyoruz (çapraz ya da düz sık iğne tekniği ile örenler, Blo’dan örecekler), 6x",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.translated).toBe(
+      "41) Work in FLO. If using crossed or regular single crochet, work in BLO instead. 6sc",
+    );
+
+    expect(result?.translated).not.toMatch(/FLO\s+work\s+from/iu);
+    expect(result?.translated).not.toMatch(/BLO\s+will\s+work\s+from/iu);
+  });
+
   it("uses short provider-local IDs for mixed spans", async () => {
     const provider = new InspectingProvider();
     const longInternalId =
@@ -206,6 +272,91 @@ describe("translateBlocks provider boundary", () => {
     );
     expect(result?.errors.map(({ code }) => code)).not.toContain(
       "UNEXPECTED_RETURNED_BLOCK_ID",
+    );
+  });
+
+  it("normalizes reverse single crochet side terminology through the full translation pipeline", async () => {
+    const source =
+      "Ters sık iğne tekniğinde, sık iğnelerin ters yüzü dışarı bakacak şekilde içeriden örüyoruz ve düz yüzü içeride kalıyor.";
+
+    const provider: TranslationProvider = {
+      name: "reverse-sc-stub",
+      model: "stub-model",
+
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id }) => ({
+            id,
+            translated:
+              "In the reverse single crochet technique, the wrong side of the single crochet stitches faces outward as you work from the inside, while the right side of the single crochet stitches remains on the inside.",
+          })),
+        };
+      },
+
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "reverse-sc-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [{ id: "reverse-sc-terminology-regression", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.translated).toBe(
+      "In the reverse single crochet technique, the back of the single crochet stitches faces outward as you work from the inside, while the front of the single crochet stitches remains on the inside.",
+    );
+
+    expect(result?.translated).not.toMatch(/\bwrong side\b/iu);
+    expect(result?.translated).not.toMatch(/\bright side\b/iu);
+  });
+
+  it("normalizes the live hook and yarn intro through the full translation pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "hook-intro-stub",
+      model: "stub-model",
+
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text
+              .replace(/\bsiyah\b/giu, "black")
+              .replace(/\bsimli\b/giu, "glitter"),
+          })),
+        };
+      },
+
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "hook-intro-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "hook-yarn-intro-regression",
+          text:
+            "2.20 numara tığ, siyah ip (Catania 110) ile örüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.translated).toBe(
+      "With a 2.20 mm crochet hook and black Catania 110 yarn, work as follows.",
     );
   });
 
@@ -396,11 +547,11 @@ describe("translateBlocks provider boundary", () => {
   });
 
   it.each([
-    ["2.00 no tığ ile örüyoruz.", "2.00 crochet without a hook."],
+    ["2.00 no tığ ile örüyoruz.", "2.00 mm crochet hook."],
     ["2.5 mm tığ ile örüyoruz.", "2.5 mm crochet hook."],
     ["3.00 mm tığ kullanıyoruz.", "3.00 mm crochet hook."],
   ] as const)(
-    "keeps one decimal through the full path even if the provider echoes it: %s",
+    "keeps one decimal through the applicable protected provider path: %s",
     async (source, expected) => {
       const seen: string[] = [];
       const prompts: string[] = [];
@@ -414,7 +565,9 @@ describe("translateBlocks provider boundary", () => {
           return {
             translations: request.blocks.map(({ id, text }) => ({
               id,
-              translated: `${decimal} ${
+              translated: text.includes("__XQ")
+                ? `${text.match(/__XQ[A-Z]{4}QX__/u)?.[0]} crochet hook.`
+                : `${decimal} ${
                 text.startsWith("no ")
                   ? "crochet without a hook."
                   : "mm crochet hook."
@@ -830,6 +983,46 @@ describe("translateBlocks provider boundary", () => {
       { id: "fmt-1", start: 2, end: result?.translated.length },
     ]);
   });
+
+  it.each([
+    ["55cm", "55 cm"],
+    ["2.20mm", "2.20 mm"],
+    ["6. sıranın FLO’sundan", "the FLO of Round 6"],
+  ] as const)(
+    "keeps full-source formatting aligned with rendered immutable output for %s",
+    async (source, expectedTranslation) => {
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks(
+        [
+          {
+            id: "rendered-formatting",
+            text: source,
+            formattingRegions: [
+              { id: "fmt-0", start: 0, end: source.length },
+            ],
+          },
+        ],
+        "en",
+        { provider },
+      );
+
+      expect(result?.valid).toBe(true);
+      expect(result?.errors).toEqual([]);
+      expect(result?.translated).toBe(expectedTranslation);
+      expect(result?.targetFormattingRegions).toEqual([
+        {
+          id: "fmt-0",
+          start: 0,
+          end: expectedTranslation.length,
+        },
+      ]);
+      expect(result?.targetFormattingRegions?.[0]?.end).toBe(
+        result?.translated.length,
+      );
+      expect(provider.protectedTexts).toHaveLength(0);
+    },
+  );
 
     it("returns projected formatting regions for deterministic notation translation", async () => {
     const provider = new InspectingProvider();

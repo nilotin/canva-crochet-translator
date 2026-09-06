@@ -228,6 +228,10 @@ export const TargetReview = ({
     | "error"
     | "stale"
     | "permission"
+    | "target_verification_failed"
+    | "missing_mapping"
+    | "sync_failed"
+    | "formatting_conflict"
   >("idle");
   const [warningsAcknowledged, setWarningsAcknowledged] = useState(false);
   const [bulkPlanStatus, setBulkPlanStatus] = useState<
@@ -255,7 +259,17 @@ export const TargetReview = ({
   >("idle");
   const [bulkResult, setBulkResult] = useState<TranslateRemainingPagesResult>();
   const [bulkApplyStatus, setBulkApplyStatus] = useState<
-    "idle" | "applying" | "success" | "partial" | "error"
+    | "idle"
+    | "applying"
+    | "success"
+    | "partial"
+    | "error"
+    | "stale"
+    | "permission"
+    | "target_verification_failed"
+    | "missing_mapping"
+    | "sync_failed"
+    | "formatting_conflict"
   >("idle");
   const [bulkApplyResult, setBulkApplyResult] = useState<BulkApplyResult>();
   const [bulkReviewsByPageId, setBulkReviewsByPageId] = useState<
@@ -628,6 +642,27 @@ export const TargetReview = ({
 
       setBulkApplyResult(result);
 
+      if (
+        result.preflight.issues.some(
+          ({ code }) => code === "FORMATTING_EDIT_CONFLICT",
+        )
+      ) {
+        setBulkApplyStatus("formatting_conflict");
+        return;
+      }
+
+      if (
+        result.preflight.issues.some(({ code }) => code === "STALE_REVIEW")
+      ) {
+        setBulkApplyStatus("stale");
+        return;
+      }
+
+      if (!result.preflight.ok) {
+        setBulkApplyStatus("error");
+        return;
+      }
+
       if (pageIdentity) {
         await refreshProgressSummary(pageIdentity);
       }
@@ -640,8 +675,38 @@ export const TargetReview = ({
       } else {
         setBulkApplyStatus("success");
       }
-    } catch {
-      setBulkApplyStatus("error");
+    } catch (cause) {
+      if (cause instanceof ApplyReviewError) {
+        switch (cause.code) {
+          case "STALE_REVIEW":
+            setBulkApplyStatus("stale");
+            break;
+          case "FORMATTING_EDIT_CONFLICT":
+            setBulkApplyStatus("formatting_conflict");
+            break;
+          case "PERMISSION_REQUIRED":
+            setBulkApplyStatus("permission");
+            break;
+          case "TARGET_VERIFICATION_FAILED":
+            setBulkApplyStatus("target_verification_failed");
+            break;
+          case "MISSING_MAPPING":
+            setBulkApplyStatus("missing_mapping");
+            break;
+          case "SYNC_FAILED":
+            setBulkApplyStatus("sync_failed");
+            break;
+          default:
+            setBulkApplyStatus("error");
+        }
+      } else if (
+        cause instanceof Error &&
+        /permission|scope|forbidden/iu.test(cause.message)
+      ) {
+        setBulkApplyStatus("permission");
+      } else {
+        setBulkApplyStatus("error");
+      }
     }
   };
 
@@ -792,8 +857,15 @@ export const TargetReview = ({
       await savePageReview(pageIdentity, review);
       await applyReview(
         review,
-        { contextId: context.contextId, language: context.language },
-        { verifyTarget },
+        {
+          contextId: context.contextId,
+          language: context.language,
+          pageIdentityKey: pageIdentity.key,
+        },
+        {
+          verifyTarget,
+          getPageIdentity,
+        },
       );
       canvaApplied = true;
       const appliedSnapshotDigest = await readSnapshotDigest(context.contextId);
@@ -819,13 +891,32 @@ export const TargetReview = ({
         setApplyStatus("applied_unsaved");
         return;
       }
-      if (cause instanceof ApplyReviewError && cause.code === "STALE_REVIEW") {
-        setApplyStatus("stale");
+      if (cause instanceof ApplyReviewError) {
+        switch (cause.code) {
+          case "STALE_REVIEW":
+            setApplyStatus("stale");
+            break;
+          case "FORMATTING_EDIT_CONFLICT":
+            setApplyStatus("formatting_conflict");
+            break;
+          case "PERMISSION_REQUIRED":
+            setApplyStatus("permission");
+            break;
+          case "TARGET_VERIFICATION_FAILED":
+            setApplyStatus("target_verification_failed");
+            break;
+          case "MISSING_MAPPING":
+            setApplyStatus("missing_mapping");
+            break;
+          case "SYNC_FAILED":
+            setApplyStatus("sync_failed");
+            break;
+          default:
+            setApplyStatus("error");
+        }
       } else if (
-        (cause instanceof ApplyReviewError &&
-          cause.code === "PERMISSION_REQUIRED") ||
-        (cause instanceof Error &&
-          /permission|scope|forbidden/iu.test(cause.message))
+        cause instanceof Error &&
+        /permission|scope|forbidden/iu.test(cause.message)
       ) {
         setApplyStatus("permission");
       } else {
@@ -1198,6 +1289,46 @@ export const TargetReview = ({
           </Alert>
         )}
 
+        {bulkApplyStatus === "formatting_conflict" && (
+          <Alert tone="critical">
+                Your manual edit makes the original formatting mapping ambiguous.
+                Simplify the edit or retranslate this block before applying.
+              </Alert>
+        )}
+        {bulkApplyStatus === "stale" && (
+          <Alert tone="critical">
+            One or more page reviews are out of date. Review those pages again
+            before applying.
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "permission" && (
+          <Alert tone="critical">
+            Canva write permission is required to apply the reviewed pages.
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "target_verification_failed" && (
+          <Alert tone="critical">
+            The current Canva design no longer matches the translation target.
+            Recheck the target design before applying.
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "missing_mapping" && (
+          <Alert tone="critical">
+            Some translated text could not be matched safely to its target
+            text. Review the affected pages again before applying.
+          </Alert>
+        )}
+
+        {bulkApplyStatus === "sync_failed" && (
+          <Alert tone="critical">
+            Canva changes may have been made, but the final sync could not be
+            confirmed. Refresh and verify the affected pages before retrying.
+          </Alert>
+        )}
+
         {bulkApplyStatus === "error" && (
           <Alert tone="critical">
             Could not apply the ready pages. No successful bulk Apply was confirmed.
@@ -1367,6 +1498,30 @@ export const TargetReview = ({
               <Alert tone="critical">
                 Canva write permission is required to apply reviewed
                 translations.
+              </Alert>
+            )}
+            {applyStatus === "formatting_conflict" && (
+              <Alert tone="critical">
+                Your manual edit makes the original formatting mapping ambiguous.
+                Simplify the edit or retranslate this block before applying.
+              </Alert>
+            )}
+            {applyStatus === "target_verification_failed" && (
+              <Alert tone="critical">
+                The target page no longer matches the reviewed page. Recheck the
+                target page and review it again before applying.
+              </Alert>
+            )}
+            {applyStatus === "missing_mapping" && (
+              <Alert tone="critical">
+                Some translated text could not be matched safely to the target
+                text. Review the page again before applying.
+              </Alert>
+            )}
+            {applyStatus === "sync_failed" && (
+              <Alert tone="critical">
+                The Canva edit may have completed, but the final state could not
+                be synchronized. Refresh and verify the page before retrying.
               </Alert>
             )}
             {applyStatus === "error" && (

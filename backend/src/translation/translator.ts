@@ -1,3 +1,5 @@
+import { extractRoundReferences, renderRoundReference } from "./natural_language/round_references.js";
+import { extractMeasurements } from "./measurements.js";
 import { normalizeSourceNaturalLanguage } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
@@ -86,15 +88,22 @@ const translateSegment = async (
     contentKind,
   );
   const protectedBlock = { ...block, text: protectedSource.text };
-  const patternOnly = isPatternOnlyProtectedText(protectedSource);
   const mixed = lexMixedSegment(normalized, targetLanguage, block.id);
+  const patternOnly = isPatternOnlyProtectedText(protectedSource) || (
+    protectedSource.tokens.some(({ kind }) => kind === "round_reference") &&
+    mixed.classification === "mixed" && mixed.valid && mixed.spans.length === 0
+  );
   let restored: string | undefined;
   let mixedProjectionPieces:
     | ReturnType<typeof reconstructMixedSegmentWithProjection>["pieces"]
     | undefined;
   let structuralErrors: ValidationDiagnostic<ValidationCode>[];
 
-  if (contentKind === "pattern" && mixed.classification === "mixed") {
+  // Keep a measurement in its sentence context so its atomic placeholder can
+  // move with target-language prose instead of freezing it between prose spans.
+  const hasMeasurement = protectedSource.tokens.some(({ kind }) => kind === "measurement");
+  const roundTokens = protectedSource.tokens.filter((token) => token.kind === "round_reference");
+  if (contentKind === "pattern" && mixed.classification === "mixed" && !hasMeasurement && !roundTokens.length) {
     if (!mixed.valid) {
       structuralErrors = mixed.errors.map((message) => ({
         code: "INTERNAL_MIXED_LEXER_ERROR" as const,
@@ -197,7 +206,9 @@ const translateSegment = async (
       }
     }
   } else {
-    const prompt = buildTranslationPrompt(targetLanguage, [protectedBlock]);
+    const prompt = buildTranslationPrompt(targetLanguage, [protectedBlock], roundTokens.map((token) => ({
+      placeholder: token.placeholder, meaning: renderRoundReference(token, targetLanguage),
+    })));
     const providerResult = patternOnly
       ? { translations: [{ id: block.id, translated: protectedSource.text }] }
       : await provider.translate({
@@ -263,6 +274,16 @@ const translateFormattingUnits = async (
   provider: TranslationProvider,
   contentKind: TranslationContentKind = "pattern",
 ): Promise<TranslationResult | undefined> => {
+  // Never split a measurement before protection, including across style units.
+  // Use the existing whole-block fallback when a supplied boundary bisects it.
+  const measurements = [
+    ...extractMeasurements(block.text),
+    ...(contentKind === "pattern" ? extractRoundReferences(block.text) : []),
+  ];
+  if (block.formattingRegions?.some(({ start, end }) => measurements.some(
+    (measurement) => (start > measurement.start && start < measurement.end) ||
+      (end > measurement.start && end < measurement.end),
+  ))) return undefined;
   const units = buildFormattingTranslationUnits(block);
 
   if (!units || units.length <= 1) return undefined;

@@ -83,6 +83,43 @@ const normalizeSimpleFloBlo = (
   return match ? `Tejemos en ${match[1]}.` : translated;
 };
 
+const normalizeReverseSingleCrochetTerminology = (
+  source: string,
+  translated: string,
+  targetLanguage: TargetLanguage,
+): string => {
+  if (targetLanguage !== "en") return translated;
+
+  const sourceLower = source.toLocaleLowerCase("tr-TR");
+  const isReverseSingleCrochetContext =
+    sourceLower.includes("ters sık iğne");
+
+  if (!isReverseSingleCrochetContext) return translated;
+
+  return translated
+    .replace(
+      /\b(?:the\s+)?wrong side of (?:the )?single crochet stitches\b/giu,
+      "the back of the single crochet stitches",
+    )
+    .replace(
+      /\b(?:the\s+)?right side of (?:the )?single crochet stitches\b/giu,
+      "the front of the single crochet stitches",
+    )
+    .replace(
+      /\bthe wrong side\b/giu,
+      "the back of the stitches",
+    )
+    .replace(
+      /\bthe right side\b/giu,
+      "the front of the stitches",
+    )
+    .replace(/^the back of the stitches\b/u, "The back of the stitches")
+    .replace(
+      /^the back of the single crochet stitches\b/u,
+      "The back of the single crochet stitches",
+    );
+};
+
 export const normalizeTranslationStyle = (
   source: string,
   translated: string,
@@ -103,5 +140,15 @@ export const normalizeTranslationStyle = (
       ? normalizeEnglishChains(chainInstructions)
       : chainInstructions;
   const mixed = normalizeMixedPatternPhrases(source, chains, targetLanguage);
-  return normalizeSimpleFloBlo(source, mixed, targetLanguage);
+  const floBlo = normalizeSimpleFloBlo(
+    source,
+    mixed,
+    targetLanguage,
+  );
+
+  return normalizeReverseSingleCrochetTerminology(
+    source,
+    floBlo,
+    targetLanguage,
+  );
 };

@@ -13,6 +13,7 @@ import {
   type BulkReviewQueue,
 } from "./whole_document_queue";
 import { saveBulkReview } from "./bulk_review_persistence";
+import { formattingBlocksSignature } from "./formatting_freshness";
 import {
   buildStaticTemplateTranslationResponse,
   recognizePage2Hybrid,
@@ -286,6 +287,7 @@ export const translatePendingBulkPages = async (
       await deps.saveReview({
         pageId: initialEntry.pageId,
         fingerprint: initialEntry.fingerprint,
+        sourceFormattingSignature: formattingBlocksSignature(page.blocks),
         status: review.reviewStatus,
         blocks: review.blocks,
       });

@@ -119,6 +119,9 @@ describe("bulk translation", () => {
     expect(saveReview).toHaveBeenCalledWith({
       pageId: "page-1",
       fingerprint: "fp-1",
+      sourceFormattingSignature: expect.stringMatching(
+        /^page-formatting-v1-[0-9a-f]{16}$/,
+      ),
       status: "ready",
       blocks: [
         expect.objectContaining({

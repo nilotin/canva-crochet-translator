@@ -14,6 +14,10 @@ import {
 import { TRANSLATION_PIPELINE_REVISION } from "../bulk_review_state";
 import { pageContentFingerprint } from "../whole_document_classification";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
+import {
+  formattingBlocksSignature,
+  formattingRegionSignature,
+} from "../formatting_freshness";
 
 const inventory: WholeDocumentInventory = {
   pages: [
@@ -26,7 +30,9 @@ const inventory: WholeDocumentInventory = {
           id: "page-page-1-block-1",
           sourceText: "Kulak",
           order: 0,
-          formattingRegions: [],
+          formattingRegions: [
+            { index: 0, length: 5, text: "Kulak", formatting: {} },
+          ],
         },
       ],
     },
@@ -39,7 +45,9 @@ const inventory: WholeDocumentInventory = {
           id: "page-page-2-block-1",
           sourceText: "Kaş",
           order: 0,
-          formattingRegions: [],
+          formattingRegions: [
+            { index: 0, length: 3, text: "Kaş", formatting: {} },
+          ],
         },
       ],
     },
@@ -57,13 +65,20 @@ const inventory: WholeDocumentInventory = {
               index: 0,
               length: 3,
               text: "Bur",
-              formatting: { fontWeight: "bold" },
+              formatting: {
+                fontWeight: "bold",
+                fontRef: "font-noto-serif" as never,
+                fontSize: 18,
+              },
             },
             {
               index: 3,
               length: 2,
               text: "un",
-              formatting: {},
+              formatting: {
+                fontRef: "font-noto-serif" as never,
+                fontSize: 18,
+              },
             },
           ],
         },
@@ -76,7 +91,7 @@ const inventory: WholeDocumentInventory = {
 const reviewFor = (
   pageId: string,
   overrides: Record<string, unknown> = {},
-) => {
+): PersistedBulkPageReview => {
   const page = inventory.pages.find((candidate) => candidate.pageId === pageId);
 
   if (!page) {
@@ -87,6 +102,7 @@ const reviewFor = (
     pageId,
     fingerprint: pageContentFingerprint(page.blocks),
     pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+    sourceFormattingSignature: formattingBlocksSignature(page.blocks),
     status: "ready" as const,
     blocks: page.blocks.map((block) => ({
       id: block.id,
@@ -96,6 +112,9 @@ const reviewFor = (
       validation: "PASS" as const,
       errors: [],
       warnings: [],
+      sourceFormattingSignature: formattingRegionSignature(
+        block.formattingRegions,
+      ),
     })),
     ...overrides,
   };
@@ -125,6 +144,32 @@ describe("bulk apply preparation", () => {
       ok: true,
       issues: [],
       readyPageIds: ["page-1"],
+    });
+  });
+
+  it("rejects a bulk review when only Canva formatting changed", () => {
+    const changedInventory: WholeDocumentInventory = {
+      ...inventory,
+      pages: inventory.pages.map((page) =>
+        page.pageId === "page-1"
+          ? {
+              ...page,
+              blocks: page.blocks.map((block) => ({
+                ...block,
+                formattingRegions: block.formattingRegions.map((region) => ({
+                  ...region,
+                  formatting: { ...region.formatting, color: "#ff0000" },
+                })),
+              })),
+            }
+          : page,
+      ),
+    };
+
+    expect(preflightBulkApply(changedInventory, [reviewFor("page-1")])).toEqual({
+      ok: false,
+      issues: [{ pageId: "page-1", code: "STALE_REVIEW" }],
+      readyPageIds: [],
     });
   });
 });
@@ -304,6 +349,9 @@ describe("bulk apply mutation", () => {
           validation: "PASS" as const,
           errors: [],
           warnings: [],
+          sourceFormattingSignature: formattingRegionSignature([
+            { index: 0, length: 3, text: "Kaş", formatting: {} },
+          ]),
         },
       ],
     };
@@ -648,36 +696,38 @@ describe("bulk apply mutation", () => {
       });
     });
 
+    const sourceBlocks = [
+      {
+        id: "page-page-2-block-1",
+        sourceText: "Malzemeler",
+        order: 0,
+        formattingRegions: [
+          {
+            index: 0,
+            length: "Malzemeler".length,
+            text: "Malzemeler",
+            formatting: {},
+          },
+        ],
+      },
+      {
+        id: "page-page-2-block-2",
+        sourceText: "Talimat",
+        order: 1,
+        formattingRegions: [
+          {
+            index: 0,
+            length: "Talimat".length,
+            text: "Talimat",
+            formatting: {},
+          },
+        ],
+      },
+    ];
     const review = {
       ...reviewFor("page-2"),
-      fingerprint: pageContentFingerprint([
-        {
-          id: "page-page-2-block-1",
-          sourceText: "Malzemeler",
-          order: 0,
-          formattingRegions: [
-            {
-              index: 0,
-              length: "Malzemeler".length,
-              text: "Malzemeler",
-              formatting: {},
-            },
-          ],
-        },
-        {
-          id: "page-page-2-block-2",
-          sourceText: "Talimat",
-          order: 1,
-          formattingRegions: [
-            {
-              index: 0,
-              length: "Talimat".length,
-              text: "Talimat",
-              formatting: {},
-            },
-          ],
-        },
-      ]),
+      fingerprint: pageContentFingerprint(sourceBlocks),
+      sourceFormattingSignature: formattingBlocksSignature(sourceBlocks),
       blocks: [
         {
           id: "page-page-2-block-1",
@@ -687,6 +737,9 @@ describe("bulk apply mutation", () => {
           validation: "PASS" as const,
           errors: [],
           warnings: [],
+          sourceFormattingSignature: formattingRegionSignature(
+            sourceBlocks[0]?.formattingRegions ?? [],
+          ),
         },
         {
           id: "page-page-2-block-2",
@@ -696,6 +749,9 @@ describe("bulk apply mutation", () => {
           validation: "PASS" as const,
           errors: [],
           warnings: [],
+          sourceFormattingSignature: formattingRegionSignature(
+            sourceBlocks[1]?.formattingRegions ?? [],
+          ),
         },
       ],
     };
@@ -725,8 +781,9 @@ describe("bulk apply mutation", () => {
     expect(result.appliedPageIds).toEqual(["page-2"]);
   });
 
-  it("projects preserved formatting after replacing translated text", async () => {
+  it("projects rich and inline formatting after a safe manual edit", async () => {
     const formatText = jest.fn();
+    const formatParagraph = jest.fn();
     const replaceText = jest.fn();
 
     const styledRange = {
@@ -734,15 +791,20 @@ describe("bulk apply mutation", () => {
       readTextRegions: () => [
         {
           text: "Bur",
-          formatting: { fontWeight: "bold" },
+          formatting: {
+            fontWeight: "bold",
+            fontRef: "font-noto-serif",
+            fontSize: 18,
+          },
         },
         {
           text: "un",
-          formatting: {},
+          formatting: { fontRef: "font-noto-serif", fontSize: 18 },
         },
       ],
       replaceText,
       formatText,
+      formatParagraph,
     };
 
     const page = {
@@ -783,10 +845,13 @@ describe("bulk apply mutation", () => {
           id: "page-page-3-block-1",
           source: "Burun",
           translated: "Nose",
-          editedTranslation: "Nose",
+          editedTranslation: "Nxose",
           validation: "PASS" as const,
           errors: [],
           warnings: [],
+          sourceFormattingSignature: formattingRegionSignature(
+            inventory.pages[2]?.blocks[0]?.formattingRegions ?? [],
+          ),
           targetFormattingRegions: [
             {
               id: "fmt-0",
@@ -818,20 +883,20 @@ describe("bulk apply mutation", () => {
 
     expect(replaceText).toHaveBeenCalledWith(
       { index: 0, length: "Burun".length },
-      "Nose",
+      "Nxose",
     );
 
     expect(formatText).toHaveBeenNthCalledWith(
       1,
-      { index: 0, length: 2 },
+      { index: 0, length: 3 },
       { fontWeight: "bold" },
     );
-    expect(formatText).toHaveBeenNthCalledWith(
-      2,
-      { index: 2, length: 2 },
-      {},
-    );
+    expect(formatText).toHaveBeenNthCalledWith(2, { index: 3, length: 2 }, {});
 
+    expect(formatParagraph).toHaveBeenCalledWith(
+      { index: 0, length: 5 },
+      { fontRef: "font-noto-serif", fontSize: 18 },
+    );
     expect(formatText).toHaveBeenCalledTimes(2);
     expect(sync).toHaveBeenCalledTimes(1);
     expect(result.appliedPageIds).toEqual(["page-3"]);
@@ -986,35 +1051,7 @@ describe("bulk apply mutation", () => {
       });
     });
 
-    const secondReview = {
-      ...reviewFor("page-2"),
-      fingerprint: pageContentFingerprint([
-        {
-          id: "page-page-2-block-1",
-          sourceText: "Kaş",
-          order: 0,
-          formattingRegions: [
-            {
-              index: 0,
-              length: 3,
-              text: "Kaş",
-              formatting: {},
-            },
-          ],
-        },
-      ]),
-      blocks: [
-        {
-          id: "page-page-2-block-1",
-          source: "Kaş",
-          translated: "Eyebrow",
-          editedTranslation: "Eyebrow",
-          validation: "PASS" as const,
-          errors: [],
-          warnings: [],
-        },
-      ],
-    };
+    const secondReview = reviewFor("page-2");
 
     await expect(
       applyBulkReviews(
@@ -1497,13 +1534,16 @@ describe("bulk apply preflight", () => {
     expect(result.issues[0]?.code).toBe("BLOCK_MISMATCH");
   });
 
-  it("rejects manual edits when formatting projection is required", () => {
+  it("rejects manual edits without a complete formatting template", () => {
     const review = reviewFor("page-3");
     review.blocks[0]!.editedTranslation = "Manually edited translation";
 
     const result = preflightBulkApply(inventory, [review]);
 
-    expect(result.issues[0]?.code).toBe("FORMATTING_EDIT_CONFLICT");
+    expect(result.issues[0]).toMatchObject({
+      code: "FORMATTING_EDIT_CONFLICT",
+      details: { reason: "INVALID_TEMPLATE" },
+    });
   });
 });
 

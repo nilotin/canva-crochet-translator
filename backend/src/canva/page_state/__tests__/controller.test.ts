@@ -54,6 +54,7 @@ const reviewBody = {
       validation: "PASS" as const,
       errors: [],
       warnings: [],
+      sourceFormattingSignature: "formatting-v1-abc",
       targetFormattingRegions: [{ id: "fmt-0", start: 0, end: 3 }],
     },
   ],
@@ -91,6 +92,7 @@ describe("page-state controller", () => {
           blocks: [
             {
               editedTranslation: "edited 6sc",
+              sourceFormattingSignature: "formatting-v1-abc",
               targetFormattingRegions: [{ id: "fmt-0", start: 0, end: 3 }],
             },
           ],

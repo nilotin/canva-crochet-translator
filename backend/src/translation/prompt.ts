@@ -9,7 +9,8 @@ const TARGET_NAMES: Record<TargetLanguage, string> = {
 const STYLE_PREFERENCES: Record<TargetLanguage, string> = {
   en: `- For “zn çekiyoruz”, prefer concise crochet style such as “Ch 55.” or “Chain 55.” Avoid “work/pull out 55 ch”.
 - For “FLO örüyoruz.” prefer “Work in FLO.”
-- For “BLO örüyoruz.” prefer “Work in BLO.”`,
+- For “BLO örüyoruz.” prefer “Work in BLO.”
+- In reverse single crochet technique explanations, when “ters yüz” and “düz yüz” describe the visible backs and fronts of the single crochet stitches, use “the back of the stitches” and “the front of the stitches”. Do not use “wrong side” or “right side” in this context.`,
   es: `- Translate “sabitlemek” with natural verbs such as “asegurar”, “fijar”, “unir”, or “rematar”. Never invent “securizar”.
 - For “zn çekiyoruz”, prefer concise crochet style such as “Haz 55 cad.” or “Teje 55 cad.” Never write “cad puntos”.
 - For “FLO örüyoruz.” prefer “Tejemos en Flo.”
@@ -19,6 +20,7 @@ const STYLE_PREFERENCES: Record<TargetLanguage, string> = {
 export const buildTranslationPrompt = (
   targetLanguage: TargetLanguage,
   blocks: readonly TranslationBlock[],
+  roundReferences: readonly { placeholder: string; meaning: string }[] = [],
 ) => ({
   system: `Translate Turkish crochet and amigurumi pattern instructions into ${TARGET_NAMES[targetLanguage]} for this project.
 
@@ -38,8 +40,8 @@ Contextual natural-language preferences (use according to context):
 ${formatNaturalLanguageGlossary(targetLanguage)}
 
 Target-language crochet style preferences:
-${STYLE_PREFERENCES[targetLanguage]}`,
-  user: JSON.stringify({ sourceLanguage: "tr", targetLanguage, blocks }),
+${STYLE_PREFERENCES[targetLanguage]}${roundReferences.length ? "\nProtected round-reference meanings are supplied as context. Place each placeholder as that complete phrase, adding only the surrounding grammar needed. Return the placeholder itself, never repeat or expand its meaning." : ""}`,
+  user: JSON.stringify({ sourceLanguage: "tr", targetLanguage, blocks, ...(roundReferences.length ? { roundReferences } : {}) }),
 });
 
 export const buildMixedSpanPrompt = (

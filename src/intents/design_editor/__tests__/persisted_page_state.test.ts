@@ -6,8 +6,10 @@ import {
   savePersistedReview,
   savePersistedWholeDocumentApplied,
 } from "../persisted_page_state";
+import { TRANSLATION_PIPELINE_REVISION } from "../bulk_review_state";
 import type { PageReview } from "../translation_review";
 import { digestWholeDocumentPage } from "../whole_document_snapshot";
+import { formattingRegionSignature } from "../formatting_freshness";
 
 const review: PageReview = {
   reviewStatus: "needs_review",
@@ -20,6 +22,9 @@ const review: PageReview = {
       validation: "WARNING",
       errors: [],
       warnings: [{ code: "REVIEW", message: "Check layout." }],
+      sourceFormattingSignature: formattingRegionSignature([
+        { index: 0, length: 2, text: "6x", formatting: {} },
+      ]),
       targetFormattingRegions: [{ id: "fmt-0", start: 0, end: 3 }],
     },
   ],
@@ -103,7 +108,7 @@ describe("persisted page-state client", () => {
         appliedCount: 3,
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v10",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           status: "needs_review",
@@ -132,6 +137,78 @@ describe("persisted page-state client", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("treats persisted reviews with missing formatting signatures as stale", async () => {
+    const legacyBlocks = review.blocks.map((block) => {
+      const legacyBlock = { ...block };
+      delete legacyBlock.sourceFormattingSignature;
+      return legacyBlock;
+    });
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 0,
+        state: {
+          pageIdentity: "page:one",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          status: "reviewed",
+          blocks: legacyBlocks,
+        },
+      }),
+    }));
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        overrides(fetcher),
+      ),
+    ).resolves.toMatchObject({ disposition: "stale_review" });
+  });
+
+  it("treats a formatting-only Canva edit as stale on restore", async () => {
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 0,
+        state: {
+          pageIdentity: "page:one",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          status: "reviewed",
+          blocks: review.blocks,
+        },
+      }),
+    }));
+    const formattingChangedQuery = jest.fn(async (_options, callback) =>
+      callback({
+        contents: [
+          {
+            deleted: false,
+            readPlaintext: () => "6x",
+            readTextRegions: () => [
+              { text: "6x", formatting: { fontRef: "font-arimo", fontSize: 12 } },
+            ],
+          },
+        ],
+        sync: jest.fn(),
+      }),
+    );
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        {
+          ...overrides(fetcher),
+          queryCurrentPage: formattingChangedQuery as never,
+        },
+      ),
+    ).resolves.toMatchObject({ disposition: "stale_review" });
+  });
+
   it("does not restore a review from a superseded pipeline revision", async () => {
     const fetcher = jest.fn(async () => ({
       ok: true,
@@ -139,7 +216,7 @@ describe("persisted page-state client", () => {
         appliedCount: 3,
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v2",
+          pipelineRevision: "translation-pipeline-v10",
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           status: "needs_review",
@@ -159,6 +236,30 @@ describe("persisted page-state client", () => {
     });
   });
 
+  it("does not restore a review with no pipeline revision", async () => {
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 3,
+        state: {
+          pageIdentity: "page:one",
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          status: "needs_review",
+          blocks: review.blocks,
+        },
+      }),
+    }));
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        overrides(fetcher),
+      ),
+    ).resolves.toMatchObject({ disposition: "stale_review" });
+  });
+
   it("restores a fresh whole-document applied state without reading current-page content", async () => {
     const page = wholeDocumentPage("manually edited 6sc");
     const queryCurrentPage = queryWith("should not be read");
@@ -175,7 +276,7 @@ describe("persisted page-state client", () => {
         },
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v10",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           appliedSnapshotDigest: digestWholeDocumentPage(page),
@@ -226,7 +327,7 @@ describe("persisted page-state client", () => {
         },
         state: {
           pageIdentity: "page:one",
-          pipelineRevision: "translation-pipeline-v10",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           appliedSnapshotDigest: digestWholeDocumentPage(persistedPage),
@@ -299,6 +400,7 @@ describe("persisted page-state client", () => {
         appliedCount: 0,
         state: {
           pageIdentity: "page:one",
+          pipelineRevision: TRANSLATION_PIPELINE_REVISION,
           sourceSnapshotDigest: digestReviewSource(review),
           expectedAppliedSnapshotDigest: digestReviewTarget(review),
           status: "needs_review",
@@ -313,6 +415,31 @@ describe("persisted page-state client", () => {
         overrides(fetcher, "manually edited 6sc"),
       ),
     ).resolves.toMatchObject({ disposition: "reconcile_applied" });
+  });
+
+  it("does not reconcile translated content from the v10 pipeline", async () => {
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        appliedCount: 0,
+        state: {
+          pageIdentity: "page:one",
+          pipelineRevision: "translation-pipeline-v10",
+          sourceSnapshotDigest: digestReviewSource(review),
+          expectedAppliedSnapshotDigest: digestReviewTarget(review),
+          status: "needs_review",
+          blocks: review.blocks,
+        },
+      }),
+    }));
+
+    await expect(
+      loadPersistedPageState(
+        { key: "page:one", source: "canva_page_id" },
+        "context",
+        overrides(fetcher, "manually edited 6sc"),
+      ),
+    ).resolves.toMatchObject({ disposition: "stale_review" });
   });
 
   it("saves whole-document applied state with an absolute page identity", async () => {
@@ -337,7 +464,7 @@ describe("persisted page-state client", () => {
     expect(body).toMatchObject({
       designToken: "design-jwt",
       pageIdentity: "page:absolute-page-id",
-      pipelineRevision: "translation-pipeline-v10",
+      pipelineRevision: TRANSLATION_PIPELINE_REVISION,
       sourceSnapshotDigest: "whole-source-digest",
       expectedAppliedSnapshotDigest: "whole-expected-digest",
       appliedSnapshotDigest: "whole-applied-digest",
@@ -365,7 +492,7 @@ describe("persisted page-state client", () => {
     expect(body).toMatchObject({
       designToken: "design-jwt",
       pageIdentity: "page:one",
-      pipelineRevision: "translation-pipeline-v10",
+      pipelineRevision: TRANSLATION_PIPELINE_REVISION,
       status: "needs_review",
       blocks: [{ editedTranslation: "manually edited 6sc" }],
     });

@@ -26,6 +26,7 @@ const review = (
   fingerprint: "page-content-v1-abc",
 
   pipelineRevision: "translation-pipeline-v4",
+  sourceFormattingSignature: "page-formatting-v1-abc",
   status: "ready",
   blocks: [
     {
@@ -36,6 +37,7 @@ const review = (
       validation: "PASS",
       errors: [],
       warnings: [],
+      sourceFormattingSignature: "formatting-v1-abc",
       targetFormattingRegions: [
         {
           id: "fmt-0",
@@ -84,11 +86,13 @@ describe("durable bulk review store", () => {
     expect(restored).toMatchObject({
       pageId: "page-1",
       fingerprint: "page-content-v1-abc",
+      sourceFormattingSignature: "page-formatting-v1-abc",
       status: "needs_review",
       blocks: [
         {
           editedTranslation: "Manual edit",
           validation: "WARNING",
+          sourceFormattingSignature: "formatting-v1-abc",
         },
       ],
     });

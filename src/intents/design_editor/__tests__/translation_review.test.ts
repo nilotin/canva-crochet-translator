@@ -28,6 +28,7 @@ const mutableRange = (
       return { bounds: { index: 0, length: replacement.length } };
     }),
     formatText: jest.fn(),
+    formatParagraph: jest.fn(),
   };
 };
 
@@ -766,7 +767,7 @@ describe("translation review", () => {
     expect(sync).toHaveBeenCalledTimes(1);
   });
 
-  it("does not apply projected formatting after a manual translation edit", async () => {
+  it("restores uniform formatting after a manual translation edit", async () => {
     const content = mutableRange("v", [
       {
         text: "v",
@@ -831,10 +832,13 @@ describe("translation review", () => {
       "increase",
     );
 
-    expect(content.formatText).not.toHaveBeenCalled();
+    expect(content.formatText).toHaveBeenCalledWith(
+      { index: 0, length: 8 },
+      { color: "#ff0000", fontWeight: "bold" },
+    );
   });
 
-  it("blocks manual edits when a block contains multiple inline styles", async () => {
+  it("allows manual edits within one of multiple inline styles", async () => {
     const content = mutableRange("v örüyoruz", [
       {
         text: "v ",
@@ -890,26 +894,247 @@ describe("translation review", () => {
 
     block.editedTranslation = "increase crochet";
 
+    await applyPageReview(
+      review,
+      { contextId: "manual-multi-style", language: "en" },
+      {
+        verifyTarget: async () => ({
+          isTranslationTarget: true,
+          language: "en",
+          sourceTitle: "Source",
+          contextId: "manual-multi-style",
+        }),
+        queryCurrentPage: query as never,
+      },
+    );
+    expect(content.replaceText).toHaveBeenCalledWith(
+      { index: 0, length: "v örüyoruz".length },
+      "increase crochet",
+    );
+    expect(content.formatText).toHaveBeenCalledWith(
+      { index: 0, length: 9 },
+      { color: "#ff0000", fontWeight: "bold" },
+    );
+    expect(content.formatText).toHaveBeenCalledWith(
+      { index: 9, length: 7 },
+      { color: "#000000", fontWeight: "bold" },
+    );
+  });
+
+  it("blocks apply when the page identity changes before mutation", async () => {
+    const content = mutableRange("same");
+
+    const readQuery = jest.fn(async (_options, callback) =>
+      callback({
+        contents: [content],
+        sync: jest.fn(),
+      }),
+    );
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-1",
+            source: "same",
+            translated: "same translated",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage(
+      "en",
+      "identity-race-context",
+      {
+        queryCurrentPage: readQuery as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      },
+    );
+
+    const applyQuery = jest.fn();
+
     await expect(
       applyPageReview(
         review,
-        { contextId: "manual-multi-style", language: "en" },
+        {
+          contextId: "identity-race-context",
+          language: "en",
+          pageIdentityKey: "page:A",
+          pageIdentitySource: "canva_page_id",
+        },
         {
           verifyTarget: async () => ({
             isTranslationTarget: true,
             language: "en",
             sourceTitle: "Source",
-            contextId: "manual-multi-style",
+            contextId: "identity-race-context",
           }),
-          queryCurrentPage: query as never,
+          getPageIdentity: async () => ({
+            key: "page:B",
+            source: "canva_page_id",
+          }),
+          queryCurrentPage: applyQuery as never,
         },
       ),
-    ).rejects.toMatchObject({
-      code: "FORMATTING_EDIT_CONFLICT",
-    });
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
 
+    expect(applyQuery).not.toHaveBeenCalled();
+    expect(content.replaceText).not.toHaveBeenCalled();
+  });
+
+  it("blocks a page switch after the preflight identity check but before mutation", async () => {
+    const content = mutableRange("same");
+
+    const readQuery = jest.fn(async (_options, callback) =>
+      callback({
+        contents: [content],
+        sync: jest.fn(),
+      }),
+    );
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-1",
+            source: "same",
+            translated: "same translated",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage(
+      "en",
+      "identity-session-race-context",
+      {
+        queryCurrentPage: readQuery as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      },
+    );
+
+    const sync = jest.fn();
+    const applyQuery = jest.fn(async (_options, callback) =>
+      callback({
+        contents: [content],
+        sync,
+      }),
+    );
+
+    await expect(
+      applyPageReview(
+        review,
+        {
+          contextId: "identity-session-race-context",
+          language: "en",
+          pageIdentityKey: "page:A",
+          pageIdentitySource: "canva_page_id",
+        },
+        {
+          verifyTarget: async () => ({
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Source",
+            contextId: "identity-session-race-context",
+          }),
+          // Preflight still sees the reviewed page.
+          getPageIdentity: async () => ({
+            key: "page:A",
+            source: "canva_page_id",
+          }),
+          // But by the time the edit session is open, Canva reports page B.
+          getPageMetadata: async () => ({
+            type: "absolute",
+            id: "B" as never,
+          }),
+          queryCurrentPage: applyQuery as never,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+
+    expect(applyQuery).toHaveBeenCalledTimes(1);
     expect(content.replaceText).not.toHaveBeenCalled();
     expect(content.formatText).not.toHaveBeenCalled();
+    expect(content.formatParagraph).not.toHaveBeenCalled();
+    expect(sync).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for Apply when only a content-fingerprint page identity is available", async () => {
+    const content = mutableRange("same");
+
+    const readQuery = jest.fn(async (_options, callback) =>
+      callback({
+        contents: [content],
+        sync: jest.fn(),
+      }),
+    );
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-1",
+            source: "same",
+            translated: "same translated",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage(
+      "en",
+      "fingerprint-identity-context",
+      {
+        queryCurrentPage: readQuery as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      },
+    );
+
+    const applyQuery = jest.fn();
+
+    await expect(
+      applyPageReview(
+        review,
+        {
+          contextId: "fingerprint-identity-context",
+          language: "en",
+          pageIdentityKey: "fingerprint:abc123",
+          pageIdentitySource: "content_fingerprint",
+        },
+        {
+          verifyTarget: async () => ({
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Source",
+            contextId: "fingerprint-identity-context",
+          }),
+          getPageIdentity: async () => ({
+            key: "fingerprint:abc123",
+            source: "content_fingerprint",
+          }),
+          queryCurrentPage: applyQuery as never,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+
+    expect(applyQuery).not.toHaveBeenCalled();
+    expect(content.replaceText).not.toHaveBeenCalled();
   });
 
   it("blocks stale reviews before mutating", async () => {
@@ -959,6 +1184,86 @@ describe("translation review", () => {
       ),
     ).rejects.toBeInstanceOf(ApplyReviewError);
     expect(content.replaceText).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "inline style",
+      [{ text: "original", formatting: { color: "#111111" } }],
+      [{ text: "original", formatting: { color: "#222222" } }],
+    ],
+    [
+      "paragraph style",
+      [
+        { text: "original", formatting: { fontRef: "font-noto", fontSize: 18 } },
+      ],
+      [
+        { text: "original", formatting: { fontRef: "font-arimo", fontSize: 12 } },
+      ],
+    ],
+    [
+      "region boundary",
+      [{ text: "original", formatting: { fontWeight: "normal" } }],
+      [
+        { text: "orig", formatting: { fontWeight: "normal" } },
+        { text: "inal", formatting: { fontWeight: "bold" } },
+      ],
+    ],
+  ])("blocks a formatting-only %s edit before mutation", async (label, initial, changed) => {
+    const contextId = `format-${label}`;
+    let liveRegions = initial;
+    const content = {
+      deleted: false,
+      readPlaintext: () => "original",
+      readTextRegions: () => liveRegions,
+      replaceText: jest.fn(),
+      formatText: jest.fn(),
+      formatParagraph: jest.fn(),
+    };
+    const sync = jest.fn();
+    const query = jest.fn(async (_options, callback) =>
+      callback({ contents: [content], sync }),
+    );
+    const review = await translateCurrentPage("en", contextId, {
+      queryCurrentPage: query as never,
+      fetch: (async () => ({
+        ok: true,
+        json: async () => ({
+          translations: [
+            {
+              id: "local-block-1",
+              source: "original",
+              translated: "translation",
+              valid: true,
+              errors: [],
+              warnings: [],
+            },
+          ],
+        }),
+      })) as never,
+      ...translationAuth,
+    });
+    liveRegions = changed;
+
+    await expect(
+      applyPageReview(
+        review,
+        { contextId, language: "en" },
+        {
+          queryCurrentPage: query as never,
+          verifyTarget: async () => ({
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Source",
+            contextId,
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "STALE_REVIEW" });
+    expect(content.replaceText).not.toHaveBeenCalled();
+    expect(content.formatText).not.toHaveBeenCalled();
+    expect(content.formatParagraph).not.toHaveBeenCalled();
+    expect(sync).not.toHaveBeenCalled();
   });
 
   it("does not reuse a review when the current-page snapshot differs", async () => {

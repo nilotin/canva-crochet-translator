@@ -1,3 +1,4 @@
+import { extractRoundReferences } from "./natural_language/round_references.js";
 export type LeadingInstruction = {
   leadingWhitespace: string;
   marker: string;
@@ -14,6 +15,8 @@ export const extractLeadingInstruction = (
 ): LeadingInstruction | undefined => {
   const match = source.match(leadingInstructionPattern);
   if (!match) return undefined;
+  // “6. sıra…” names a crochet round; “6.” alone is an instruction marker.
+  if (extractRoundReferences(source)[0]?.start === (match[1]?.length ?? 0)) return undefined;
 
   const matched = match[0];
   return {

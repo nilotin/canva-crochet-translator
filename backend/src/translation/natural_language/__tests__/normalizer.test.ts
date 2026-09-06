@@ -74,4 +74,115 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(protectNotation("6x").tokens).toHaveLength(1);
     expect(protectNotation("(1x, v) x 6").tokens).toHaveLength(2);
   });
+
+  it("normalizes the live conditional FLO/BLO instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bu sırayı Flo’dan örüyoruz (çapraz ya da düz sık iğne tekniği ile örenler, Blo’dan örecekler), 6x",
+        "en",
+      ),
+    ).toBe(
+      "Work in FLO. If using crossed or regular single crochet, work in BLO instead. 6x",
+    );
+  });
+
+  it("supports the reverse BLO/FLO conditional instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bu sırayı BLO’dan örüyoruz (çapraz sık iğne ile örenler FLO’dan örecekler).",
+        "en",
+      ),
+    ).toBe(
+      "Work in BLO. If using crossed single crochet, work in FLO instead.",
+    );
+  });
+
+  it("normalizes a simple FLO instruction without inventing a condition", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bu sırayı FLO’dan örüyoruz, 6x",
+        "en",
+      ),
+    ).toBe("Work in FLO, 6x");
+  });
+
+  it("accepts apostrophe and spacing variants in conditional loop instructions", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bu sırayı FLO' dan örüyoruz (düz sık iğne tekniği ile örenler, BLO' dan örecekler), 6x",
+        "en",
+      ),
+    ).toBe(
+      "Work in FLO. If using regular single crochet, work in BLO instead. 6x",
+    );
+  });
+
+  it("preserves measurements next to a simple loop instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 mm tığ ile bu sırayı FLO’dan örüyoruz",
+        "en",
+      ),
+    ).toBe("2.20 mm tığ ile Work in FLO");
+  });
+
+  it("does not rewrite an unsupported conditional technique unsafely", () => {
+    const source =
+      "Bu sırayı FLO’dan örüyoruz (farklı bir teknik kullananlar, BLO’dan örecekler)";
+
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(
+      "Work in FLO (farklı bir teknik kullananlar, BLO’dan örecekler)",
+    );
+  });
+
+
+  it("normalizes the live hook and yarn intro into crochet-native English", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 numara tığ, siyah ip (Catania 110) ile örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "With a 2.20 mm crochet hook and siyah Catania 110 yarn, work as follows.",
+    );
+  });
+
+  it("normalizes a simple hook intro", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.5 mm tığ ile örüyoruz.",
+        "en",
+      ),
+    ).toBe("With a 2.5 mm crochet hook, work as follows.");
+  });
+
+  it("normalizes hook-use phrasing without changing decimal precision", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "3.00 mm tığ kullanıyoruz.",
+        "en",
+      ),
+    ).toBe("Use a 3.00 mm crochet hook.");
+  });
+
+  it("normalizes Turkish hook-number wording to millimeters", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.00 no tığ ile örüyoruz.",
+        "en",
+      ),
+    ).toBe("With a 2.00 mm crochet hook, work as follows.");
+  });
+
+  it("supports the same hook intro structure in Spanish", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 numara tığ ile örüyoruz.",
+        "es",
+      ),
+    ).toBe(
+      "Con un ganchillo de 2.20 mm, tejemos de la siguiente manera.",
+    );
+  });
+
 });

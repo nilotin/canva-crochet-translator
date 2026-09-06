@@ -11,12 +11,16 @@ import {
   type WholeDocumentTextBlock,
 } from "./whole_document_inventory";
 import { pageContentFingerprint } from "./whole_document_classification";
+import {
+  formattingBlocksSignature,
+  formattingRegionSignature,
+} from "./formatting_freshness";
 import { digestWholeDocumentBlocks } from "./whole_document_snapshot";
 import { savePersistedWholeDocumentApplied } from "./persisted_page_state";
 import {
   ApplyReviewError,
-  applyProjectedFormatting,
-  requiresFormattingProjection,
+  prepareProjectedFormatting,
+  planProjectedFormatting,
 } from "./translation_review";
 import type { TargetLanguage } from "./copy_designs";
 import {
@@ -39,6 +43,7 @@ export type BulkApplyPreflightIssueCode =
 export type BulkApplyPreflightIssue = {
   pageId: string | null;
   code: BulkApplyPreflightIssueCode;
+  details?: ApplyReviewError["details"];
 };
 
 export type BulkApplyPreflightResult = {
@@ -94,8 +99,15 @@ export const preflightBulkApply = (
     }
 
     const currentFingerprint = pageContentFingerprint(page.blocks);
+    const currentFormattingSignature = formattingBlocksSignature(page.blocks);
 
-    if (!isBulkReviewFresh(review, currentFingerprint)) {
+    if (
+      !isBulkReviewFresh(
+        review,
+        currentFingerprint,
+        currentFormattingSignature,
+      )
+    ) {
       issues.push({ pageId: review.pageId, code: "STALE_REVIEW" });
       continue;
     }
@@ -139,15 +151,28 @@ export const preflightBulkApply = (
       }
 
       if (
-        reviewBlock.editedTranslation !== reviewBlock.translated &&
-        requiresFormattingProjection(pageBlock.formattingRegions)
+        reviewBlock.sourceFormattingSignature !==
+        formattingRegionSignature(pageBlock.formattingRegions)
       ) {
-        issues.push({
-          pageId: review.pageId,
-          code: "FORMATTING_EDIT_CONFLICT",
-        });
+        issues.push({ pageId: review.pageId, code: "STALE_REVIEW" });
         pageHasIssue = true;
         break;
+      }
+
+      if (reviewBlock.editedTranslation !== reviewBlock.translated) {
+        try {
+          planProjectedFormatting(reviewBlock, pageBlock.formattingRegions);
+        } catch (cause) {
+          if (!(cause instanceof ApplyReviewError)) throw cause;
+          issues.push({
+            pageId: review.pageId,
+            code: cause.code === "FORMATTING_EDIT_CONFLICT"
+              ? "FORMATTING_EDIT_CONFLICT" : "BLOCK_MISMATCH",
+            details: cause.details,
+          });
+          pageHasIssue = true;
+          break;
+        }
       }
     }
 
@@ -558,10 +583,7 @@ export const applyBulkReviews = async (
               const mapped = review.blocks.map((block, index) => {
                 const currentBlock = orderedBlocks[index];
 
-                if (
-                  !currentBlock ||
-                  currentBlock.sourceText !== block.source
-                ) {
+                if (!currentBlock || currentBlock.sourceText !== block.source) {
                   throw new ApplyReviewError("MISSING_MAPPING");
                 }
 
@@ -575,10 +597,23 @@ export const applyBulkReviews = async (
                   block,
                   currentBlock,
                   reference,
+                  applyFormatting:
+                    block.editedTranslation === currentBlock.sourceText
+                      ? () => {}
+                      : prepareProjectedFormatting(
+                          block,
+                          reference,
+                          currentBlock.formattingRegions,
+                        ),
                 };
               });
 
-              for (const { block, currentBlock, reference } of mapped) {
+              for (const {
+                block,
+                currentBlock,
+                reference,
+                applyFormatting,
+              } of mapped) {
                 if (block.editedTranslation === currentBlock.sourceText) {
                   continue;
                 }
@@ -591,11 +626,7 @@ export const applyBulkReviews = async (
                   block.editedTranslation,
                 );
 
-                applyProjectedFormatting(
-                  block,
-                  reference,
-                  currentBlock.formattingRegions,
-                );
+                applyFormatting();
               }
 
               appliedPageIds.push(page.id);

@@ -17,6 +17,8 @@ export type ProtectedNotationText = {
 };
 
 export type PlaceholderIntegrityCode =
+  | "ROUND_REFERENCE_MISMATCH"
+  | "MEASUREMENT_INTEGRITY_MISMATCH"
   | "MISSING_PROTECTED_NOTATION"
   | "DUPLICATE_PROTECTED_NOTATION"
   | "UNEXPECTED_PROTECTED_NOTATION"

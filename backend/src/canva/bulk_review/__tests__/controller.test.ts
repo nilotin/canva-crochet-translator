@@ -40,6 +40,7 @@ const saveBody = {
   designToken: "target-design-token",
   pageId: "page-1",
   fingerprint: "page-content-v1-abc",
+  sourceFormattingSignature: "page-formatting-v1-abc",
   status: "ready" as const,
   blocks: [
     {
@@ -50,6 +51,7 @@ const saveBody = {
       validation: "PASS" as const,
       errors: [],
       warnings: [],
+      sourceFormattingSignature: "formatting-v1-abc",
     },
   ],
 };
@@ -84,11 +86,13 @@ describe("bulk review controller", () => {
       review: {
         pageId: "page-1",
         fingerprint: "page-content-v1-abc",
+        sourceFormattingSignature: "page-formatting-v1-abc",
         status: "ready",
         blocks: [
           {
             source: "Kulak",
             editedTranslation: "Ear",
+            sourceFormattingSignature: "formatting-v1-abc",
           },
         ],
       },
@@ -117,6 +121,7 @@ describe("bulk review controller", () => {
         {
           pageId: "page-1",
           fingerprint: "page-content-v1-abc",
+          sourceFormattingSignature: "page-formatting-v1-abc",
           status: "ready",
         },
       ],

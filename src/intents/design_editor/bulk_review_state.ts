@@ -46,13 +46,18 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // persisted OUTPUT for Page 2 changed, so a stale Page 2 review from
 // before this change (materials left untranslated) must not be
 // silently reused.
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v10";
+// v11: protected-token reconstruction, measurement/round-reference
+// rendering, natural-language normalization, validation, placeholder
+// integrity, and formatting projection changed. Reviews produced by v10
+// must be translated again instead of being restored or reused.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v11";
 
 export type PersistedBulkPageReview = {
   pageId: string;
   fingerprint: string;
 
   pipelineRevision?: string;
+  sourceFormattingSignature?: string;
   status: PersistedBulkPageStatus;
   // Explicit human sign-off on a "needs_review" page's warnings. Never
   // implied by status alone, and must be re-earned after any edit to the
@@ -70,9 +75,11 @@ export const bulkPageIdentity = (pageId: string): string => `page:${pageId}`;
 export const isBulkReviewFresh = (
   review: PersistedBulkPageReview,
   currentFingerprint: string,
+  currentFormattingSignature: string,
 ): boolean =>
   review.fingerprint === currentFingerprint &&
-  review.pipelineRevision === TRANSLATION_PIPELINE_REVISION;
+  review.pipelineRevision === TRANSLATION_PIPELINE_REVISION &&
+  review.sourceFormattingSignature === currentFormattingSignature;
 
 // Warning-family "always accept this warning type" preferences.
 //

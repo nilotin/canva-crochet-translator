@@ -5,6 +5,31 @@ const errorCodes = (result: ReturnType<typeof validateTranslation>) =>
   result.errors.map(({ code }) => code);
 
 describe("validateTranslation", () => {
+  it.each([
+    "__XQZZZZQX__",
+    "__XQRENAMEDQX__",
+    "crochet __XQZZZZQX__",
+  ])("rejects reserved placeholder syntax in final output: %s", (translated) => {
+    const result = validateTranslation("Normal Türkçe metin.", translated, "en");
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("RESERVED_PLACEHOLDER_LEAK");
+    expect(result.errors).toContainEqual({
+      code: "RESERVED_PLACEHOLDER_LEAK",
+      message:
+        "Internal translation placeholder syntax was found in the output.",
+    });
+  });
+
+  it.each(["XQ", "__HELLO__", "XQZZZZQX"])(
+    "allows ordinary text outside the reserved placeholder namespace: %s",
+    (translated) => {
+      expect(errorCodes(validateTranslation("Metin", translated, "en"))).not.toContain(
+        "RESERVED_PLACEHOLDER_LEAK",
+      );
+    },
+  );
+
   it("does not treat contextual length and spacing shorthand as sc notation", () => {
     const result = validateTranslation(
       "Kaş — 4x uzunluğunda, aralarında 9x kalacak şekilde, gözden 4 sıra üzerinden işliyoruz.",
@@ -312,6 +337,45 @@ describe("validateTranslation", () => {
     expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
   });
 
+  it("allows parentheses removal only for the recognized hook and yarn intro", () => {
+    const recognized = validateTranslation(
+      "2.20 numara tığ, siyah ip (Catania 110) ile örüyoruz.",
+      "With a 2.20 mm crochet hook and black Catania 110 yarn, work as follows.",
+      "en",
+    );
+
+    expect(errorCodes(recognized)).not.toContain("PARENTHESES_MISMATCH");
+
+    const unrelated = validateTranslation(
+      "Parçayı (arka taraftan) dikiyoruz.",
+      "Sew the piece from the back.",
+      "en",
+    );
+
+    expect(errorCodes(unrelated)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("rejects extra target parentheses in the recognized hook and yarn intro", () => {
+    const result = validateTranslation(
+      "2 numara tığ, pamuk ip (Catania) ile örüyoruz.",
+      "With a 2 mm crochet hook and Catania yarn (((, work as follows.",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("still allows flattening the recognized material brand parentheses", () => {
+    const result = validateTranslation(
+      "2 numara tığ, pamuk ip (Catania) ile örüyoruz.",
+      "With a 2 mm crochet hook and cotton Catania yarn, work as follows.",
+      "en",
+    );
+
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
   it("warns about suspicious length and glossary mismatches", () => {
     const result = validateTranslation(
       "Kaş için sık iğne kullanarak çok uzun bir açıklama oluşturuyoruz.",
@@ -582,5 +646,91 @@ describe("validateTranslation materials profile", () => {
 
     expect(result.valid).toBe(false);
     expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+});
+
+describe("conditional FLO/BLO integrity", () => {
+  const sourceBoth =
+    "Bu sırayı FLO’dan örüyoruz (çapraz ya da düz sık iğne ile örenler BLO’dan örecekler).";
+  const sourceCrossed =
+    "Bu sırayı BLO’dan örüyoruz (çapraz sık iğne ile örenler FLO’dan örecekler).";
+  const sourceRegular =
+    "Bu sırayı FLO’dan örüyoruz (düz sık iğne tekniği ile örenler BLO’dan örecekler).";
+
+  it("rejects English output that drops the conditional technique", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Work in FLO. Work in BLO instead.",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("rejects English output with the wrong conditional technique", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Work in FLO. If using crossed single crochet, work in BLO instead.",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts English output that preserves the full conditional technique", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Work in FLO. If using crossed or regular single crochet, work in BLO instead.",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts crossed-only English conditional output", () => {
+    const result = validateTranslation(
+      sourceCrossed,
+      "Work in BLO. If using crossed single crochet, work in FLO instead.",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts regular-only English conditional output", () => {
+    const result = validateTranslation(
+      sourceRegular,
+      "Work in FLO. If using regular single crochet, work in BLO instead.",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("rejects Spanish output that drops the conditional technique", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Trabaja en Flo. Trabaja en Blo en su lugar.",
+      "es",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts Spanish output that preserves the full conditional technique", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Trabaja en Flo. Si usando punto bajo cruzado o punto bajo normal, trabaja en Blo en su lugar.",
+      "es",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
   });
 });

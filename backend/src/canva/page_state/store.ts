@@ -15,6 +15,7 @@ export const reviewBlockSchema = z
     validation: z.enum(["PASS", "WARNING", "BLOCK"]),
     errors: z.array(diagnosticSchema).max(100),
     warnings: z.array(diagnosticSchema).max(100),
+    sourceFormattingSignature: z.string().min(1).max(200).optional(),
     targetFormattingRegions: z
       .array(
         z

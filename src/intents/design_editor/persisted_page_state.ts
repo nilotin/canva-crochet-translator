@@ -7,6 +7,7 @@ import { digestWholeDocumentPage } from "./whole_document_snapshot";
 import { normalizePageReviewSeverity } from "./review_severity";
 import {
   readCurrentPageBlocks,
+  reviewFormattingMatchesSession,
   type PageReview,
   type ReviewBlock,
 } from "./translation_review";
@@ -238,12 +239,32 @@ export const loadPersistedPageState = async (
       persisted,
     };
   }
-  if (currentSnapshotDigest === persisted.sourceSnapshotDigest) {
+  if (persisted.pipelineRevision !== TRANSLATION_PIPELINE_REVISION) {
     return {
-      disposition:
-        persisted.pipelineRevision === TRANSLATION_PIPELINE_REVISION
-          ? "review_restored"
-          : "stale_review",
+      disposition: "stale_review",
+      review,
+      appliedCount: result.appliedCount,
+      progressSummary: result.progressSummary,
+      currentSnapshotDigest,
+      persisted,
+    };
+  }
+  if (currentSnapshotDigest === persisted.sourceSnapshotDigest) {
+    if (
+      persisted.snapshotMode !== "whole_document" &&
+      !reviewFormattingMatchesSession(review, contextId)
+    ) {
+      return {
+        disposition: "stale_review",
+        review,
+        appliedCount: result.appliedCount,
+        progressSummary: result.progressSummary,
+        currentSnapshotDigest,
+        persisted,
+      };
+    }
+    return {
+      disposition: "review_restored",
       review,
       appliedCount: result.appliedCount,
       progressSummary: result.progressSummary,

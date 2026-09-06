@@ -6,7 +6,10 @@ import {
   loadBulkReviewSummaries,
   saveBulkReview,
 } from "../bulk_review_persistence";
-import type { PersistedBulkPageReview } from "../bulk_review_state";
+import {
+  TRANSLATION_PIPELINE_REVISION,
+  type PersistedBulkPageReview,
+} from "../bulk_review_state";
 
 const overrides = (fetcher: jest.Mock) => ({
   getDesignToken: async () =>
@@ -24,6 +27,7 @@ const overrides = (fetcher: jest.Mock) => ({
 const review: PersistedBulkPageReview = {
   pageId: "page-1",
   fingerprint: "page-content-v1-abc",
+  sourceFormattingSignature: "page-formatting-v1-abc",
   status: "ready",
   blocks: [
     {
@@ -34,6 +38,7 @@ const review: PersistedBulkPageReview = {
       validation: "PASS",
       errors: [],
       warnings: [],
+      sourceFormattingSignature: "formatting-v1-abc",
     },
   ],
 };
@@ -147,6 +152,7 @@ describe("bulk review persistence client", () => {
           {
             pageId: "page-1",
             fingerprint: "page-content-v1-abc",
+            sourceFormattingSignature: "page-formatting-v1-abc",
             status: "ready",
             updatedAt: "2026-08-29T20:00:00.000Z",
           },
@@ -158,6 +164,7 @@ describe("bulk review persistence client", () => {
       {
         pageId: "page-1",
         fingerprint: "page-content-v1-abc",
+        sourceFormattingSignature: "page-formatting-v1-abc",
         status: "ready",
         updatedAt: "2026-08-29T20:00:00.000Z",
       },
@@ -182,7 +189,8 @@ describe("bulk review persistence client", () => {
     expect(JSON.parse(String(init.body))).toEqual({
       pageId: "page-1",
       fingerprint: "page-content-v1-abc",
-      pipelineRevision: "translation-pipeline-v10",
+      pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+      sourceFormattingSignature: "page-formatting-v1-abc",
       status: "ready",
       acknowledged: false,
       blocks: review.blocks,

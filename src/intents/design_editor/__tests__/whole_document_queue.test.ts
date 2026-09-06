@@ -7,6 +7,7 @@ import {
 } from "../whole_document_queue";
 import type { WholeDocumentInventory } from "../whole_document_inventory";
 import type { WholeDocumentPlan } from "../whole_document_plan";
+import { formattingBlocksSignature } from "../formatting_freshness";
 
 const inventory: WholeDocumentInventory = {
   pages: [
@@ -84,6 +85,9 @@ describe("whole document bulk queue", () => {
         pageId: "page-1",
         discoveryIndex: 0,
         fingerprint: "fp-1",
+        sourceFormattingSignature: formattingBlocksSignature(
+          inventory.pages[0]?.blocks ?? [],
+        ),
         status: "pending",
         blockIds: ["block-1"],
       },
@@ -91,6 +95,9 @@ describe("whole document bulk queue", () => {
         pageId: "page-2",
         discoveryIndex: 1,
         fingerprint: "fp-2",
+        sourceFormattingSignature: formattingBlocksSignature(
+          inventory.pages[1]?.blocks ?? [],
+        ),
         status: "pending",
         blockIds: ["block-2a", "block-2b"],
       },
@@ -239,6 +246,8 @@ describe("whole document bulk queue", () => {
         fingerprint: "fp-1",
 
         pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+        sourceFormattingSignature:
+          queue.entries[0]?.sourceFormattingSignature ?? "",
         status: "ready",
         updatedAt: "2026-08-29T20:00:00.000Z",
       },
@@ -247,6 +256,8 @@ describe("whole document bulk queue", () => {
         fingerprint: "fp-2",
 
         pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+        sourceFormattingSignature:
+          queue.entries[1]?.sourceFormattingSignature ?? "",
         status: "blocked",
         updatedAt: "2026-08-29T20:00:00.000Z",
       },
@@ -270,7 +281,7 @@ describe("whole document bulk queue", () => {
       {
         pageId: "page-1",
         fingerprint: "fp-1",
-        pipelineRevision: "translation-pipeline-v1",
+        pipelineRevision: "translation-pipeline-v10",
         status: "ready",
         updatedAt: "2026-08-29T20:00:00.000Z",
       },
@@ -299,6 +310,22 @@ describe("whole document bulk queue", () => {
     expect(restored.counts.pending).toBe(2);
     expect(restored.counts.ready).toBe(0);
 
+  });
+
+  it("does not restore a current-revision review with no formatting signature", () => {
+    const queue = buildBulkReviewQueue(inventory, plan);
+    const restored = restoreBulkReviewQueue(queue, [
+      {
+        pageId: "page-1",
+        fingerprint: "fp-1",
+        pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+        status: "ready",
+        updatedAt: "2026-08-29T20:00:00.000Z",
+      },
+    ]);
+
+    expect(restored.entries[0]?.status).toBe("pending");
+    expect(restored.counts.ready).toBe(0);
   });
 
   it("does not restore stale persisted reviews after page content changes", () => {

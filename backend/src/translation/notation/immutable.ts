@@ -1,3 +1,5 @@
+import { extractRoundReferences, renderRoundReference, validateRoundReferences, type RoundReference } from "../natural_language/round_references.js";
+import { extractMeasurements, renderMeasurement, validateMeasurementIntegrity } from "../measurements.js";
 import { getTargetNotation } from "../glossary.js";
 import type { TargetLanguage } from "../types.js";
 import { tokenizeSourceNotation } from "./tokenizer.js";
@@ -13,6 +15,8 @@ export type ProtectedToken =
       entry: ReturnType<typeof tokenizeSourceNotation>[number]["entry"];
       source: string;
     }
+  | ({ kind: "round_reference"; placeholder: string } & RoundReference)
+  | { kind: "measurement"; placeholder: string; source: string; value: string; unit: string }
   | { kind: "number"; placeholder: string; source: string }
   | { kind: "structure"; placeholder: string; source: string };
 
@@ -30,12 +34,17 @@ type Occurrence = {
         entry: ReturnType<typeof tokenizeSourceNotation>[number]["entry"];
         source: string;
       }
+    | ({ kind: "round_reference" } & RoundReference)
+    | { kind: "measurement"; source: string; value: string; unit: string }
     | { kind: "number"; source: string }
     | { kind: "structure"; source: string };
 };
 
 const exactPlaceholderPattern = /__XQ[A-Z]{4}QX__/gu;
 const placeholderCandidatePattern = /__XQ[^\s]*?QX__/gu;
+
+export const containsReservedPlaceholder = (text: string): boolean =>
+  /__XQ[^\s]*?QX__/u.test(text);
 
 const placeholderFor = (index: number): string => {
   let remaining = index;
@@ -58,6 +67,8 @@ export const protectImmutablePattern = (
   startIndex = 0,
   profile: "pattern" | "materials" = "pattern",
 ): ProtectedImmutableText => {
+  const measurements = extractMeasurements(source);
+  const rounds = profile === "pattern" ? extractRoundReferences(source) : [];
   const notation =
     profile === "pattern" ? tokenizeSourceNotation(source) : [];
   const occurrences: Occurrence[] = notation.map(({ entry, start, end }) => ({
@@ -69,6 +80,14 @@ export const protectImmutablePattern = (
       source: source.slice(start, end),
     },
   }));
+
+  occurrences.push(...rounds.map((reference) => ({
+    start: reference.start, end: reference.end,
+    token: { kind: "round_reference" as const, ...reference },
+  })));
+  occurrences.push(...measurements.map(({ start, end, source, value, unit }) => ({
+    start, end, token: { kind: "measurement" as const, source, value, unit },
+  })));
 
   for (const match of source.matchAll(/\d+(?:[.,]\d+)?/gu)) {
     if (match.index === undefined) continue;
@@ -109,10 +128,17 @@ export const protectImmutablePattern = (
   occurrences.sort(
     (left, right) => left.start - right.start || right.end - left.end,
   );
-  const nonOverlapping = occurrences.filter(
-    (occurrence, index, all) =>
-      index === 0 || occurrence.start >= (all[index - 1]?.end ?? 0),
-  );
+  const nonOverlapping: Occurrence[] = [];
+  for (const occurrence of occurrences) {
+    if (occurrence.token.kind !== "round_reference" && rounds.some(
+      ({ start, end }) => occurrence.start < end && occurrence.end > start,
+    )) continue;
+    // Measurements take priority over independently recognized numbers/structure.
+    if (occurrence.token.kind !== "measurement" && measurements.some(
+      ({ start, end }) => occurrence.start < end && occurrence.end > start,
+    )) continue;
+    if (occurrence.start >= (nonOverlapping.at(-1)?.end ?? 0)) nonOverlapping.push(occurrence);
+  }
   const tokens = nonOverlapping.map((occurrence, index) => ({
     ...occurrence.token,
     placeholder: placeholderFor(startIndex + index),
@@ -143,6 +169,18 @@ export const isPatternOnlyProtectedText = (
   );
   return withoutTokens.trim().length === 0;
 };
+
+export const renderProtectedToken = (
+  token: ProtectedToken,
+  targetLanguage: TargetLanguage,
+): string | undefined =>
+  token.kind === "notation"
+    ? getTargetNotation(token.entry, targetLanguage)?.abbreviation
+    : token.kind === "measurement"
+      ? renderMeasurement(token)
+      : token.kind === "round_reference"
+        ? renderRoundReference(token, targetLanguage)
+        : token.source;
 
 export const restoreImmutablePattern = (
   translated: string,
@@ -214,12 +252,15 @@ export const restoreImmutablePattern = (
 
   let restored = translated;
   for (const token of protectedSource.tokens) {
-    const replacement =
-      token.kind === "notation"
-        ? getTargetNotation(token.entry, targetLanguage)?.abbreviation
-        : token.source;
+    const replacement = renderProtectedToken(token, targetLanguage);
     if (replacement !== undefined)
       restored = restored.replace(token.placeholder, replacement);
   }
-  return { text: restored, valid: true, errors };
+  errors.push(...validateMeasurementIntegrity(
+    protectedSource.tokens.filter((token) => token.kind === "measurement"),
+    restored,
+  ));
+  const roundSource = protectedSource.tokens.filter(({ kind }) => kind === "round_reference").map(({ source }) => source).join(" ");
+  errors.push(...validateRoundReferences(roundSource, restored, targetLanguage));
+  return { text: restored, valid: errors.length === 0, errors };
 };

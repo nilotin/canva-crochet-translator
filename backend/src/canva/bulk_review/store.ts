@@ -12,6 +12,7 @@ export const persistedBulkReviewSchema = z
     fingerprint: z.string().min(1).max(200),
 
     pipelineRevision: z.string().min(1).max(200).optional(),
+    sourceFormattingSignature: z.string().min(1).max(200).optional(),
     status: z.enum(["ready", "needs_review", "blocked"]),
     // Explicit human sign-off that a "needs_review" page's warnings were
     // seen and accepted. Independent of `status`, which reflects the

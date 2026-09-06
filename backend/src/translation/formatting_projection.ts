@@ -1,6 +1,8 @@
-import { getTargetNotation } from "./glossary.js";
 import { lexMixedSegment } from "./mixed_segment.js";
-import { tokenizeSourceNotation } from "./notation/tokenizer.js";
+import {
+  protectImmutablePattern,
+  renderProtectedToken,
+} from "./notation/immutable.js";
 import type {
   TargetFormattingRegion,
   TargetLanguage,
@@ -21,53 +23,68 @@ type ProjectedPiece = {
 const buildPatternOnlyPieces = (
   source: string,
   targetLanguage: TargetLanguage,
-): ProjectedPiece[] => {
-  const occurrences = tokenizeSourceNotation(source);
+): ProjectedPiece[] | undefined => {
+  const protectedSource = protectImmutablePattern(source);
   const pieces: ProjectedPiece[] = [];
 
+  let protectedCursor = 0;
   let sourceCursor = 0;
   let targetCursor = 0;
 
-  for (const occurrence of occurrences) {
-    if (occurrence.start > sourceCursor) {
-      const unchanged = source.slice(sourceCursor, occurrence.start);
+  for (const token of protectedSource.tokens) {
+    const placeholderIndex = protectedSource.text.indexOf(
+      token.placeholder,
+      protectedCursor,
+    );
 
+    if (placeholderIndex < 0) return undefined;
+
+    const unchanged = protectedSource.text.slice(
+      protectedCursor,
+      placeholderIndex,
+    );
+
+    if (unchanged.length > 0) {
       pieces.push({
         sourceStart: sourceCursor,
-        sourceEnd: occurrence.start,
+        sourceEnd: sourceCursor + unchanged.length,
         targetStart: targetCursor,
         targetEnd: targetCursor + unchanged.length,
       });
 
+      sourceCursor += unchanged.length;
       targetCursor += unchanged.length;
     }
 
-    const sourceNotation = source.slice(occurrence.start, occurrence.end);
-    const targetNotation =
-      getTargetNotation(occurrence.entry, targetLanguage)?.abbreviation ??
-      sourceNotation;
-
-    pieces.push({
-      sourceStart: occurrence.start,
-      sourceEnd: occurrence.end,
-      targetStart: targetCursor,
-      targetEnd: targetCursor + targetNotation.length,
-    });
-
-    sourceCursor = occurrence.end;
-    targetCursor += targetNotation.length;
-  }
-
-  if (sourceCursor < source.length) {
-    const unchanged = source.slice(sourceCursor);
+    const replacement = renderProtectedToken(token, targetLanguage);
+    if (replacement === undefined) return undefined;
 
     pieces.push({
       sourceStart: sourceCursor,
-      sourceEnd: source.length,
+      sourceEnd: sourceCursor + token.source.length,
       targetStart: targetCursor,
-      targetEnd: targetCursor + unchanged.length,
+      targetEnd: targetCursor + replacement.length,
     });
+
+    sourceCursor += token.source.length;
+    targetCursor += replacement.length;
+    protectedCursor = placeholderIndex + token.placeholder.length;
   }
+
+  const trailing = protectedSource.text.slice(protectedCursor);
+
+  if (trailing.length > 0) {
+    pieces.push({
+      sourceStart: sourceCursor,
+      sourceEnd: sourceCursor + trailing.length,
+      targetStart: targetCursor,
+      targetEnd: targetCursor + trailing.length,
+    });
+
+    sourceCursor += trailing.length;
+  }
+
+  if (sourceCursor !== source.length) return undefined;
 
   return pieces;
 };

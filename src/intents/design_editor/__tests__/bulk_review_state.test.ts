@@ -15,28 +15,46 @@ const review: PersistedBulkPageReview = {
   fingerprint: "page-content-v1-1234",
 
   pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+  sourceFormattingSignature: "page-formatting-v1-1234",
   status: "ready",
   blocks: [],
 };
 
 describe("bulk review state", () => {
+  it("uses translation pipeline revision v11", () => {
+    expect(TRANSLATION_PIPELINE_REVISION).toBe("translation-pipeline-v11");
+  });
+
   it("uses the stable Canva page id as its page identity", () => {
     expect(bulkPageIdentity("abc")).toBe("page:abc");
   });
 
   it("accepts an unchanged page fingerprint", () => {
-    expect(isBulkReviewFresh(review, "page-content-v1-1234")).toBe(true);
+    expect(
+      isBulkReviewFresh(
+        review,
+        "page-content-v1-1234",
+        "page-formatting-v1-1234",
+      ),
+    ).toBe(true);
   });
 
   it("rejects a stale page fingerprint", () => {
-    expect(isBulkReviewFresh(review, "page-content-v1-changed")).toBe(false);
+    expect(
+      isBulkReviewFresh(
+        review,
+        "page-content-v1-changed",
+        "page-formatting-v1-1234",
+      ),
+    ).toBe(false);
   });
 
   it("rejects a review from an older translation pipeline", () => {
     expect(
       isBulkReviewFresh(
-        { ...review, pipelineRevision: "translation-pipeline-v1" },
+        { ...review, pipelineRevision: "translation-pipeline-v10" },
         "page-content-v1-1234",
+        "page-formatting-v1-1234",
       ),
     ).toBe(false);
   });
@@ -46,10 +64,27 @@ describe("bulk review state", () => {
       isBulkReviewFresh(
         { ...review, pipelineRevision: undefined },
         "page-content-v1-1234",
+        "page-formatting-v1-1234",
       ),
     ).toBe(false);
   });
 
+  it("rejects changed or missing formatting signatures", () => {
+    expect(
+      isBulkReviewFresh(
+        review,
+        "page-content-v1-1234",
+        "page-formatting-v1-changed",
+      ),
+    ).toBe(false);
+    expect(
+      isBulkReviewFresh(
+        { ...review, sourceFormattingSignature: undefined },
+        "page-content-v1-1234",
+        "page-formatting-v1-1234",
+      ),
+    ).toBe(false);
+  });
 });
 
 const blockWith = (

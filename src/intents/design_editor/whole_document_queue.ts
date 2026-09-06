@@ -1,6 +1,7 @@
 import type { WholeDocumentInventory } from "./whole_document_inventory";
 import type { BulkReviewSummary } from "./bulk_review_persistence";
 import { TRANSLATION_PIPELINE_REVISION } from "./bulk_review_state";
+import { formattingBlocksSignature } from "./formatting_freshness";
 import type {
   WholeDocumentPlan,
   WholeDocumentPlanEntry,
@@ -18,6 +19,7 @@ export type BulkQueueEntry = {
   pageId: string;
   discoveryIndex: number;
   fingerprint: string;
+  sourceFormattingSignature?: string;
   status: BulkQueueStatus;
   blockIds: string[];
   templateCandidate?: true;
@@ -66,6 +68,7 @@ export const buildBulkReviewQueue = (
         pageId: entry.pageId,
         discoveryIndex: entry.discoveryIndex,
         fingerprint: entry.fingerprint,
+        sourceFormattingSignature: formattingBlocksSignature(page.blocks),
         status: "pending" as const,
         blockIds: page.blocks.map((block) => block.id),
         ...(entry.status === "template_candidate"
@@ -117,6 +120,11 @@ export const restoreBulkReviewQueue = (
     if (!summary) continue;
     if (summary.fingerprint !== entry.fingerprint) continue;
     if (summary.pipelineRevision !== TRANSLATION_PIPELINE_REVISION) continue;
+    if (
+      !entry.sourceFormattingSignature ||
+      summary.sourceFormattingSignature !== entry.sourceFormattingSignature
+    )
+      continue;
 
     restored = updateBulkQueueEntry(
       restored,

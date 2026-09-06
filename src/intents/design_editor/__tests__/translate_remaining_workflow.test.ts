@@ -6,6 +6,7 @@ import type { WholeDocumentInventory } from "../whole_document_inventory";
 import type { BulkReviewQueue } from "../whole_document_queue";
 import { TRANSLATION_PIPELINE_REVISION } from "../bulk_review_state";
 import { pageContentFingerprint } from "../whole_document_classification";
+import { formattingBlocksSignature } from "../formatting_freshness";
 
 const inventory: WholeDocumentInventory = {
   pages: [
@@ -65,8 +66,11 @@ describe("translate remaining pages workflow", () => {
       loadBulkSummaries: async () => [
         {
           pageId: "page-2",
-          fingerprint: pageContentFingerprint(inventory.pages[1]!.blocks),
+          fingerprint: pageContentFingerprint(inventory.pages[1]?.blocks ?? []),
           pipelineRevision: TRANSLATION_PIPELINE_REVISION,
+          sourceFormattingSignature: formattingBlocksSignature(
+            inventory.pages[1]?.blocks ?? [],
+          ),
           status: "ready",
           updatedAt: "2026-08-29T20:00:00.000Z",
         },

@@ -23,6 +23,30 @@ describe("formatting projection", () => {
     ]);
   });
 
+  it.each([
+    ["55cm", 5],
+    ["2.20mm", 7],
+    ["6. sıranın FLO’sundan", 18],
+  ] as const)(
+    "projects full-source formatting to the rendered target length for %s",
+    (source, expectedEnd) => {
+      const projected = projectDeterministicFormattingRegions(
+        {
+          id: "block-rendered-length",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: source.length },
+          ],
+        },
+        "en",
+      );
+
+      expect(projected).toEqual([
+        { id: "fmt-0", start: 0, end: expectedEnd },
+      ]);
+    },
+  );
+
   it("does not guess projection when natural-language translation is involved", () => {
     const projected = projectDeterministicFormattingRegions(
       {

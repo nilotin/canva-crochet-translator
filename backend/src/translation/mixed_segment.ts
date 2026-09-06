@@ -1,3 +1,5 @@
+import { renderRoundReference } from "./natural_language/round_references.js";
+import { renderMeasurement } from "./measurements.js";
 import { getTargetNotation } from "./glossary.js";
 import { extractLeadingInstruction } from "./instruction_marker.js";
 import {
@@ -14,6 +16,8 @@ export type SegmentClassification =
 
 type UnpositionedMixedSegmentToken =
   | { kind: "notation"; source: string; target: string }
+  | { kind: "round_reference"; source: string; text: string }
+  | { kind: "measurement"; source: string; text: string }
   | { kind: "number"; text: string }
   | { kind: "instruction_marker"; text: string }
   | { kind: "structure"; text: string }
@@ -49,6 +53,12 @@ const immutableToken = (
         getTargetNotation(token.entry, targetLanguage)?.abbreviation ??
         token.entry.tr.abbreviation,
     };
+  }
+  if (token.kind === "round_reference") {
+    return { kind: "round_reference", source: token.source, text: renderRoundReference(token, targetLanguage) };
+  }
+  if (token.kind === "measurement") {
+    return { kind: "measurement", source: token.source, text: renderMeasurement(token) };
   }
   return token.kind === "number"
     ? { kind: "number", text: token.source }
@@ -136,7 +146,7 @@ const classifyRepetitionOperators = (
   });
 
 const tokenSourceText = (token: UnpositionedMixedSegmentToken): string =>
-  token.kind === "notation" ? token.source : token.text;
+  token.kind === "notation" || token.kind === "measurement" || token.kind === "round_reference" ? token.source : token.text;
 
 const positionTokens = (
   source: string,

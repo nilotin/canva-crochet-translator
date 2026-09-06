@@ -1,6 +1,7 @@
 import { App } from "../app";
 import type { CopiedDesign, TargetLanguage } from "../copy_designs";
 import type { SourceDesignContext } from "../source_design_context";
+import { ApplyReviewError } from "../translation_review";
 import { renderInTestProvider } from "../../../utils/test_render";
 import { fireEvent, waitFor } from "@testing-library/react";
 
@@ -1936,6 +1937,219 @@ describe("Crochet Translator", () => {
     fireEvent.click(applyButton);
 
     expect(applyRemaining).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "TARGET_VERIFICATION_FAILED",
+      "The current Canva design no longer matches the translation target. Recheck the target design before applying.",
+    ],
+    [
+      "MISSING_MAPPING",
+      "Some translated text could not be matched safely to its target text. Review the affected pages again before applying.",
+    ],
+    [
+      "SYNC_FAILED",
+      "Canva changes may have been made, but the final sync could not be confirmed. Refresh and verify the affected pages before retrying.",
+    ],
+    [
+      "PERMISSION_REQUIRED",
+      "Canva write permission is required to apply the reviewed pages.",
+    ],
+  ] as const)(
+    "shows a dedicated bulk Apply message for %s",
+    async (code, expectedMessage) => {
+      const queue = {
+        entries: [
+          {
+            pageId: "page-1",
+            discoveryIndex: 0,
+            fingerprint: "fingerprint-1",
+            status: "ready" as const,
+            blockIds: ["page-page-1-block-1"],
+          },
+        ],
+        counts: {
+          pending: 0,
+          translating: 0,
+          ready: 1,
+          needs_review: 0,
+          blocked: 0,
+          failed: 0,
+        },
+      };
+
+      const translateRemaining = jest.fn(async () => ({
+        workflow: {
+          plan: {
+            entries: [],
+            counts: {
+              eligible: 1,
+              applied: 0,
+              excluded: 0,
+              locked: 0,
+              empty: 0,
+              template_candidate: 0,
+            },
+          },
+          skippedCanvaPages: [],
+        },
+        queue,
+        translation: {
+          queue,
+          translatedPages: 1,
+          failedPages: 0,
+        },
+      }));
+
+      const applyRemaining = jest.fn(async () => {
+        throw new ApplyReviewError(code);
+      });
+
+      const result = renderInTestProvider(
+        <App
+          loadSourceContext={async () => verifiedContext}
+          initialDesignRole={{
+            status: "target",
+            context: {
+              isTranslationTarget: true,
+              language: "en",
+              sourceTitle: "Masal Doll Turkish",
+              contextId: `bulk-${code.toLowerCase()}`,
+            },
+          }}
+          translateRemaining={translateRemaining as never}
+          applyRemaining={applyRemaining as never}
+          {...pageTrackingProps}
+        />,
+      );
+
+      fireEvent.click(
+        await result.findByRole("button", {
+          name: "Translate remaining pages",
+        }),
+      );
+
+      await result.findByText(
+        "Remaining-page translation review completed.",
+      );
+
+      fireEvent.click(
+        result.getByRole("button", {
+          name: "Apply ready pages",
+        }),
+      );
+
+      await result.findByText(expectedMessage);
+
+      expect(
+        result.queryByText(
+          "Could not apply the ready pages. No successful bulk Apply was confirmed.",
+        ),
+      ).toBeNull();
+    },
+  );
+
+  it("shows a dedicated bulk stale-review message from preflight", async () => {
+    const queue = {
+      entries: [
+        {
+          pageId: "page-1",
+          discoveryIndex: 0,
+          fingerprint: "fingerprint-1",
+          status: "ready" as const,
+          blockIds: ["page-page-1-block-1"],
+        },
+      ],
+      counts: {
+        pending: 0,
+        translating: 0,
+        ready: 1,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const translateRemaining = jest.fn(async () => ({
+      workflow: {
+        plan: {
+          entries: [],
+          counts: {
+            eligible: 1,
+            applied: 0,
+            excluded: 0,
+            locked: 0,
+            empty: 0,
+            template_candidate: 0,
+          },
+        },
+        skippedCanvaPages: [],
+      },
+      queue,
+      translation: {
+        queue,
+        translatedPages: 1,
+        failedPages: 0,
+      },
+    }));
+
+    const applyRemaining = jest.fn(async () => ({
+      preflight: {
+        ok: false,
+        issues: [{ pageId: "page-1", code: "STALE_REVIEW" as const }],
+        readyPageIds: [],
+      },
+      appliedPageIds: [],
+      verifiedAppliedPageIds: [],
+      verificationFailedPageIds: [],
+      persistedAppliedPageIds: [],
+      persistenceFailedPageIds: [],
+    }));
+
+    const result = renderInTestProvider(
+      <App
+        loadSourceContext={async () => verifiedContext}
+        initialDesignRole={{
+          status: "target",
+          context: {
+            isTranslationTarget: true,
+            language: "en",
+            sourceTitle: "Masal Doll Turkish",
+            contextId: "bulk-stale-context",
+          },
+        }}
+        translateRemaining={translateRemaining as never}
+        applyRemaining={applyRemaining as never}
+        {...pageTrackingProps}
+      />,
+    );
+
+    fireEvent.click(
+      await result.findByRole("button", {
+        name: "Translate remaining pages",
+      }),
+    );
+
+    await result.findByText(
+      "Remaining-page translation review completed.",
+    );
+
+    fireEvent.click(
+      result.getByRole("button", {
+        name: "Apply ready pages",
+      }),
+    );
+
+    await result.findByText(
+      "One or more page reviews are out of date. Review those pages again before applying.",
+    );
+
+    expect(
+      result.queryByText(
+        "Could not apply the ready pages. No successful bulk Apply was confirmed.",
+      ),
+    ).toBeNull();
   });
 
   it("shows a partial bulk Apply result without reporting total failure", async () => {
