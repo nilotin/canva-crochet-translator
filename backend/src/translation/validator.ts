@@ -300,7 +300,17 @@ export const validateTranslation = (
     );
   }
 
-  const notationOccurrences = tokenizeSourceNotation(source);
+  const notationOccurrences = tokenizeSourceNotation(source).filter(
+    (occurrence) =>
+      !(
+        targetLanguage === "en" &&
+        occurrence.entry.tr.abbreviation === "x" &&
+        /\d+\s+zincir\s*,?\s*\d+\s*$/iu.test(
+          source.slice(0, occurrence.start),
+        ) &&
+        /^\s+atla\b/iu.test(source.slice(occurrence.end))
+      ),
+  );
   const occurrencesByConcept = new Map<
     string,
     { entry: CrochetNotationEntry }[]

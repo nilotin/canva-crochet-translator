@@ -6,6 +6,19 @@ import {
   snapshotFormattingRegions,
   translateCurrentPage,
 } from "../translation_review";
+import {
+  ABBREVIATIONS_HEADING,
+  EXPLANATIONS_HEADING,
+  CLOSING,
+  CLOSING_TR,
+  FRONT_NOTICE,
+  FRONT_NOTICE_TR,
+  GLOSSARY,
+  GLOSSARY_TR,
+  INSTRUCTIONS,
+  INSTRUCTIONS_TR,
+  MATERIALS_HEADING,
+} from "../static_template_translation";
 
 const range = (text: string, deleted = false) => ({
   deleted,
@@ -35,6 +48,44 @@ const mutableRange = (
 const translationAuth = {
   getDesignToken: (async () => ({ token: "design-jwt" })) as never,
   getUserToken: (async () => "user-jwt") as never,
+};
+
+const inventoryBlock = (id: string, sourceText: string, order: number) => ({
+  id,
+  sourceText,
+  order,
+  formattingRegions: [
+    { index: 0, length: sourceText.length, text: sourceText, formatting: {} },
+  ],
+});
+
+const currentPageQuery = (texts: readonly string[]) =>
+  jest.fn(async (_options, callback) =>
+    callback({
+      contents: texts.map((text) => range(text)),
+      sync: jest.fn(),
+    }),
+  );
+
+const pageInventory = (
+  pageId: string,
+  discoveryIndex: number,
+  texts: readonly string[],
+) => ({
+  pageId,
+  discoveryIndex,
+  locked: false,
+  blocks: texts.map((text, index) =>
+    inventoryBlock(`${pageId}-block-${index + 1}`, text, index),
+  ),
+});
+
+const backendTranslations = (fetcher: jest.Mock) => {
+  const request = fetcher.mock.calls[0]?.[1];
+  return JSON.parse(String(request?.body)) as {
+    contentKind?: string;
+    blocks: { id: string; text: string }[];
+  };
 };
 
 describe("translation review", () => {
@@ -105,6 +156,347 @@ describe("translation review", () => {
       expect.any(Function),
     );
     expect(sync).not.toHaveBeenCalled();
+  });
+
+  describe("reusable static templates", () => {
+    it.each([
+      ["en", FRONT_NOTICE.en],
+      ["es", FRONT_NOTICE.es],
+    ] as const)(
+      "reviews a known front cover in %s without a backend request",
+      async (language, approvedNotice) => {
+        const title = "ARBITRARY LIVE DOLL";
+        const page = pageInventory("front-page", 0, [title, FRONT_NOTICE_TR]);
+        const fetcher = jest.fn();
+
+        const review = await translateCurrentPage(language, `front-${language}`, {
+          queryCurrentPage: currentPageQuery([title, FRONT_NOTICE_TR]) as never,
+          getPageMetadata: (async () => ({
+            type: "absolute",
+            id: "front-page",
+          })) as never,
+          readInventory: (async () => ({ pages: [page], skippedPages: [] })) as never,
+          fetch: fetcher as never,
+          ...translationAuth,
+        });
+
+        expect(review.blocks.map(({ translated }) => translated)).toEqual([
+          title,
+          approvedNotice,
+        ]);
+        expect(review.blocks.every(({ sourceFormattingSignature }) =>
+          Boolean(sourceFormattingSignature),
+        )).toBe(true);
+        expect(fetcher).not.toHaveBeenCalled();
+      },
+    );
+
+    it("keeps a static front-cover review editable and compatible with Apply", async () => {
+      const title = "BUZU";
+      const page = pageInventory("front-page", 0, [title, FRONT_NOTICE_TR]);
+      const titleRange = mutableRange(title);
+      const noticeRange = mutableRange(FRONT_NOTICE_TR);
+      const sync = jest.fn();
+      const query = jest.fn(async (_options, callback) =>
+        callback({ contents: [titleRange, noticeRange], sync }),
+      );
+      const contextId = "static-front-apply";
+
+      const review = await translateCurrentPage("en", contextId, {
+        queryCurrentPage: query as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "front-page",
+        })) as never,
+        readInventory: (async () => ({ pages: [page], skippedPages: [] })) as never,
+        fetch: jest.fn() as never,
+        ...translationAuth,
+      });
+      const notice = review.blocks[1];
+      if (!notice) throw new Error("Expected the front-cover notice block.");
+      notice.editedTranslation = `${notice.editedTranslation} Reviewed.`;
+
+      await applyPageReview(
+        review,
+        {
+          contextId,
+          language: "en",
+          pageIdentityKey: "page:front-page",
+          pageIdentitySource: "canva_page_id",
+        },
+        {
+          queryCurrentPage: query as never,
+          verifyTarget: async () => ({
+            isTranslationTarget: true,
+            contextId,
+            language: "en",
+            sourceTitle: "Source",
+          }),
+          getPageIdentity: async () => ({
+            key: "page:front-page",
+            source: "canva_page_id",
+          }),
+          getPageMetadata: (async () => ({
+            type: "absolute",
+            id: "front-page",
+          })) as never,
+        },
+      );
+
+      expect(titleRange.replaceText).toHaveBeenCalledWith(
+        { index: 0, length: title.length },
+        title,
+      );
+      expect(noticeRange.replaceText).toHaveBeenCalledWith(
+        { index: 0, length: FRONT_NOTICE_TR.length },
+        `${FRONT_NOTICE.en} Reviewed.`,
+      );
+      expect(sync).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends only Page 2's materials body to the backend and restores source order", async () => {
+      const materials = "✦ 1 skein tobacco brown yarn\n✦ 2.20 mm hook";
+      const texts = [materials, INSTRUCTIONS_TR, ".", GLOSSARY_TR];
+      const frontPage = pageInventory("front-page", 0, [
+        "DOLL",
+        FRONT_NOTICE_TR,
+      ]);
+      const currentPage = pageInventory("materials-page", 1, texts);
+      const fetcher = jest.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          translations: [
+            {
+              id: "local-block-1",
+              source: materials,
+              translated: "✦ 1 skein of tobacco brown yarn\n✦ 2.20 mm hook",
+              valid: true,
+              errors: [],
+              warnings: [],
+            },
+          ],
+        }),
+      }));
+
+      const review = await translateCurrentPage("en", "materials-page", {
+        queryCurrentPage: currentPageQuery(texts) as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "materials-page",
+        })) as never,
+        readInventory: (async () => ({
+          pages: [frontPage, currentPage],
+          skippedPages: [],
+        })) as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      });
+
+      expect(backendTranslations(fetcher)).toMatchObject({
+        contentKind: "materials",
+        blocks: [
+          {
+            id: "local-block-1",
+            text: materials,
+            formattingRegions: [{ id: "fmt-0", start: 0, end: materials.length }],
+          },
+        ],
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(review.blocks.map(({ translated }) => translated)).toEqual([
+        "✦ 1 skein of tobacco brown yarn\n✦ 2.20 mm hook",
+        INSTRUCTIONS.en,
+        ".",
+        GLOSSARY.en,
+      ]);
+    });
+
+    it.each([
+      ["en", MATERIALS_HEADING.en, ABBREVIATIONS_HEADING.en, EXPLANATIONS_HEADING.en, GLOSSARY.en, INSTRUCTIONS.en],
+      ["es", MATERIALS_HEADING.es, ABBREVIATIONS_HEADING.es, EXPLANATIONS_HEADING.es, GLOSSARY.es, INSTRUCTIONS.es],
+    ] as const)(
+      "routes the live six-block Page 2 shape through materials-only translation in %s",
+      async (
+        language,
+        materialsHeading,
+        abbreviationsHeading,
+        explanationsHeading,
+        glossary,
+        instructions,
+      ) => {
+        const materials = "✦ Catania 162 Dark Brown\n✦ 2.20 mm tığ";
+        const liveCurrentPageTexts = [
+          "MALZEMELER",
+          "TERİMLER",
+          "AÇIKLAMALAR",
+          materials,
+          GLOSSARY_TR,
+          INSTRUCTIONS_TR,
+        ];
+        const exportedInventoryPage = pageInventory("materials-page", 1, [
+          materials,
+          INSTRUCTIONS_TR,
+          ".",
+          GLOSSARY_TR,
+        ]);
+        const translatedMaterials = `translated ${language} materials`;
+        const fetcher = jest.fn(async () => ({
+          ok: true,
+          json: async () => ({
+            translations: [
+              {
+                id: "local-block-4",
+                source: materials,
+                translated: translatedMaterials,
+                valid: true,
+                errors: [],
+                warnings: [],
+              },
+            ],
+          }),
+        }));
+
+        const review = await translateCurrentPage(
+          language,
+          `live-materials-${language}`,
+          {
+            queryCurrentPage: currentPageQuery(liveCurrentPageTexts) as never,
+            getPageMetadata: (async () => ({
+              type: "absolute",
+              id: "materials-page",
+            })) as never,
+            readInventory: (async () => ({
+              pages: [
+                pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+                exportedInventoryPage,
+              ],
+              skippedPages: [],
+            })) as never,
+            fetch: fetcher as never,
+            ...translationAuth,
+          },
+        );
+
+        expect(fetcher).toHaveBeenCalledTimes(1);
+        expect(backendTranslations(fetcher)).toMatchObject({
+          contentKind: "materials",
+          blocks: [{ id: "local-block-4", text: materials }],
+        });
+        expect(backendTranslations(fetcher).blocks).toHaveLength(1);
+        expect(review.blocks.map(({ translated }) => translated)).toEqual([
+          materialsHeading,
+          abbreviationsHeading,
+          explanationsHeading,
+          translatedMaterials,
+          glossary,
+          instructions,
+        ]);
+      },
+    );
+
+    it("reviews a known closing page without a backend request", async () => {
+      const frontPage = pageInventory("front-page", 0, ["BUZU", FRONT_NOTICE_TR]);
+      const closingPage = pageInventory("closing-page", 1, CLOSING_TR);
+      const fetcher = jest.fn();
+
+      const review = await translateCurrentPage("en", "closing-page", {
+        queryCurrentPage: currentPageQuery(CLOSING_TR) as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "closing-page",
+        })) as never,
+        readInventory: (async () => ({
+          pages: [frontPage, closingPage],
+          skippedPages: [],
+        })) as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      });
+
+      expect(review.blocks.map(({ translated }) => translated)).toEqual(
+        CLOSING.en,
+      );
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
+    it("uses the normal backend path for an unknown page", async () => {
+      const source = "6x sık iğne örüyoruz";
+      const page = pageInventory("ordinary-page", 3, [source]);
+      const fetcher = jest.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          translations: [
+            {
+              id: "local-block-1",
+              source,
+              translated: "Work 6sc",
+              valid: true,
+              errors: [],
+              warnings: [],
+            },
+          ],
+        }),
+      }));
+
+      const review = await translateCurrentPage("en", "ordinary-page", {
+        queryCurrentPage: currentPageQuery([source]) as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "ordinary-page",
+        })) as never,
+        readInventory: (async () => ({ pages: [page], skippedPages: [] })) as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      });
+
+      expect(review.blocks[0]?.translated).toBe("Work 6sc");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(backendTranslations(fetcher).blocks).toHaveLength(1);
+    });
+
+    it("fails closed to the normal backend path for a near-match front notice", async () => {
+      const changedNotice = FRONT_NOTICE_TR.replace(
+        "kişisel kullanım içindir",
+        "ticari kullanım içindir",
+      );
+      const texts = ["BUZU", changedNotice];
+      const page = pageInventory("front-page", 0, texts);
+      const fetcher = jest.fn(async (_url, init) => {
+        const request = JSON.parse(String(init?.body)) as {
+          blocks: { id: string; text: string }[];
+        };
+        return {
+          ok: true,
+          json: async () => ({
+            translations: request.blocks.map(({ id, text }) => ({
+              id,
+              source: text,
+              translated: `LLM: ${text}`,
+              valid: true,
+              errors: [],
+              warnings: [],
+            })),
+          }),
+        };
+      });
+
+      const review = await translateCurrentPage("en", "near-front", {
+        queryCurrentPage: currentPageQuery(texts) as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "front-page",
+        })) as never,
+        readInventory: (async () => ({ pages: [page], skippedPages: [] })) as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      });
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(backendTranslations(fetcher).blocks).toHaveLength(2);
+      expect(review.blocks.map(({ translated }) => translated)).toEqual(
+        texts.map((text) => `LLM: ${text}`),
+      );
+    });
   });
 
   it("sends only local IDs/text and maps returned results by ID", async () => {

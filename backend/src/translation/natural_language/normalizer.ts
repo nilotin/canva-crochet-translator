@@ -6,6 +6,45 @@ const targetPhrase = (
   spanish: string,
 ) => (targetLanguage === "en" ? english : spanish);
 
+const normalizeMaterialsTerminology = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials",
+): string =>
+  contentKind === "materials" && targetLanguage === "en"
+    ? source.replace(
+        /\b(\d+(?:[.,]\d+)?)\s*mm\s+göz\b/giu,
+        "$1 mm safety eyes",
+      )
+    : source;
+
+const normalizeEnglishCrochetStructures = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): string => {
+  if (targetLanguage !== "en") return source;
+
+  return source
+    .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
+    .replace(
+      /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b/giu,
+      "$1x into the magic ring",
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+(\d+)\s*x\s+atla\b/giu,
+      "ch $1, skip $2 sts",
+    )
+    .replace(
+      /\bzincir\s+içine\s+(\d+)\s*x\b/giu,
+      "$1x into the chain space",
+    )
+    .replace(/\bgözleri\s+takacağız\b/giu, "we will insert the eyes")
+    .replace(
+      /\bgözleri\s+yerleştirebiliriz\b/giu,
+      "we can insert the eyes",
+    );
+};
+
 const normalizeToolMaterialIntro = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -24,7 +63,7 @@ const normalizeToolMaterialIntro = (
       const brand = yarnBrand.trim();
 
       return targetLanguage === "en"
-        ? `With a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
+        ? `Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
         : `Con un ganchillo de ${size} mm y hilo ${description} ${brand}, tejemos de la siguiente manera`;
     },
   );
@@ -33,7 +72,7 @@ const normalizeToolMaterialIntro = (
     /\b(\d+(?:[.,]\d+)?)\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+ile\s+örüyoruz\b/giu,
     (_match, size: string) =>
       targetLanguage === "en"
-        ? `With a ${size} mm crochet hook, work as follows`
+        ? `Using a ${size} mm crochet hook, work as follows`
         : `Con un ganchillo de ${size} mm, tejemos de la siguiente manera`,
   );
 
@@ -145,10 +184,17 @@ const normalizeSimpleLoopInstruction = (
 export const normalizeSourceNaturalLanguage = (
   source: string,
   targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials" = "pattern",
 ): string =>
   normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
-      normalizeToolMaterialIntro(source, targetLanguage),
+      normalizeToolMaterialIntro(
+        normalizeEnglishCrochetStructures(
+          normalizeMaterialsTerminology(source, targetLanguage, contentKind),
+          targetLanguage,
+        ),
+        targetLanguage,
+      ),
       targetLanguage,
     ),
     targetLanguage,

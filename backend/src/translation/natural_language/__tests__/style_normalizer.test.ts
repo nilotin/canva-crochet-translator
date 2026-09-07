@@ -49,7 +49,7 @@ describe("normalizeTranslationStyle", () => {
   );
 
   it.each([
-    ["en", "Create sc with 6mr.", "1. Work 6 sc into a mr."],
+    ["en", "Create sc with 6mr.", "1. Work 6sc into a mr."],
     ["es", "Formamos pb con 6am.", "1. Hacemos 6 pb en un am."],
   ] as const)(
     "normalizes the recognized magic-ring source for %s",
@@ -103,9 +103,9 @@ describe("normalizeTranslationStyle", () => {
     ["en", "6sc, inc, 6sc, SL.ST"],
     ["es", "6pb, aum, 6pb, pd"],
     ["en", "hdc-inc, dc-inc, dc-dec, esc-inc"],
-    ["es", "aum-mpa, aum-pa, dism-pa, aum-pa-ex"],
+    ["es", "aum-mpa, aum-pa, dism-pa, aum-pb-ex"],
     ["en", "esc, esc-inc, escw"],
-    ["es", "pa-ex, aum-pa-ex, W-pa-ex"],
+    ["es", "pb-ex, aum-pb-ex, W-pb-ex"],
   ] as const)("leaves known-good %s notation unchanged", (language, text) => {
     expect(normalizeTranslationStyle("pattern", text, language)).toBe(text);
   });
@@ -163,6 +163,113 @@ describe("normalizeTranslationStyle", () => {
     ).toBe(
       "The back of the stitches faces outward and the front of the stitches remains on the inside.",
     );
+  });
+
+  it.each([
+    ["12 sıra 66x", "12 round 66sc", "12 rounds, 66 sc"],
+    ["3 sıra 78x", "3 round 78sc", "3 rounds, 78 sc"],
+    [
+      "Sihirli halka içine 6x",
+      "Into the magic ring 6sc",
+      "6sc into the magic ring",
+    ],
+  ])(
+    "uses source counts to normalize crochet instruction phrasing: %s",
+    (source, translated, expected) => {
+      expect(normalizeTranslationStyle(source, translated, "en")).toBe(
+        expected,
+      );
+    },
+  );
+
+  it("normalizes a combined chain-and-skip round", () => {
+    expect(
+      normalizeTranslationStyle(
+        "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+        "24) 15sc, 2 chain skip 2sc, 9sc, 2 chain skip 2sc, 38sc (the spaces created with the chains, we will attach the eyes later)",
+        "en",
+      ),
+    ).toBe(
+      "24) 15sc, ch 2, skip 2 sts, 9sc, ch 2, skip 2 sts, 38sc (we will insert the eyes into these chain spaces later)",
+    );
+  });
+
+  it("normalizes a combined chain-space round without changing its equation", () => {
+    expect(
+      normalizeTranslationStyle(
+        "25) 15x, zincir içine 2x, 9x, zincir içine 2x, 38x = 66x",
+        "25) 15sc, into the chain 2sc, 9sc, into the chain 2sc, 38sc = 66sc",
+        "en",
+      ),
+    ).toBe(
+      "25) 15sc, 2sc into the chain space, 9sc, 2sc into the chain space, 38sc = 66sc",
+    );
+  });
+
+  it.each([
+    [
+      "(zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+      "(the spaces created with the chains, we will attach the eyes later)",
+      "(we will insert the eyes into these chain spaces later)",
+    ],
+    [
+      "Bu sıradan sonra gözleri boşluklara yerleştirebiliriz.",
+      "After this row, we can place the eyes in the gaps.",
+      "After this round, we can insert the eyes into the gaps.",
+    ],
+  ])("normalizes amigurumi eye insertion wording", (source, input, expected) => {
+    expect(normalizeTranslationStyle(source, input, "en")).toBe(expected);
+  });
+
+  it("prefers Using for a crochet-hook instruction intro", () => {
+    expect(
+      normalizeTranslationStyle(
+        "2.00 mm tığ ile örüyoruz.",
+        "With a 2.00 mm crochet hook, work as follows.",
+        "en",
+      ),
+    ).toBe("Using a 2.00 mm crochet hook, work as follows.");
+  });
+
+  it("normalizes the reusable stitch-marker instruction", () => {
+    expect(
+      normalizeTranslationStyle(
+        "Burası başlangıç noktamız olacak; işaretleyicimizi buraya takıyoruz.",
+        "This will be our starting point; we attach the marker here.",
+        "en",
+      ),
+    ).toBe(
+      "This will be the beginning of the round; place a stitch marker here.",
+    );
+  });
+
+  it("normalizes only the marker clause in a mixed magic-ring instruction", () => {
+    expect(
+      normalizeTranslationStyle(
+        "Sihirli halka içine 6x — başlangıç noktamız burası olacak işaretleyiciyi buraya takıyoruz.",
+        "Into the magic ring 6sc — This will be our starting point; we attach the marker here.",
+        "en",
+      ),
+    ).toBe(
+      "6sc into the magic ring — This will be the beginning of the round; place a stitch marker here.",
+    );
+  });
+
+  it("keeps approved compact stitch notation unchanged", () => {
+    expect(
+      normalizeTranslationStyle(
+        "6x, 1v, 1e, 66x",
+        "6sc, 1inc, 1dec, 66sc",
+        "en",
+      ),
+    ).toBe("6sc, 1inc, 1dec, 66sc");
+  });
+
+  it.each([
+    ["12-23) 12 sıra 66x", "12-23) 12 rounds, 66 sc"],
+    ["28-30) 3 sıra 78x", "28-30) 3 rounds, 78 sc"],
+  ])("keeps the approved round-count style unchanged", (source, approved) => {
+    expect(normalizeTranslationStyle(source, approved, "en")).toBe(approved);
   });
 
 });

@@ -13,6 +13,14 @@ import type { DesignRole } from "./target_context";
 import type { PageIdentity } from "./page_identity";
 import { normalizePageReviewSeverity } from "./review_severity";
 import { formattingRegionSignature } from "./formatting_freshness";
+import {
+  buildStaticTemplateTranslationResponse,
+  recognizePage2Hybrid,
+} from "./static_template_translation";
+import {
+  readWholeDocumentInventory,
+  type WholeDocumentInventory,
+} from "./whole_document_inventory";
 
 import {
   remapFormattingRegions,
@@ -65,10 +73,31 @@ export type TranslationResponse = {
 
 type Dependencies = {
   queryCurrentPage: typeof editContent;
+  getPageMetadata: typeof getCurrentPageMetadata;
+  readInventory: typeof readWholeDocumentInventory;
   getDesignToken: typeof getDesignToken;
   getUserToken: typeof auth.getCanvaUserToken;
   fetch: typeof fetch;
   backendHost: string;
+};
+
+type CurrentPageTemplateContext = {
+  page: WholeDocumentInventory["pages"][number];
+  documentContext: {
+    totalPages: number;
+    firstPage?: WholeDocumentInventory["pages"][number];
+  };
+};
+
+const readAbsolutePageId = async (
+  getPageMetadata: typeof getCurrentPageMetadata,
+): Promise<string | undefined> => {
+  try {
+    const metadata = await getPageMetadata();
+    return metadata.type === "absolute" ? metadata.id : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 export type FormattingRegionSnapshot = {
@@ -295,25 +324,58 @@ export const buildPageReview = (
   });
 };
 
-export const translateCurrentPage = async (
-  language: TargetLanguage,
-  contextId: string,
-  overrides: Partial<Dependencies> = {},
-): Promise<PageReview> => {
-  const dependencies: Dependencies = {
-    queryCurrentPage: editContent,
-    getDesignToken,
-    getUserToken: auth.getCanvaUserToken,
-    fetch: (...input) => globalThis.fetch(...input),
-    backendHost: typeof BACKEND_HOST === "string" ? BACKEND_HOST : "",
-    ...overrides,
-  };
-  const blocks = await readCurrentPageBlocks(
-    dependencies.queryCurrentPage,
-    contextId,
-  );
-  if (blocks.length === 0) return { blocks: [], reviewStatus: "ready" };
+const currentPageTemplateContext = async (
+  blocks: readonly CanvaTranslationBlock[],
+  formattingSnapshots: ReadonlyMap<string, FormattingRegionSnapshot[]>,
+  dependencies: Pick<Dependencies, "getPageMetadata" | "readInventory">,
+  expectedPageId: string | undefined,
+): Promise<CurrentPageTemplateContext | undefined> => {
+  if (!expectedPageId) return undefined;
 
+  try {
+    const inventory = await dependencies.readInventory();
+    const currentPageId = await readAbsolutePageId(dependencies.getPageMetadata);
+
+    if (currentPageId !== expectedPageId) {
+      return undefined;
+    }
+
+    const inventoryPage = inventory.pages.find(
+      ({ pageId }) => pageId === expectedPageId,
+    );
+    if (!inventoryPage) return undefined;
+
+    const orderedCurrentBlocks = [...blocks].sort(
+      (left, right) => left.order - right.order,
+    );
+
+    return {
+      page: {
+        ...inventoryPage,
+        blocks: orderedCurrentBlocks.map(({ localId, sourceText, order }) => ({
+          id: localId,
+          sourceText,
+          order,
+          formattingRegions: formattingSnapshots.get(localId) ?? [],
+        })),
+      },
+      documentContext: {
+        totalPages: inventory.pages.length + inventory.skippedPages.length,
+        firstPage: inventory.pages.find(({ discoveryIndex }) => discoveryIndex === 0),
+      },
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const requestCurrentPageTranslation = async (
+  dependencies: Dependencies,
+  language: TargetLanguage,
+  blocks: readonly CanvaTranslationBlock[],
+  formattingSnapshots: ReadonlyMap<string, FormattingRegionSnapshot[]>,
+  contentKind?: "materials",
+): Promise<TranslationResponse> => {
   const [{ token: designToken }, userToken] = await Promise.all([
     dependencies.getDesignToken(),
     dependencies.getUserToken(),
@@ -331,12 +393,12 @@ export const translateCurrentPage = async (
         designToken,
         sourceLanguage: "tr",
         targetLanguage: language,
+        ...(contentKind ? { contentKind } : {}),
         blocks: blocks.map(({ localId, sourceText }) => ({
           id: localId,
           text: sourceText,
-          formattingRegions: activeReviewSessions
-            .get(contextId)
-            ?.formattingSnapshot.get(localId)
+          formattingRegions: formattingSnapshots
+            .get(localId)
             ?.map(({ index, length }, regionIndex) => ({
               id: `fmt-${regionIndex}`,
               start: index,
@@ -347,10 +409,95 @@ export const translateCurrentPage = async (
     },
   );
   if (!response.ok) throw new Error("Translation request failed.");
-  const result = (await response.json()) as TranslationResponse;
+  return (await response.json()) as TranslationResponse;
+};
+
+export const translateCurrentPage = async (
+  language: TargetLanguage,
+  contextId: string,
+  overrides: Partial<Dependencies> = {},
+): Promise<PageReview> => {
+  const dependencies: Dependencies = {
+    queryCurrentPage: editContent,
+    getPageMetadata: getCurrentPageMetadata,
+    readInventory: readWholeDocumentInventory,
+    getDesignToken,
+    getUserToken: auth.getCanvaUserToken,
+    fetch: (...input) => globalThis.fetch(...input),
+    backendHost: typeof BACKEND_HOST === "string" ? BACKEND_HOST : "",
+    ...overrides,
+  };
+  const initialPageId = await readAbsolutePageId(dependencies.getPageMetadata);
+  const blocks = await readCurrentPageBlocks(
+    dependencies.queryCurrentPage,
+    contextId,
+  );
+  if (blocks.length === 0) return { blocks: [], reviewStatus: "ready" };
+
+  const formattingSnapshots =
+    activeReviewSessions.get(contextId)?.formattingSnapshot ?? new Map();
+  const templateContext = await currentPageTemplateContext(
+    blocks,
+    formattingSnapshots,
+    dependencies,
+    initialPageId,
+  );
+  const page2Hybrid = templateContext
+    ? recognizePage2Hybrid(templateContext.page, blocks, language)
+    : undefined;
+  const staticResult =
+    templateContext && !page2Hybrid
+      ? buildStaticTemplateTranslationResponse(
+          templateContext.page,
+          blocks,
+          language,
+          templateContext.documentContext,
+        )
+      : undefined;
+
+  let result: TranslationResponse;
+  if (page2Hybrid) {
+    const materialsBlock = blocks.find(
+      ({ localId }) => localId === page2Hybrid.materialsBlockId,
+    );
+    if (!materialsBlock) {
+      throw new Error("Recognized Page 2 skeleton is missing its materials block.");
+    }
+
+    const materialsResult = await requestCurrentPageTranslation(
+      dependencies,
+      language,
+      [materialsBlock],
+      formattingSnapshots,
+      "materials",
+    );
+    const materialsTranslation = materialsResult.translations.find(
+      ({ id }) => id === materialsBlock.localId,
+    );
+    if (!materialsTranslation || materialsResult.translations.length !== 1) {
+      throw new Error("Materials translation response was malformed.");
+    }
+
+    result = {
+      translations: [
+        ...page2Hybrid.deterministicTranslations,
+        materialsTranslation,
+      ],
+    };
+  } else if (staticResult) {
+    result = staticResult;
+  } else {
+    result = await requestCurrentPageTranslation(
+      dependencies,
+      language,
+      blocks,
+      formattingSnapshots,
+    );
+  }
+
   return buildPageReview(
     blocks,
-    activeReviewSessions.get(contextId)?.formattingSnapshot ?? new Map(),
+    formattingSnapshots,
     result,
   );
 };

@@ -13,7 +13,7 @@ const normalizeMagicRingOpening = (
   const marker = match[1] ?? "";
   const stitchCount = match[2];
   return targetLanguage === "en"
-    ? `${marker}Work ${stitchCount} sc into a mr.`
+    ? `${marker}Work ${stitchCount}sc into a mr.`
     : `${marker}Hacemos ${stitchCount} pb en un am.`;
 };
 
@@ -52,6 +52,178 @@ const normalizeMixedPatternPhrases = (
         : normalized.replace(/\b(\d+)pb\s+saltar\b/giu, "saltar $1pb");
   }
   return normalized;
+};
+
+const normalizeCrochetSequenceLine = (source: string): string | undefined => {
+  const markerMatch = /^(\s*(?:\d+\)\s*)?)(.*?)(\s*)$/u.exec(source);
+  if (!markerMatch) return undefined;
+
+  let body = markerMatch[2] ?? "";
+  let eyePlacement = "";
+  const parenthetical = /\s*(\([^()]*\))\s*$/u.exec(body);
+  if (parenthetical) {
+    if (!/gözleri\s+takacağız/iu.test(parenthetical[1] ?? "")) {
+      return undefined;
+    }
+    eyePlacement = " (we will insert the eyes into these chain spaces later)";
+    body = body.slice(0, parenthetical.index).trimEnd();
+  }
+
+  const terminal = /[.]$/u.test(body) ? "." : "";
+  if (terminal) body = body.slice(0, -1).trimEnd();
+  let hasSpecialStructure = false;
+  const sourceParts = body.split(/\s*,\s*/u);
+  const translatedParts: string[] = [];
+  for (let index = 0; index < sourceParts.length; index += 1) {
+    const part = sourceParts[index] ?? "";
+    let match = /^(\d+)\s+zincir\s+(\d+)x\s+atla$/iu.exec(part);
+    if (match) {
+      hasSpecialStructure = true;
+      translatedParts.push(`ch ${match[1]}, skip ${match[2]} sts`);
+      continue;
+    }
+
+    match = /^(\d+)\s+zincir$/iu.exec(part);
+    const skipMatch = /^(\d+)x\s+atla$/iu.exec(
+      sourceParts[index + 1] ?? "",
+    );
+    if (match && skipMatch) {
+      hasSpecialStructure = true;
+      translatedParts.push(`ch ${match[1]}, skip ${skipMatch[1]} sts`);
+      index += 1;
+      continue;
+    }
+
+    match = /^zincir\s+içine\s+(\d+)x$/iu.exec(part);
+    if (match) {
+      hasSpecialStructure = true;
+      translatedParts.push(`${match[1]}sc into the chain space`);
+      continue;
+    }
+
+    match = /^(\d+)x\s*=\s*(\d+)x$/iu.exec(part);
+    if (match) {
+      translatedParts.push(`${match[1]}sc = ${match[2]}sc`);
+      continue;
+    }
+
+    match = /^(\d+)x$/iu.exec(part);
+    if (match) {
+      translatedParts.push(`${match[1]}sc`);
+      continue;
+    }
+
+    return undefined;
+  }
+
+  if (!hasSpecialStructure) return undefined;
+
+  return `${markerMatch[1]}${translatedParts.join(", ")}${eyePlacement}${terminal}${markerMatch[3]}`;
+};
+
+const STITCH_MARKER_INSTRUCTION =
+  "This will be the beginning of the round; place a stitch marker here.";
+
+const isStitchMarkerInstruction = (source: string): boolean =>
+  /başlangıç\s+noktamız/iu.test(source) &&
+  /işaretleyici\p{L}*/iu.test(source) &&
+  /buraya/iu.test(source) &&
+  /(?:takıyoruz|yerleştiriyoruz|sabitliyoruz)/iu.test(source);
+
+const normalizeEnglishCrochetInstructionLine = (
+  source: string,
+  translated: string,
+): string => {
+  const sourceClauses = /^(.*?)(\s+[—–-]\s+)(.*)$/u.exec(source);
+  if (sourceClauses && isStitchMarkerInstruction(sourceClauses[3] ?? "")) {
+    const translatedClauses = /^(.*?)(\s+[—–-]\s+)(.*)$/u.exec(translated);
+    const translatedPrefix = translatedClauses?.[1] ?? translated;
+    const normalizedPrefix = normalizeEnglishCrochetInstructionLine(
+      sourceClauses[1] ?? "",
+      translatedPrefix,
+    );
+
+    if (translatedClauses || normalizedPrefix !== translatedPrefix) {
+      return `${normalizedPrefix}${sourceClauses[2]}${STITCH_MARKER_INSTRUCTION}`;
+    }
+  }
+
+  const roundCount =
+    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)x([.]?\s*)$/iu.exec(
+      source,
+    );
+  if (roundCount) {
+    const rounds = Number(roundCount[2]) === 1 ? "round" : "rounds";
+    return `${roundCount[1]}${roundCount[2]} ${rounds}, ${roundCount[3]} sc${roundCount[4]}`;
+  }
+
+  const magicRing =
+    /^(\s*(?:\d+\)\s*)?)sihirli\s+halka\s+içine\s+(\d+)x([.]?\s*)$/iu.exec(
+      source,
+    );
+  if (magicRing) {
+    return `${magicRing[1]}${magicRing[2]}sc into the magic ring${magicRing[3]}`;
+  }
+
+  const sequence = normalizeCrochetSequenceLine(source);
+  if (sequence !== undefined) return sequence;
+
+  if (
+    /^\s*\([^()]*zincir[^()]*boşluk[^()]*gözleri\s+takacağız[^()]*\)\s*$/iu.test(
+      source,
+    )
+  ) {
+    const leading = source.match(/^\s*/u)?.[0] ?? "";
+    const trailing = source.match(/\s*$/u)?.[0] ?? "";
+    return `${leading}(we will insert the eyes into these chain spaces later)${trailing}`;
+  }
+
+  if (isStitchMarkerInstruction(source)) {
+    const marker = source.match(/^\s*(?:\d+\)\s*)?/u)?.[0] ?? "";
+    return `${marker}${STITCH_MARKER_INSTRUCTION}`;
+  }
+
+  if (/gözleri[^.!?\n]{0,80}(?:takacağız|yerleştirebiliriz)/iu.test(source)) {
+    return translated
+      .replace(
+        /\b(?:attach|place|position) the eyes\b/giu,
+        "insert the eyes",
+      )
+      .replace(/\binsert the eyes in\b/giu, "insert the eyes into");
+  }
+
+  if (/(?<!\p{L})tığ(?!\p{L})[\s\S]*\bile\s+örüyoruz\b/iu.test(source)) {
+    return translated.replace(
+      /\bWith a (\d+(?:[.,]\d+)?\s+mm crochet hook)\b/u,
+      "Using a $1",
+    );
+  }
+
+  return translated;
+};
+
+const normalizeEnglishCrochetInstructions = (
+  source: string,
+  translated: string,
+  targetLanguage: TargetLanguage,
+): string => {
+  if (targetLanguage !== "en") return translated;
+  const sourceLines = source.split("\n");
+  const crochetTerminology = /(?<!\p{L})sıra\p{L}*/iu.test(source)
+    ? translated
+        .replace(/\brows\b/giu, "rounds")
+        .replace(/\brow\b/giu, "round")
+    : translated;
+  const translatedLines = crochetTerminology.split("\n");
+  if (sourceLines.length !== translatedLines.length) return crochetTerminology;
+  return sourceLines
+    .map((sourceLine, index) =>
+      normalizeEnglishCrochetInstructionLine(
+        sourceLine,
+        translatedLines[index] ?? "",
+      ),
+    )
+    .join("\n");
 };
 
 const normalizeSimpleFloBlo = (
@@ -120,10 +292,39 @@ const normalizeReverseSingleCrochetTerminology = (
     );
 };
 
+const normalizeMaterialsSafetyEyes = (
+  source: string,
+  translated: string,
+  targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials",
+): string => {
+  if (contentKind !== "materials" || targetLanguage !== "en") {
+    return translated;
+  }
+
+  const sourceLines = source.split("\n");
+  const translatedLines = translated.split("\n");
+  if (sourceLines.length !== translatedLines.length) return translated;
+
+  return translatedLines
+    .map((translatedLine, index) => {
+      const sourceLine = sourceLines[index] ?? "";
+      const match =
+        /^(\s*(?:[✦•*-]\s*)?)(\d+(?:[.,]\d+)?)\s*mm\s+göz\s*$/iu.exec(
+          sourceLine,
+        );
+      return match
+        ? `${match[1]}${match[2]} mm safety eyes`
+        : translatedLine;
+    })
+    .join("\n");
+};
+
 export const normalizeTranslationStyle = (
   source: string,
   translated: string,
   targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials" = "pattern",
 ): string => {
   const magicRingOpening = normalizeMagicRingOpening(
     source,
@@ -140,15 +341,25 @@ export const normalizeTranslationStyle = (
       ? normalizeEnglishChains(chainInstructions)
       : chainInstructions;
   const mixed = normalizeMixedPatternPhrases(source, chains, targetLanguage);
-  const floBlo = normalizeSimpleFloBlo(
+  const crochetInstructions = normalizeEnglishCrochetInstructions(
     source,
     mixed,
     targetLanguage,
   );
-
-  return normalizeReverseSingleCrochetTerminology(
+  const floBlo = normalizeSimpleFloBlo(
     source,
-    floBlo,
+    crochetInstructions,
     targetLanguage,
+  );
+
+  return normalizeMaterialsSafetyEyes(
+    source,
+    normalizeReverseSingleCrochetTerminology(
+      source,
+      floBlo,
+      targetLanguage,
+    ),
+    targetLanguage,
+    contentKind,
   );
 };

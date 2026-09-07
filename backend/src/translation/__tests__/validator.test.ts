@@ -556,7 +556,7 @@ describe("validateTranslation", () => {
 
   it.each([
     ["en", "esc-inc"],
-    ["es", "aum-pa-ex"],
+    ["es", "aum-pb-ex"],
   ] as const)("converts escv for %s", (targetLanguage, translated) => {
     expect(validateTranslation("escv", translated, targetLanguage).valid).toBe(
       true,
@@ -565,7 +565,7 @@ describe("validateTranslation", () => {
 
   it.each([
     ["en", "escw"],
-    ["es", "W-pa-ex"],
+    ["es", "W-pb-ex"],
   ] as const)("converts escw for %s", (targetLanguage, translated) => {
     expect(validateTranslation("escw", translated, targetLanguage).valid).toBe(
       true,
@@ -581,7 +581,7 @@ describe("validateTranslation", () => {
 
   it.each([
     ["en", "esc, esc-inc, escw"],
-    ["es", "pa-ex, aum-pa-ex, W-pa-ex"],
+    ["es", "pb-ex, aum-pb-ex, W-pb-ex"],
   ] as const)(
     "converts the complete extended-stitch family for %s",
     (targetLanguage, translated) => {

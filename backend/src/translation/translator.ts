@@ -81,7 +81,11 @@ const translateSegment = async (
       ? extractLeadingInstruction(block.text)
       : undefined;
   const sourceBody = instruction?.body ?? block.text;
-  const normalized = normalizeSourceNaturalLanguage(sourceBody, targetLanguage);
+  const normalized = normalizeSourceNaturalLanguage(
+    sourceBody,
+    targetLanguage,
+    contentKind,
+  );
   const protectedSource = protectImmutablePattern(
     normalized,
     0,
@@ -206,9 +210,29 @@ const translateSegment = async (
       }
     }
   } else {
+    const materialQuantityGrammar =
+      contentKind === "materials"
+        ? protectedSource.tokens
+            .map((token, index) => ({ token, index }))
+            .filter(({ token }) =>
+              token.kind === "number" &&
+              new RegExp(
+                `${token.placeholder}\\s*(?:adet|tane|yumak|çile|paket|çift)\\b`,
+                "iu",
+              ).test(protectedSource.text),
+            )
+            .map(({ token, index }) => ({
+              blockId: block.id,
+              protectedTokenIndex: index + 1,
+              agreement:
+                Number(token.source.replace(",", ".")) === 1
+                  ? ("singular" as const)
+                  : ("plural" as const),
+            }))
+        : [];
     const prompt = buildTranslationPrompt(targetLanguage, [protectedBlock], roundTokens.map((token) => ({
       placeholder: token.placeholder, meaning: renderRoundReference(token, targetLanguage),
-    })));
+    })), contentKind, materialQuantityGrammar);
     const providerResult = patternOnly
       ? { translations: [{ id: block.id, translated: protectedSource.text }] }
       : await provider.translate({
@@ -245,18 +269,29 @@ const translateSegment = async (
       ...(restoration?.errors ?? []),
     ];
   }
-  const validation = validateTranslation(block.text, restored, targetLanguage, {
+  const normalizedRestored =
+    structuralErrors.length === 0 && restored !== undefined
+      ? normalizeTranslationStyle(
+          block.text,
+          restored,
+          targetLanguage,
+          contentKind,
+        )
+      : restored;
+  const validation = validateTranslation(
+    block.text,
+    normalizedRestored,
+    targetLanguage,
+    {
     notationCaseInsensitive: true,
     contentKind,
-  });
+    },
+  );
   const errors = annotateSegment(segmentIndex, [
     ...structuralErrors,
     ...validation.errors,
   ]);
-  const translated =
-    structuralErrors.length === 0
-      ? normalizeTranslationStyle(block.text, restored ?? "", targetLanguage)
-      : (restored ?? "");
+  const translated = normalizedRestored ?? "";
   return {
     translated,
     errors,

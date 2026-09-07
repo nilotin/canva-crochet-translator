@@ -378,7 +378,7 @@ describe("translateBlocks provider boundary", () => {
 
     expect(result?.errors).toEqual([]);
     expect(result?.translated).toBe(
-      "With a 2.20 mm crochet hook and black Catania 110 yarn, work as follows.",
+      "Using a 2.20 mm crochet hook and black Catania 110 yarn, work as follows.",
     );
   });
 
@@ -616,7 +616,7 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it.each([
-    ["en", "12-23) 12 rows 66sc"],
+    ["en", "12-23) 12 rounds, 66 sc"],
     ["es", "12-23) 12 vueltas 66pb"],
   ] as const)(
     "reconstructs the Segment 13 numeric range safely in %s",
@@ -652,7 +652,7 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it.each([
-    ["en", "24) 25sc, ch 1, skip 1sc, 10sc, ch 1, skip 1sc, 29sc"],
+    ["en", "24) 25sc, ch 1, skip 1 sts, 10sc, ch 1, skip 1 sts, 29sc"],
     ["es", "24) 25pb, 1 cad, saltar 1pb, 10pb, 1 cad, saltar 1pb, 29pb"],
   ] as const)(
     "reconstructs the Segment 14 mixed pattern by span ID in %s",
@@ -999,11 +999,11 @@ describe("translateBlocks provider boundary", () => {
 
       expect(provider.requests).toHaveLength(1);
       expect(provider.protectedTexts).toEqual([
-        "With a __XQAAAAQX__ crochet hook, work as follows.",
+        "Using a __XQAAAAQX__ crochet hook, work as follows.",
       ]);
       expect(result).toMatchObject({
         valid: true,
-        translated: "With a 2.20 mm crochet hook, work as follows.",
+        translated: "Using a 2.20 mm crochet hook, work as follows.",
         errors: [],
       });
     },
@@ -1182,7 +1182,379 @@ describe("translateBlocks provider boundary", () => {
   });
 });
 
+describe("crochet instruction phrasing", () => {
+  it.each([
+    ["12 sıra 66x", "12 rounds, 66 sc"],
+    ["3 sıra 78x", "3 rounds, 78 sc"],
+    ["28-30) 3 sıra 78x", "28-30) 3 rounds, 78 sc"],
+    ["Sihirli halka içine 6x", "6sc into the magic ring"],
+    ["2 zincir 2x atla", "ch 2, skip 2 sts"],
+    ["zincir içine 2x", "2sc into the chain space"],
+    [
+      "2.00 mm tığ ile örüyoruz.",
+      "Using a 2.00 mm crochet hook, work as follows.",
+    ],
+  ])("normalizes %s through the full pipeline", async (source, expected) => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "crochet-phrasing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result).toMatchObject({
+      translated: expected,
+      valid: true,
+      errors: [],
+    });
+    expect(result?.translated).not.toContain("__XQ");
+    expect(result?.translated.match(/\d+(?:[.,]\d+)?/gu)).toEqual(
+      source.match(/\d+(?:[.,]\d+)?/gu),
+    );
+  });
+
+  it.each([
+    [
+      "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+      "24) 15sc, ch 2, skip 2 sts, 9sc, ch 2, skip 2 sts, 38sc (we will insert the eyes into these chain spaces later)",
+    ],
+    [
+      "25) 15x, zincir içine 2x, 9x, zincir içine 2x, 38x = 66x",
+      "25) 15sc, 2sc into the chain space, 9sc, 2sc into the chain space, 38sc = 66sc",
+    ],
+  ])(
+    "normalizes a complete Salem-style round without changing its numeric sequence",
+    async (source, expected) => {
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "salem-round", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result).toMatchObject({
+        translated: expected,
+        valid: true,
+        errors: [],
+      });
+      expect(result?.translated.match(/\d+(?:[.,]\d+)?/gu)).toEqual(
+        source.match(/\d+(?:[.,]\d+)?/gu),
+      );
+      expect(result?.translated).not.toContain("__XQ");
+    },
+  );
+
+  it.each([
+    [
+      "(zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+      "(the spaces created with the chains, we will attach the eyes later)",
+      "(we will insert the eyes into these chain spaces later)",
+    ],
+    [
+      "Bu sıradan sonra gözleri boşluklara yerleştirebiliriz.",
+      "After this row, we can place the eyes in the gaps.",
+      "After this round, we can insert the eyes into the gaps.",
+    ],
+  ])(
+    "uses insert for eye placement in amigurumi context",
+    async (source, providerTranslation, expected) => {
+      const provider: TranslationProvider = {
+        name: "eye-placement-stub",
+        model: "stub-model",
+        async translate(request) {
+          return {
+            translations: request.blocks.map(({ id }) => ({
+              id,
+              translated: providerTranslation.replace(/^\(|\)$/gu, ""),
+            })),
+          };
+        },
+        async checkReadiness() {
+          return {
+            ok: true,
+            provider: "eye-placement-stub",
+            model: "stub-model",
+          };
+        },
+      };
+
+      const [result] = await translateBlocks(
+        [{ id: "eye-placement", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result?.translated).toBe(expected);
+      expect(result?.valid).toBe(true);
+    },
+  );
+
+  it("normalizes the reusable stitch-marker sentence", async () => {
+    const provider = new StubProvider({
+      translations: [
+        {
+          id: "stitch-marker",
+          translated:
+            "This will be our starting point; we attach the marker here.",
+        },
+      ],
+    });
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "stitch-marker",
+          text:
+            "Burası başlangıç noktamız olacak; işaretleyicimizi buraya takıyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result).toMatchObject({
+      translated:
+        "This will be the beginning of the round; place a stitch marker here.",
+      valid: true,
+      errors: [],
+    });
+  });
+
+  it("preserves the magic-ring instruction before a marker clause", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Sihirli halka içine 6x — başlangıç noktamız burası olacak işaretleyiciyi buraya takıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "mixed-magic-ring-marker", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result).toMatchObject({
+      translated:
+        "6sc into the magic ring — This will be the beginning of the round; place a stitch marker here.",
+      valid: true,
+      errors: [],
+    });
+    expect(result?.translated.match(/6/gu)).toHaveLength(1);
+    expect(result?.translated.match(/sc/gu)).toHaveLength(1);
+    expect(result?.translated).toContain("6sc into the magic ring");
+    expect(result?.translated).not.toContain("__XQ");
+  });
+
+  it("keeps compact stitch notation through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "compact-notation", text: "6x, 1v, 1e, 66x" }],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result).toMatchObject({
+      translated: "6sc, 1inc, 1dec, 66sc",
+      valid: true,
+      errors: [],
+    });
+  });
+});
+
 describe("materials translation profile", () => {
+  it("gives the provider natural English materials-list and quantity agreement guidance", async () => {
+    const provider = new InspectingProvider();
+
+    await translateBlocks(
+      [
+        {
+          id: "materials-list",
+          text: "1 adet siyah düğme\n2 adet Catania TR263 ten rengi ip",
+        },
+      ],
+      "en",
+      { provider, contentKind: "materials" },
+    );
+
+    const systemPrompt = provider.requests[0]?.systemPrompt ?? "";
+    expect(systemPrompt).toContain("Materials-list preferences:");
+    expect(systemPrompt).toContain("1 button");
+    expect(systemPrompt).toContain("2 buttons");
+    expect(systemPrompt).toContain("1 skein");
+    expect(systemPrompt).toContain("2 skeins");
+    expect(systemPrompt).toContain("2 metal buttons for the pants");
+    expect(systemPrompt).toContain("Preserve product and brand names");
+    expect(systemPrompt).toContain("line structure exactly");
+    expect(systemPrompt).toContain(
+      "Materials quantity grammar identifies a quantity",
+    );
+
+    const userPrompt = JSON.parse(provider.requests[0]?.userPrompt ?? "{}") as {
+      blocks?: { text: string }[];
+      materialQuantityGrammar?: {
+        blockId: string;
+        protectedTokenIndex: number;
+        agreement: "singular" | "plural";
+      }[];
+    };
+    expect(userPrompt.materialQuantityGrammar).toEqual([
+      {
+        blockId: "materials-list",
+        protectedTokenIndex: 1,
+        agreement: "singular",
+      },
+      {
+        blockId: "materials-list",
+        protectedTokenIndex: 2,
+        agreement: "plural",
+      },
+    ]);
+    expect(userPrompt.blocks?.[0]?.text).not.toMatch(/\b(?:1|2)\b/u);
+    const protectedBlockTokens =
+      userPrompt.blocks?.[0]?.text.match(/__XQ[A-Z]{4}QX__/gu) ?? [];
+    const promptTokens =
+      `${provider.requests[0]?.systemPrompt ?? ""}${provider.requests[0]?.userPrompt ?? ""}`.match(
+        /__XQ[A-Z]{4}QX__/gu,
+      ) ?? [];
+    expect(promptTokens).toEqual(protectedBlockTokens);
+  });
+
+  it("restores every protected value in a Salem-style materials block without leaking placeholders", async () => {
+    class SalemMaterialsProvider extends InspectingProvider {
+      override async translate(
+        request: Parameters<TranslationProvider["translate"]>[0],
+      ) {
+        this.requests.push(request);
+        this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+        const placeholders =
+          request.blocks[0]?.text.match(/__XQ[A-Z]{4}QX__/gu) ?? [];
+        if (placeholders.length !== 18) {
+          throw new Error(`Expected 18 protected tokens, got ${placeholders.length}.`);
+        }
+        const p = placeholders;
+        return {
+          translations: [
+            {
+              id: request.blocks[0]?.id ?? "materials",
+              translated: [
+                `${p[0]} skeins of Catania ${p[1]} - skin color`,
+                `${p[2]} skein of Catania ${p[3]} - black`,
+                `${p[4]} skein of Catania ${p[5]} - lilac`,
+                `${p[6]} skein of Catania ${p[7]} - white`,
+                `${p[8]} skein of Catania ${p[9]} - orange`,
+                `${p[10]} skein of Catania ${p[11]} - brown`,
+                `${p[12]} skeins of Catania ${p[13]} - green`,
+                `${p[14]} eyes`,
+                `${p[15]} electrical wire`,
+                `${p[16]} large black button`,
+                `${p[17]} small black buttons`,
+              ].join("\n"),
+            },
+          ],
+        };
+      }
+    }
+
+    const provider = new SalemMaterialsProvider();
+    const source = [
+      "2 adet Catania TR263 - ten rengi",
+      "1 adet Catania 110 - siyah",
+      "1 adet Catania 226 - lila",
+      "1 adet Catania 106 - beyaz",
+      "1 adet Catania 411 - turuncu",
+      "1 adet Catania 240 - kahverengi",
+      "2 adet Catania 2456 - yeşil",
+      "12mm Göz",
+      "2.5mm Elektrik Teli",
+      "1 adet büyük siyah düğme",
+      "2 adet küçük siyah düğme",
+    ].join("\n");
+
+    const [result] = await translateBlocks(
+      [{ id: "salem-materials", text: source }],
+      "en",
+      { provider, contentKind: "materials" },
+    );
+
+    expect(result).toMatchObject({ valid: true, errors: [] });
+    expect(result?.translated).toContain("2 skeins");
+    expect(result?.translated).toContain("1 skein");
+    expect(result?.translated).toContain("1 large black button");
+    expect(result?.translated).toContain("2 small black buttons");
+    for (const model of ["TR263", "110", "226", "106", "411", "240", "2456"]) {
+      expect(result?.translated).toContain(model);
+    }
+    expect(result?.translated).toContain("12 mm safety eyes");
+    expect(result?.translated).toContain("2.5 mm electrical wire");
+    expect(result?.translated).not.toMatch(/__XQ[^\s]*?QX__/u);
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "MISSING_PROTECTED_NOTATION",
+    );
+
+    const protectedTokenCount =
+      provider.protectedTexts[0]?.match(/__XQ[A-Z]{4}QX__/gu)?.length ?? 0;
+    const promptTokenCount =
+      `${provider.requests[0]?.systemPrompt ?? ""}${provider.requests[0]?.userPrompt ?? ""}`.match(
+        /__XQ[A-Z]{4}QX__/gu,
+      )?.length ?? 0;
+    expect(promptTokenCount).toBe(protectedTokenCount);
+  });
+
+  it.each([
+    ["12mm Göz", "12 mm safety eyes"],
+    ["12 mm Göz", "12 mm safety eyes"],
+    ["10mm Göz", "10 mm safety eyes"],
+  ])(
+    "normalizes a materials safety-eye entry deterministically: %s",
+    async (source, expected) => {
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "safety-eyes", text: source }],
+        "en",
+        { provider, contentKind: "materials" },
+      );
+
+      expect(provider.protectedTexts).toHaveLength(1);
+      expect(provider.protectedTexts[0]).toContain("safety eyes");
+      expect(provider.protectedTexts[0]).not.toMatch(/\bgöz\b/iu);
+      expect(result).toMatchObject({
+        translated: expected,
+        valid: true,
+        errors: [],
+      });
+      expect(result?.translated).not.toContain("__XQ");
+    },
+  );
+
+  it("does not rewrite göz outside the materials profile", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "pattern-eye", text: "12mm Göz" }],
+      "en",
+      { provider, contentKind: "pattern" },
+    );
+
+    expect(provider.protectedTexts[0]).toMatch(/\bGöz\b/u);
+    expect(provider.protectedTexts[0]).not.toContain("safety eyes");
+    expect(result?.translated).not.toContain("safety eyes");
+  });
+
+  it("leaves an existing metallic-yarn strand entry unchanged", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "metallic-yarn", text: "Metallic yarn (9 strands)" }],
+      "en",
+      { provider, contentKind: "materials" },
+    );
+
+    expect(result?.translated).toBe("Metallic yarn (9 strands)");
+  });
+
   it("translates materials prose without treating parentheses or crochet-like words as immutable pattern content", async () => {
     const provider = new InspectingProvider();
 

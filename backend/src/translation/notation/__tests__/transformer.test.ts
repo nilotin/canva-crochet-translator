@@ -149,7 +149,7 @@ describe("deterministic notation transformation", () => {
 
   it.each([
     ["en", "hdc-inc, dc-inc, dc-dec, esc-inc, escw"],
-    ["es", "aum-mpa, aum-pa, dism-pa, aum-pa-ex, W-pa-ex"],
+    ["es", "aum-mpa, aum-pa, dism-pa, aum-pb-ex, W-pb-ex"],
   ] as const)(
     "recognizes compound tokens longest-first for %s",
     (language, expected) => {

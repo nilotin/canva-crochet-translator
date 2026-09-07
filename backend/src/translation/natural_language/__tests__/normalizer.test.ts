@@ -143,7 +143,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "en",
       ),
     ).toBe(
-      "With a 2.20 mm crochet hook and siyah Catania 110 yarn, work as follows.",
+      "Using a 2.20 mm crochet hook and siyah Catania 110 yarn, work as follows.",
     );
   });
 
@@ -153,7 +153,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "2.5 mm tığ ile örüyoruz.",
         "en",
       ),
-    ).toBe("With a 2.5 mm crochet hook, work as follows.");
+    ).toBe("Using a 2.5 mm crochet hook, work as follows.");
   });
 
   it("normalizes hook-use phrasing without changing decimal precision", () => {
@@ -171,7 +171,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "2.00 no tığ ile örüyoruz.",
         "en",
       ),
-    ).toBe("With a 2.00 mm crochet hook, work as follows.");
+    ).toBe("Using a 2.00 mm crochet hook, work as follows.");
   });
 
   it("supports the same hook intro structure in Spanish", () => {
@@ -183,6 +183,25 @@ describe("normalizeSourceNaturalLanguage", () => {
     ).toBe(
       "Con un ganchillo de 2.20 mm, tejemos de la siguiente manera.",
     );
+  });
+
+  it.each([
+    ["12 sıra 66x", "12 rounds, 66x"],
+    ["3 sıra 78x", "3 rounds, 78x"],
+    ["Sihirli halka içine 6x", "6x into the magic ring"],
+    ["2 zincir 2x atla", "ch 2, skip 2 sts"],
+    ["zincir içine 2x", "2x into the chain space"],
+  ])("normalizes crochet instruction structure: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("uses insert for amigurumi eye placement verbs", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Gözleri takacağız. Gözleri yerleştirebiliriz.",
+        "en",
+      ),
+    ).toBe("we will insert the eyes. we can insert the eyes.");
   });
 
 });

@@ -255,12 +255,21 @@ describe("recognizePage2Hybrid: plain 3/4-block Page 2 (materials / instructions
     const p = buildPage2();
     const result = recognizePage2Hybrid(p, translationBlocksFor(p), "en");
     expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.en);
+    expect(GLOSSARY.en).toContain("✦ esc: extended single crochet");
+    expect(GLOSSARY.en).toContain("✦ escw: 3 esc in the same stitch");
+    expect(GLOSSARY.en).toContain("✦ esc-inc: esc increase");
+    expect(GLOSSARY.en).not.toContain("extended double crochet");
   });
 
   it("produces the exact approved Spanish glossary deterministically", () => {
     const p = buildPage2();
     const result = recognizePage2Hybrid(p, translationBlocksFor(p), "es");
     expect(deterministicById(result, "glossary")?.translated).toBe(GLOSSARY.es);
+    expect(GLOSSARY.es).toContain("✦ pb-ex: punto bajo extendido");
+    expect(GLOSSARY.es).toContain("✦ W-pb-ex: 3 pb-ex en el mismo punto");
+    expect(GLOSSARY.es).toContain(
+      "✦ aum-pb-ex: aumento de punto bajo extendido",
+    );
   });
 
   it("leaves the decorative '.' block unchanged when present", () => {

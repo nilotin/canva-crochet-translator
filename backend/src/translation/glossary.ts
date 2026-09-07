@@ -144,35 +144,34 @@ export const PROJECT_NOTATION: readonly CrochetNotationEntry[] = [
     },
   },
   {
-    concept: "extended_double_crochet",
+    concept: "extended_single_crochet",
     tr: {
       abbreviation: "esc",
       description: "ipi tığa dolamadan 2 defada çıkarma (yalancı trabzan)",
     },
     en: {
       abbreviation: "esc",
-      description:
-        "The process of taking off the hook in two attempts without wrapping the thread around it (extended double crochet stitch)",
+      description: "extended single crochet",
     },
-    es: { abbreviation: "pa-ex", description: "punto alto extendido" },
+    es: { abbreviation: "pb-ex", description: "punto bajo extendido" },
   },
   // Extended-stitch family: base, increase, then three stitches in one stitch.
   {
-    concept: "extended_double_crochet_increase",
+    concept: "extended_single_crochet_increase",
     tr: { abbreviation: "escv", description: "esc arttırma" },
     en: { abbreviation: "esc-inc", description: "esc increase" },
     es: {
-      abbreviation: "aum-pa-ex",
-      description: "aumento de punto alto extendido",
+      abbreviation: "aum-pb-ex",
+      description: "aumento de punto bajo extendido",
     },
   },
   {
-    concept: "three_extended_double_crochet_same_stitch",
+    concept: "three_extended_single_crochet_same_stitch",
     tr: { abbreviation: "escw", description: "aynı ilmeğe 3 kere esc" },
     en: { abbreviation: "escw", description: "3 esc in the same stitch" },
     es: {
-      abbreviation: "W-pa-ex",
-      description: "3 pa-ex en el mismo punto",
+      abbreviation: "W-pb-ex",
+      description: "3 pb-ex en el mismo punto",
     },
   },
 ] as const;
