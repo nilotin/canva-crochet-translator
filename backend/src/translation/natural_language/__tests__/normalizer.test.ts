@@ -58,7 +58,7 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     ["flodan 32x", "FLO’dan 32x"],
-    ["blodan 24x", "BLO’dan 24x"],
+    ["blodan 24x", "24sc in BLO"],
   ] as const)(
     "canonicalizes apostrophe-less FLO/BLO Turkish suffix forms",
     (source, expected) => {
@@ -192,6 +192,33 @@ describe("normalizeSourceNaturalLanguage", () => {
     ["2 zincir 2x atla", "ch 2, skip 2 sts"],
     ["zincir içine 2x", "2x into the chain space"],
   ])("normalizes crochet instruction structure: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    ["7 zincir çekip dönüyoruz.", "Ch 7 and turn."],
+    ["32x BLO'dan", "32sc in BLO"],
+    ["BLO'dan 32x", "32sc in BLO"],
+    ["aynı zincir içine 3x", "3sc in the same chain"],
+    ["aynı sık iğne içine 3tr", "3tr in the same stitch"],
+  ])("normalizes reusable foot and leg phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "Bu bizim başlangıç noktamız olacak, işaretleyiciyi buraya takıyoruz.",
+      "This will be the beginning of the round; place a stitch marker here.",
+    ],
+    [
+      "Burası başlangıç noktamız olacak; işaretleyicimizi buraya takıyoruz.",
+      "This will be the beginning of the round; place a stitch marker here.",
+    ],
+    [
+      "Bu başlangıç noktamızdır. Markeri buraya yerleştiriyoruz.",
+      "This will be the beginning of the round; place a stitch marker here.",
+    ],
+  ])("normalizes reusable beginning-of-round marker phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 

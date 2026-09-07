@@ -88,6 +88,22 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
     .replace(
+      /(\d+)\s+zincir\s+çekip\s+dönüyoruz\b/giu,
+      (_match, count: string) => `Ch ${count} and turn`,
+    )
+    .replace(
+      /(\d+)\s*x\s+BLO(?:['’]?dan)?\b/giu,
+      (_match, stitches: string) => `${stitches}sc in BLO`,
+    )
+    .replace(
+      /BLO(?:['’]?dan)?\s+(\d+)\s*x\b/giu,
+      (_match, stitches: string) => `${stitches}sc in BLO`,
+    )
+    .replace(
+      /aynı\s+sık\s+iğne(?:nin|ye)?\s+içine\s+(\d+)\s*tr\b/giu,
+      (_match, count: string) => `${count}tr in the same stitch`,
+    )
+    .replace(
       /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b/giu,
       "$1x into the magic ring",
     )
@@ -96,8 +112,16 @@ const normalizeEnglishCrochetStructures = (
       "ch $1, skip $2 sts",
     )
     .replace(
+      /\baynı\s+zincir\s+içine\s+(\d+)\s*x\b/giu,
+      "$1sc in the same chain",
+    )
+    .replace(
       /\bzincir\s+içine\s+(\d+)\s*x\b/giu,
       "$1x into the chain space",
+    )
+    .replace(
+      /\b(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\b/giu,
+      "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
       /\bfotoğraf\s+temsilidir\b/giu,
