@@ -712,6 +712,34 @@ describe("conditional FLO/BLO integrity", () => {
     expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
   });
 
+  it.each([
+    ["lost", "Work in FLO. (Work in BLO instead.)"],
+    [
+      "narrowed",
+      "Work in FLO. (If using crossed single crochet, work in BLO instead.)",
+    ],
+    [
+      "reversed",
+      "Work in BLO. (If using crossed or regular single crochet, work in FLO instead.)",
+    ],
+  ])("rejects English output with a %s conditional meaning", (_case, target) => {
+    const result = validateTranslation(sourceBoth, target, "en");
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts English output with valid retained parentheses", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Work in FLO. (If using crossed or regular single crochet, work in BLO instead.)",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
   it("rejects Spanish output that drops the conditional technique", () => {
     const result = validateTranslation(
       sourceBoth,
@@ -727,6 +755,28 @@ describe("conditional FLO/BLO integrity", () => {
     const result = validateTranslation(
       sourceBoth,
       "Trabaja en Flo. Si usando punto bajo cruzado o punto bajo normal, trabaja en Blo en su lugar.",
+      "es",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("rejects Spanish output that loses the condition inside retained parentheses", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Trabaja en Flo. (Trabaja en Blo en su lugar.)",
+      "es",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("PARENTHESES_MISMATCH");
+  });
+
+  it("accepts Spanish output with valid retained parentheses", () => {
+    const result = validateTranslation(
+      sourceBoth,
+      "Trabaja en Flo. (Si usando punto bajo cruzado o punto bajo normal, trabaja en Blo en su lugar.)",
       "es",
     );
 

@@ -47,6 +47,76 @@ describe("formatting projection", () => {
     },
   );
 
+  it.each([
+    ["(55cm):", "(55 cm):", 1, 5, 1, 6],
+    ["[2.20mm]", "[2.20 mm]", 1, 7, 1, 8],
+  ] as const)(
+    "projects mixed measurement formatting to rendered bounds for %s",
+    (
+      source,
+      rendered,
+      sourceTokenStart,
+      sourceTokenEnd,
+      targetTokenStart,
+      targetTokenEnd,
+    ) => {
+      const projected = projectDeterministicFormattingRegions(
+        {
+          id: "block-mixed-measurement",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-prefix", start: 0, end: sourceTokenStart },
+            {
+              id: "fmt-token",
+              start: sourceTokenStart,
+              end: sourceTokenEnd,
+            },
+            { id: "fmt-suffix", start: sourceTokenEnd, end: source.length },
+          ],
+        },
+        "en",
+      );
+
+      expect(projected).toEqual([
+        { id: "fmt-prefix", start: 0, end: targetTokenStart },
+        {
+          id: "fmt-token",
+          start: targetTokenStart,
+          end: targetTokenEnd,
+        },
+        {
+          id: "fmt-suffix",
+          start: targetTokenEnd,
+          end: rendered.length,
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    ["(6. sıranın FLO’sundan):", "en", "(the FLO of Round 6):"],
+    ["(6x):", "en", "(6sc):"],
+    ["(3. sıra):", "es", "(Vuelta 3):"],
+  ] as const)(
+    "covers the rendered mixed target for %s in %s",
+    (source, targetLanguage, rendered) => {
+      const projected = projectDeterministicFormattingRegions(
+        {
+          id: "block-mixed-rendered-token",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: source.length },
+          ],
+        },
+        targetLanguage,
+      );
+
+      expect(projected).toEqual([
+        { id: "fmt-0", start: 0, end: rendered.length },
+      ]);
+    },
+  );
+
   it("does not guess projection when natural-language translation is involved", () => {
     const projected = projectDeterministicFormattingRegions(
       {

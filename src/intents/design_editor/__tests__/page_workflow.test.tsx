@@ -259,6 +259,14 @@ describe("page-to-page translation workflow", () => {
 
     fireEvent.click(applyButton);
     await result.findByText("Applied: 1");
+    expect(applyReview).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        pageIdentityKey: "page-1",
+        pageIdentitySource: "canva_page_id",
+      }),
+      expect.anything(),
+    );
     expect(result.getByText("Current page status: Applied")).toBeTruthy();
     expect(
       result.getByText("This page is complete. Move to another Canva page."),

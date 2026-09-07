@@ -103,8 +103,7 @@ const buildMixedDeterministicPieces = (
   for (const token of lexed.tokens) {
     if (token.kind === "natural_language") return undefined;
 
-    const targetText =
-      token.kind === "notation" ? token.target : token.sourceText;
+    const targetText = token.kind === "notation" ? token.target : token.text;
 
     pieces.push({
       sourceStart: token.start,

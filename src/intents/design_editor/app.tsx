@@ -861,6 +861,7 @@ export const TargetReview = ({
           contextId: context.contextId,
           language: context.language,
           pageIdentityKey: pageIdentity.key,
+          pageIdentitySource: pageIdentity.source,
         },
         {
           verifyTarget,

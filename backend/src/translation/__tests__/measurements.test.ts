@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractMeasurements,
+  extractSourceMeasurementSpans,
   extractSourceMeasurements,
 } from "../measurements.js";
 import {
@@ -191,6 +192,21 @@ describe("atomic measurements", () => {
         ({ value, unit }) => ({ value, unit }),
       ),
     ).toEqual([{ value: "2.20", unit: "mm" }]);
+  });
+
+  it.each(["2.20 tığ", "2.20 mm tığ"])(
+    "returns one complete source span for %s",
+    (hook) => {
+      const source = `${hook} ile örüyoruz.`;
+      const spans = extractSourceMeasurementSpans(source);
+
+      expect(spans).toHaveLength(1);
+      expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(hook);
+    },
+  );
+
+  it("does not treat an arbitrary bare decimal as a hook-size span", () => {
+    expect(extractSourceMeasurementSpans("2.20 sıra örüyoruz.")).toEqual([]);
   });
 
   it("treats Turkish hook-number wording as a millimeter measurement without allowing value changes", () => {

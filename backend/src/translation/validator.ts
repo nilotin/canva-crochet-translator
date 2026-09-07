@@ -96,11 +96,15 @@ const isKnownToolMaterialIntroParenthesesRewrite = (
   return normalizedTranslated.includes(normalizedBrand);
 };
 
-const isKnownConditionalLoopParenthesesRewrite = (
+type ConditionalLoopRequirements = {
+  defaultLoop: string;
+  alternativeLoop: string;
+  technique: "both" | "crossed" | "regular";
+};
+
+const getKnownConditionalLoopRequirements = (
   source: string,
-  translated: string,
-  targetLanguage: TargetLanguage,
-): boolean => {
+): ConditionalLoopRequirements | undefined => {
   const sourceWithoutLeadingInstruction = source.replace(
     /^\s*\d+\)\s*/u,
     "",
@@ -115,7 +119,7 @@ const isKnownConditionalLoopParenthesesRewrite = (
     sourceParentheses[0] !== "(" ||
     sourceParentheses[1] !== ")"
   ) {
-    return false;
+    return undefined;
   }
 
   const match =
@@ -123,7 +127,7 @@ const isKnownConditionalLoopParenthesesRewrite = (
       source,
     );
 
-  if (!match) return false;
+  if (!match) return undefined;
 
   const defaultLoop = match[1]?.toUpperCase();
   const technique = match[2]
@@ -138,25 +142,40 @@ const isKnownConditionalLoopParenthesesRewrite = (
     !alternativeLoop ||
     defaultLoop === alternativeLoop
   ) {
-    return false;
+    return undefined;
   }
 
+  return {
+    defaultLoop,
+    alternativeLoop,
+    technique:
+      technique === "çapraz ya da düz"
+        ? "both"
+        : technique === "çapraz"
+          ? "crossed"
+          : "regular",
+  };
+};
+
+const preservesConditionalLoopSemantics = (
+  requirements: ConditionalLoopRequirements,
+  translated: string,
+  targetLanguage: TargetLanguage,
+): boolean => {
+  const { defaultLoop, alternativeLoop, technique } = requirements;
+
   const techniquePattern =
-    technique === "çapraz ya da düz"
+    technique === "both"
       ? targetLanguage === "en"
         ? "crossed\\s+or\\s+regular\\s+single\\s+crochet"
         : "punto\\s+bajo\\s+cruzado\\s+o\\s+punto\\s+bajo\\s+normal"
-      : technique === "çapraz"
+      : technique === "crossed"
         ? targetLanguage === "en"
           ? "crossed\\s+single\\s+crochet"
           : "punto\\s+bajo\\s+cruzado"
-        : technique === "düz"
-          ? targetLanguage === "en"
-            ? "regular\\s+single\\s+crochet"
-            : "punto\\s+bajo\\s+normal"
-          : undefined;
-
-  if (!techniquePattern) return false;
+        : targetLanguage === "en"
+          ? "regular\\s+single\\s+crochet"
+          : "punto\\s+bajo\\s+normal";
 
   if (targetLanguage === "en") {
     return new RegExp(
@@ -335,19 +354,30 @@ export const validateTranslation = (
 
   const sourceParentheses = collectMatches(source, /[()]/gu);
   const translatedParentheses = collectMatches(translated, /[()]/gu);
+  const conditionalLoopRequirements =
+    getKnownConditionalLoopRequirements(source);
+  const preservesConditionalLoop = conditionalLoopRequirements
+    ? preservesConditionalLoopSemantics(
+        conditionalLoopRequirements,
+        translated,
+        targetLanguage,
+      )
+    : undefined;
+  const translatedConditionalParentheses = collectMatches(
+    translated.replace(/^\s*\d+\)\s*/u, ""),
+    /[()]/gu,
+  );
   const allowsConditionalLoopParenthesesRewrite =
-    isKnownConditionalLoopParenthesesRewrite(
-      source,
-      translated,
-      targetLanguage,
-    );
+    preservesConditionalLoop === true &&
+    translatedConditionalParentheses.length === 0;
   const allowsToolMaterialIntroParenthesesRewrite =
     isKnownToolMaterialIntroParenthesesRewrite(source, translated);
 
   if (
-    !sameSequence(sourceParentheses, translatedParentheses) &&
-    !allowsConditionalLoopParenthesesRewrite &&
-    !allowsToolMaterialIntroParenthesesRewrite
+    preservesConditionalLoop === false ||
+    (!sameSequence(sourceParentheses, translatedParentheses) &&
+      !allowsConditionalLoopParenthesesRewrite &&
+      !allowsToolMaterialIntroParenthesesRewrite)
   ) {
     errors.push(
       error(

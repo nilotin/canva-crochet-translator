@@ -43,6 +43,28 @@ class InspectingProvider implements TranslationProvider {
   }
 }
 
+class HookBoundaryProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => ({
+        id,
+        translated:
+          text === "tığ"
+            ? "mm crochet hook"
+            : text === "ile örüyoruz."
+              ? "work as follows."
+              : text === "sıra örüyoruz."
+                ? "rounds."
+                : text,
+      })),
+    };
+  }
+}
+
 describe("translateBlocks provider boundary", () => {
   it("rejects a reserved placeholder introduced by mixed prose output", async () => {
     const provider = new StubProvider({
@@ -950,6 +972,93 @@ describe("translateBlocks provider boundary", () => {
       { id: "fmt-4", start: 49, end: 58 },
       { id: "fmt-5", start: 58, end: 77 },
     ]);
+  });
+
+  it.each([
+    ["2.20 tığ ile örüyoruz.", 4],
+    ["2.20 mm tığ ile örüyoruz.", 9],
+  ] as const)(
+    "uses atomic translation when formatting bisects the hook expression in %s",
+    async (source, boundary) => {
+      const provider = new HookBoundaryProvider();
+
+      const [result] = await translateBlocks(
+        [
+          {
+            id: "bisected-hook",
+            text: source,
+            formattingRegions: [
+              { id: "fmt-0", start: 0, end: boundary },
+              { id: "fmt-1", start: boundary, end: source.length },
+            ],
+          },
+        ],
+        "en",
+        { provider },
+      );
+
+      expect(provider.requests).toHaveLength(1);
+      expect(provider.protectedTexts).toEqual([
+        "With a __XQAAAAQX__ crochet hook, work as follows.",
+      ]);
+      expect(result).toMatchObject({
+        valid: true,
+        translated: "With a 2.20 mm crochet hook, work as follows.",
+        errors: [],
+      });
+    },
+  );
+
+  it("keeps formatting-unit translation for a boundary after the hook expression", async () => {
+    const provider = new HookBoundaryProvider();
+    const source = "2.20 tığ ile örüyoruz.";
+    const boundary = "2.20 tığ".length;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "safe-hook-boundary",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.protectedTexts).toEqual(["tığ", "ile örüyoruz."]);
+    expect(result).toMatchObject({
+      valid: true,
+      translated: "2.20 mm crochet hook work as follows.",
+      errors: [],
+    });
+    expect(result?.targetFormattingRegions).toHaveLength(2);
+  });
+
+  it("does not use hook fallback for an arbitrary bare decimal", async () => {
+    const provider = new HookBoundaryProvider();
+    const source = "2.20 sıra örüyoruz.";
+
+    await translateBlocks(
+      [
+        {
+          id: "non-hook-decimal",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: 4 },
+            { id: "fmt-1", start: 4, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests.flatMap(({ blocks }) => blocks.map(({ id }) => id)))
+      .toContain("non-hook-decimal::format:1::segment:0");
   });
 
   it("maps formatting regions across a digit/notation-adjacent style boundary that needs real translation", async () => {

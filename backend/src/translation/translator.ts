@@ -1,5 +1,5 @@
 import { extractRoundReferences, renderRoundReference } from "./natural_language/round_references.js";
-import { extractMeasurements } from "./measurements.js";
+import { extractSourceMeasurementSpans } from "./measurements.js";
 import { normalizeSourceNaturalLanguage } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
@@ -276,13 +276,13 @@ const translateFormattingUnits = async (
 ): Promise<TranslationResult | undefined> => {
   // Never split a measurement before protection, including across style units.
   // Use the existing whole-block fallback when a supplied boundary bisects it.
-  const measurements = [
-    ...extractMeasurements(block.text),
+  const protectedSpans = [
+    ...extractSourceMeasurementSpans(block.text),
     ...(contentKind === "pattern" ? extractRoundReferences(block.text) : []),
   ];
-  if (block.formattingRegions?.some(({ start, end }) => measurements.some(
-    (measurement) => (start > measurement.start && start < measurement.end) ||
-      (end > measurement.start && end < measurement.end),
+  if (block.formattingRegions?.some(({ start, end }) => protectedSpans.some(
+    (span) => (start > span.start && start < span.end) ||
+      (end > span.start && end < span.end),
   ))) return undefined;
   const units = buildFormattingTranslationUnits(block);
 

@@ -43,6 +43,36 @@ export const extractSourceMeasurements = (text: string): Measurement[] => {
   return [...explicit, ...hookSizes].sort((left, right) => left.start - right.start);
 };
 
+export const extractSourceMeasurementSpans = (
+  text: string,
+): Array<Pick<Measurement, "start" | "end">> => {
+  const spans = extractSourceMeasurements(text)
+    .map(({ start, end, unit }) => {
+      const hookSuffix =
+        unit === "mm"
+          ? /^[ \t\u00a0\u202f]+tığ(?![\p{L}\p{N}_])/iu.exec(
+              text.slice(end),
+            )
+          : null;
+
+      return { start, end: end + (hookSuffix?.[0].length ?? 0) };
+    })
+    .sort((left, right) => left.start - right.start || right.end - left.end);
+
+  return spans.reduce<Array<Pick<Measurement, "start" | "end">>>(
+    (deduplicated, span) => {
+      const previous = deduplicated.at(-1);
+      if (!previous || span.start >= previous.end) {
+        deduplicated.push({ ...span });
+      } else {
+        previous.end = Math.max(previous.end, span.end);
+      }
+      return deduplicated;
+    },
+    [],
+  );
+};
+
 // Keep the lexical value (including trailing decimal zeros) and unit unchanged.
 // A space is appropriate for both supported target languages, English/Spanish.
 export const renderMeasurement = (
