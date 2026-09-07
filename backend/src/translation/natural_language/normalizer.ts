@@ -25,6 +25,67 @@ const normalizeEnglishCrochetStructures = (
   if (targetLanguage !== "en") return source;
 
   return source
+    .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
+    .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
+    .replace(/\bağız\s*(?:[:;–—-])/giu, "Mouth:")
+    .replace(
+      /(\d+)\s*x\s+uzunluğunda\s*,\s*aralarında\s+(\d+)\s*x\s+kalacak\s+şekilde\s*,\s*gözden\s+(\d+)\s+sıra\s+üzerinden\s+işliyoruz\b/giu,
+      (_match, length: string, spacing: string, rounds: string) =>
+        `Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${rounds === "1" ? "round" : "rounds"} above the eyes`,
+    )
+    .replace(
+      /gözün\s+(bir|\d+)\s+sıra\s+(?:altında|altından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+(?:dolama|sarma)\s+yöntemi\s+ile\s+işliyoruz\b/giu,
+      (_match, rounds: string, stitches: string) => {
+        const roundCount =
+          rounds.toLocaleLowerCase("tr-TR") === "bir" ? "One" : rounds;
+        const roundWord =
+          roundCount === "1" || roundCount === "One" ? "round" : "rounds";
+
+        return `${roundCount} ${roundWord} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
+      },
+    )
+    .replace(
+      /toz\s+pastel\s+ile\s+boyadım\b/giu,
+      "I colored it with soft pastels",
+    )
+    .replace(
+      /(?:[iİ]sterseniz|dilerseniz)\s+burnun\s+(\d+)\s+sıra\s+(?:altından|aşağısından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+işleyebilirsiniz\b/giu,
+      (_match, rounds: string, stitches: string) =>
+        `If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches`,
+    )
+    .replace(
+      /kaş(?:lar)?\s*(?:[:;–—-])\s*(\d+)\s*x\s+uzunluğunda\s*,\s*aralarında\s+(\d+)\s*x\s+kalacak\s+şekilde\s*,\s*gözden\s+(\d+)\s+sıra\s+üzerinden\s+işliyoruz\b/giu,
+      (_match, length: string, spacing: string, rounds: string) =>
+        `Eyebrow: Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${rounds === "1" ? "round" : "rounds"} above the eyes`,
+    )
+    .replace(
+      /burun\s*(?:[:;–—-])\s*gözün\s+(bir|\d+)\s+sıra\s+(?:altında|altından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+(?:dolama|sarma)\s+yöntemi\s+ile\s+işliyoruz\b/giu,
+      (_match, rounds: string, stitches: string) => {
+        const roundCount = rounds.toLocaleLowerCase("tr-TR") === "bir"
+          ? "One"
+          : rounds;
+        const roundWord = roundCount === "1" || roundCount === "One"
+          ? "round"
+          : "rounds";
+        return `Nose: ${roundCount} ${roundWord} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
+      },
+    )
+    .replace(
+      /ağız\s*(?:[:;–—-])\s*toz\s+pastel\s+ile\s+boyadım\s*\.\s*\(\s*(?:[iİ]sterseniz|dilerseniz)\s+burnun\s+(\d+)\s+sıra\s+(?:altından|aşağısından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+işleyebilirsiniz\s*[.]?\s*\)/giu,
+      (_match, rounds: string, stitches: string) =>
+        `Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches.)`,
+    )
+    .replace(
+      /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+örüyoruz\s*,\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (
+        _match,
+        marker: string,
+        rounds: string,
+        stitches: string,
+        chains: string,
+      ) =>
+        `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches} sc. Ch ${chains} and cut the yarn`,
+    )
     .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
     .replace(
       /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b/giu,
@@ -37,6 +98,10 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bzincir\s+içine\s+(\d+)\s*x\b/giu,
       "$1x into the chain space",
+    )
+    .replace(
+      /\bfotoğraf\s+temsilidir\b/giu,
+      "The images are for reference only",
     )
     .replace(/\bgözleri\s+takacağız\b/giu, "we will insert the eyes")
     .replace(
@@ -200,6 +265,69 @@ export const normalizeSourceNaturalLanguage = (
     targetLanguage,
   )
     .replace(
+      /(\d+)\s+zincir\s+çekip\s+kafaya\s+dikmek\s+için\s+ipimizi\s+uzun\s+kesiyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `ch ${count}. Cut the yarn, leaving a long tail for sewing the ear to the head`,
+          `${count} cad. Corta el hilo dejando una hebra larga para coser la oreja a la cabeza`,
+        ),
+    )
+    .replace(
+      /üst\s+kirpikten\s+(\d+)\s*x\s+sayıyoruz\s+ve\s+burayı\s+işaretliyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Count ${count} stitches from the upper eyelash and mark that point`,
+          `Cuenta ${count} puntos desde la pestaña superior y marca ese punto`,
+        ),
+    )
+    .replace(
+      /aşağı\s+doğru\s+(\d+)\s*x\s+sayıp\s+burayı\s+da\s+işaretliyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Count ${count} stitches downward and mark that point as well`,
+          `Cuenta ${count} puntos hacia abajo y marca también ese punto`,
+        ),
+    )
+    .replace(
+      /bu\s+(\d+)\s*x\s+üzerinden\s+kulakları\s+dikiyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Sew the ears along these ${count} stitches`,
+          `Cose las orejas a lo largo de estos ${count} puntos`,
+        ),
+    )
+    .replace(
+      /kirpikten\s+(\d+)\s*x\s+sayıyoruz\s*[,，]?\s*orayı\s+işaretliyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Count ${count} stitches from the eyelash and mark that point`,
+          `Cuenta ${count} puntos desde la pestaña y marca ese punto`,
+        ),
+    )
+    .replace(
+      /aşağıya\s+doğru\s+(\d+)\s*x\s+sayıyoruz\s*[,，]?\s*orayı\s+da\s+işaretliyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Count ${count} stitches downward and mark that point as well`,
+          `Cuenta ${count} puntos hacia abajo y marca también ese punto`,
+        ),
+    )
+    .replace(
+      /kulakları\s+bu\s+(\d+)\s*x\s+üzerinden\s+dikiyoruz\b/giu,
+      (_match, count: string) =>
+        targetPhrase(
+          targetLanguage,
+          `Sew the ears along these ${count} stitches`,
+          `Cose las orejas a lo largo de estos ${count} puntos`,
+        ),
+    )
+    .replace(
       /(\d+)\s*x\s+sayıyoruz\b/giu,
       (_match, count: string) =>
         targetPhrase(
@@ -242,7 +370,7 @@ export const normalizeSourceNaturalLanguage = (
     .replace(/gözden\s+(\d+)\s+sıra\s+üzerinden/giu, (_match, count: string) =>
       targetPhrase(
         targetLanguage,
-        `${count} rows above the eye`,
+        `${count} ${count === "1" ? "round" : "rounds"} above the eye`,
         `${count} filas por encima del ojo`,
       ),
     );

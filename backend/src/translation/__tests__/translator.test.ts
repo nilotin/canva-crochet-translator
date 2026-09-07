@@ -183,7 +183,7 @@ describe("translateBlocks provider boundary", () => {
     expect(provider.protectedTexts).toEqual([
       "stitches long",
       "stitches apart",
-      "rows above the eye",
+      "rounds above the eye",
     ]);
   });
 
@@ -1183,6 +1183,44 @@ describe("translateBlocks provider boundary", () => {
 });
 
 describe("crochet instruction phrasing", () => {
+  it.each([
+    [
+      "Kaş: 5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",
+      "Eyebrow: Embroider the eyebrows 5 stitches long, 10 stitches apart, 3 rounds above the eyes.",
+    ],
+    [
+      "Burun: gözün bir sıra altında 4x üzerinden dolama yöntemi ile işliyoruz.",
+      "Nose: One round below the eyes, embroider over 4 stitches using the wrap-around method.",
+    ],
+    [
+      "Ağız: Toz pastel ile boyadım. (İsterseniz burnun 4 sıra altından, 2x üzerinden işleyebilirsiniz.)",
+      "Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth 4 rounds below the nose over 2 stitches.)",
+    ],
+    [
+      "13-38) 26 sıra 14x  örüyoruz, 1 zincir \nçekip ipimizi kesiyoruz.",
+      "13-38) 26 rounds, 14 sc. Ch 1 and cut the yarn.",
+    ],
+  ])(
+    "preserves every value while normalizing a complete instruction: %s",
+    async (source, expected) => {
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "complete-crochet-instruction", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result).toMatchObject({
+        translated: expected,
+        valid: true,
+        errors: [],
+      });
+      expect(result?.translated.match(/\d+/gu)).toEqual(source.match(/\d+/gu));
+      expect(result?.translated).not.toContain("__XQ");
+    },
+  );
+
   it.each([
     ["12 sıra 66x", "12 rounds, 66 sc"],
     ["3 sıra 78x", "3 rounds, 78 sc"],

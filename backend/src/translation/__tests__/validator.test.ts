@@ -33,7 +33,7 @@ describe("validateTranslation", () => {
   it("does not treat contextual length and spacing shorthand as sc notation", () => {
     const result = validateTranslation(
       "Kaş — 4x uzunluğunda, aralarında 9x kalacak şekilde, gözden 4 sıra üzerinden işliyoruz.",
-      "Eyebrow — 4 stitches long, with 9 stitches between them, worked 4 rows above the eye.",
+      "Eyebrow — 4 stitches long, with 9 stitches between them, worked 4 rounds above the eye.",
       "en",
     );
 
@@ -184,7 +184,7 @@ describe("validateTranslation", () => {
 
   it.each([
     ["The eyebrow is worked 4 rows from the face."],
-    ["Work 4 rows above the face."],
+    ["Work 4 rounds above the face."],
   ])("blocks a missing critical above-eye semantic anchor", (translated) => {
     const result = validateTranslation(
       "gözden 4 sıra üzerinden işliyoruz.",
@@ -202,7 +202,7 @@ describe("validateTranslation", () => {
   it("accepts the critical above-eye semantic anchors", () => {
     const result = validateTranslation(
       "gözden 4 sıra üzerinden işliyoruz.",
-      "Work 4 rows above the eye.",
+      "Work 4 rounds above the eye.",
       "en",
     );
 
@@ -212,7 +212,7 @@ describe("validateTranslation", () => {
   it("blocks a lost eyebrow anchor in a complex placement instruction", () => {
     const result = validateTranslation(
       "Kaş gözden 4 sıra üzerinden işleniyor.",
-      "Work the eyelash 4 rows above the eye.",
+      "Work the eyelash 4 rounds above the eye.",
       "en",
     );
 
@@ -279,7 +279,7 @@ describe("validateTranslation", () => {
   it("preserves all values in an eyebrow instruction", () => {
     const result = validateTranslation(
       "Kaş — 4x uzunluğunda, aralarında 9x kalacak şekilde, gözden 4 sıra üzerinden işliyoruz.",
-      "Embroider the eyebrow 4sc long, leaving 9sc between them, 4 rows above the eye.",
+      "Embroider the eyebrow 4sc long, leaving 9sc between them, 4 rounds above the eye.",
       "en",
     );
 

@@ -22,7 +22,7 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
   it.each([
-    ["en", "4 rows above the eye"],
+    ["en", "4 rounds above the eye"],
     ["es", "4 filas por encima del ojo"],
   ] as const)("normalizes above-eye placement for %s", (language, expected) => {
     expect(
@@ -195,6 +195,15 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it("normalizes the representative-photo notice for pattern instructions", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Fotoğraf temsilidir.",
+        "en",
+      ),
+    ).toBe("The images are for reference only.");
+  });
+
   it("uses insert for amigurumi eye placement verbs", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -202,6 +211,85 @@ describe("normalizeSourceNaturalLanguage", () => {
         "en",
       ),
     ).toBe("we will insert the eyes. we can insert the eyes.");
+  });
+
+  it("normalizes reusable ear sewing and placement instructions", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "1 zincir çekip kafaya dikmek için ipimizi uzun kesiyoruz. Üst kirpikten 6x sayıyoruz ve burayı işaretliyoruz. Aşağı doğru 5x sayıp burayı da işaretliyoruz. Bu 5x üzerinden kulakları dikiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "ch 1. Cut the yarn, leaving a long tail for sewing the ear to the head. Count 6 stitches from the upper eyelash and mark that point. Count 5 stitches downward and mark that point as well. Sew the ears along these 5 stitches.",
+    );
+  });
+
+  it.each([
+    [
+      "Kaş: 5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",
+      "Eyebrow: Embroider the eyebrows 5 stitches long, 10 stitches apart, 3 rounds above the eyes.",
+    ],
+    [
+      "Burun: gözün bir sıra altında 4x üzerinden dolama yöntemi ile işliyoruz.",
+      "Nose: One round below the eyes, embroider over 4 stitches using the wrap-around method.",
+    ],
+    [
+      "Ağız: Toz pastel ile boyadım. (İsterseniz burnun 4 sıra altından, 2x üzerinden işleyebilirsiniz.)",
+      "Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth 4 rounds below the nose over 2 stitches.)",
+    ],
+    [
+      "13-38) 26 sıra 14x  örüyoruz, 1 zincir \nçekip ipimizi kesiyoruz.",
+      "13-38) 26 rounds, 14 sc. Ch 1 and cut the yarn.",
+    ],
+  ])("normalizes a complete crochet instruction: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "Kaş — 5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",
+      "Eyebrow: Embroider the eyebrows 5 stitches long, 10 stitches apart, 3 rounds above the eyes.",
+    ],
+    [
+      "Burun - gözün bir sıra altından, 4x üzerinden dolama yöntemi ile işliyoruz.",
+      "Nose: One round below the eyes, embroider over 4 stitches using the wrap-around method.",
+    ],
+    [
+      "Ağız; Toz pastel ile boyadım. (İsterseniz burnun 4 sıra altından, 2x üzerinden işleyebilirsiniz.)",
+      "Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth 4 rounds below the nose over 2 stitches.)",
+    ],
+  ])("normalizes punctuation and case variants: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",
+      "Embroider the eyebrows 5 stitches long, 10 stitches apart, 3 rounds above the eyes.",
+    ],
+    [
+      "gözün bir sıra altında 4x üzerinden dolama yöntemi ile işliyoruz.",
+      "One round below the eyes, embroider over 4 stitches using the wrap-around method.",
+    ],
+    [
+      "Toz pastel ile boyadım.",
+      "I colored it with soft pastels.",
+    ],
+    [
+      "İsterseniz burnun 4 sıra altından, 2x üzerinden işleyebilirsiniz.",
+      "If you prefer, you can embroider the mouth 4 rounds below the nose over 2 stitches.",
+    ],
+  ])("normalizes split face-detail fragments: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("leaves the new English-specific constructions unchanged in Spanish", () => {
+    const source =
+      "Burun: gözün bir sıra altında 4x üzerinden dolama yöntemi ile işliyoruz.";
+
+    expect(normalizeSourceNaturalLanguage(source, "es")).not.toContain(
+      "Nose:",
+    );
   });
 
 });

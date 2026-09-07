@@ -35,11 +35,11 @@ const SEMANTIC_ANCHORS: readonly SemanticAnchor[] = [
     meaning: "above-eye relationship",
   },
   {
-    id: "row-placement",
+    id: "round-placement",
     source: /gözden\s+\d+\s+sıra\s+üzerinden/iu,
-    en: ["row"],
+    en: ["round"],
     es: ["fila"],
-    meaning: "row placement",
+    meaning: "round placement",
   },
   {
     id: "upper",
