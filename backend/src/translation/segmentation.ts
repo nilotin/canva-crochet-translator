@@ -1,5 +1,5 @@
 import { extractRoundReferences } from "./natural_language/round_references.js";
-import { extractMeasurements } from "./measurements.js";
+import { extractSourceMeasurementSpans } from "./measurements.js";
 import { tokenizeSourceNotation } from "./notation/tokenizer.js";
 
 export const MAX_SEGMENT_CHARS = 500;
@@ -48,7 +48,10 @@ const boundaries = (source: string, kind: "hard" | "soft") => {
     }
     if (character === ";" || character === ",") result.add(index + 1);
   }
-  const measurements = [...extractMeasurements(source), ...extractRoundReferences(source)];
+  const measurements = [
+    ...extractSourceMeasurementSpans(source),
+    ...extractRoundReferences(source),
+  ];
   return [...result].filter((index) => index > 0 && !measurements.some(
     ({ start, end }) => index > start && index < end,
   )).sort((a, b) => a - b);
