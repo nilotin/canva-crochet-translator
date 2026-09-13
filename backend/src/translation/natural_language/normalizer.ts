@@ -111,6 +111,14 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `Ch ${count} and turn`,
     )
     .replace(
+      /\b(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\s*[,，.]?/giu,
+      (_match, count: string) => `Ch ${count} and turn.`,
+    )
+    .replace(
+      /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren(?=\s+\d+\s*x\b)/giu,
+      "Starting from the second chain,",
+    )
+    .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\b/giu,
       "Starting from the second chain",
     )
@@ -159,8 +167,9 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `${count}tr in the same stitch`,
     )
     .replace(
-      /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b/giu,
-      "$1x into the magic ring",
+      /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b(\s*[,，])?/giu,
+      (_match, stitches: string, separator: string | undefined) =>
+        `${stitches}x into the magic ring${separator ? "." : ""}`,
     )
     .replace(
       /\b(\d+)\s+zincir\s+(\d+)\s*x\s+atla\b/giu,
@@ -258,6 +267,49 @@ const normalizeEnglishCrochetStructures = (
       ". Without cutting the yarn, continue by joining the arms",
     )
     .replace(
+      /(^|\n)(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]\s*dan(?=\s)/gimu,
+      (_match, lineStart: string, prefix: string, loop: string) =>
+        `${lineStart}${prefix}In ${loop.toUpperCase()},`,
+    )
+    .replace(
+      /\b(\d+)\s*x\s+örüyoruz\s+ipimizi\s+kesmeden\s+saç\s+telleri\s+ile\s+devam\s+ediyoruz\b/giu,
+      (_match, stitches: string) =>
+        `${stitches}sc. Without cutting the yarn, continue with the hair strands`,
+    )
+    .replace(
+      /\bbaşlangıç\s+noktamız\s+burası\s+olacak\s*[.]\s*[iİ]şaretleyiciyi\s+buraya\s+takıyoruz\b/giu,
+      "This will be the beginning of the round; place a stitch marker here",
+    )
+    .replace(
+      /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc\b/giu,
+      (_match, count: string) =>
+        `skip ${count}x, cc into the next stitch`,
+    )
+    .replace(
+      /[,，]\s*(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,
+      (_match, count: string) =>
+        `. After making ${count} long hair strands, work the bangs`,
+    )
+    .replace(
+      /\b(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,
+      (_match, count: string) =>
+        `After making ${count} long hair strands, work the bangs`,
+    )
+    .replace(
+      /\btoplamda\s+(\d+)\s+tane\s+kahkülümüz\s+olacak\b/giu,
+      (_match, count: string) =>
+        `We will have ${count} bangs in total`,
+    )
+    .replace(
+      /\btoplamda\s+(\d+)\s+tane\s+kahkülümüz\s+olacak[.]\s*tekrar\s+uzun\s+saç\s+tellerini\s+örmeye\s+devam\s+ediyoruz\b/giu,
+      (_match, count: string) =>
+        `We will have ${count} bangs in total. Continue making the long hair strands`,
+    )
+    .replace(
+      /\btekrar\s+uzun\s+saç\s+tellerini\s+örmeye\s+devam\s+ediyoruz\b/giu,
+      "Continue making the long hair strands",
+    )
+    .replace(
       /\bfotoğraf\s+temsilidir\b/giu,
       "The images are for reference only",
     )
@@ -288,6 +340,18 @@ const normalizeToolMaterialIntro = (
       return targetLanguage === "en"
         ? `Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
         : `Con un ganchillo de ${size} mm y hilo ${description} ${brand}, tejemos de la siguiente manera`;
+    },
+  );
+
+  normalized = normalized.replace(
+    /(?<!\p{L})(\d+(?:[.,]\d+)?)\s+(?:numara|no)\s+tığ\s*[,，]\s*(mor)\s+renk\s*\(\s*([^)]+?)\s*\)\s+ip\s+ile\s+örüyoruz(?!\p{L})/giu,
+    (_match, size: string, color: string, brand: string) => {
+      const translatedColor =
+        color.toLocaleLowerCase("tr-TR") === "mor" ? "purple" : color;
+
+      return targetLanguage === "en"
+        ? `Using a ${size} mm crochet hook and ${translatedColor} yarn (${brand.trim()}), work as follows`
+        : `Con un ganchillo de ${size} mm y hilo ${translatedColor} (${brand.trim()}), tejemos de la siguiente manera`;
     },
   );
 

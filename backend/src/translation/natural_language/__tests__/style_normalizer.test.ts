@@ -258,6 +258,42 @@ describe("normalizeTranslationStyle", () => {
     expect(normalizeTranslationStyle(source, input, "en")).toBe(expected);
   });
 
+  it("normalizes continuing with hair strands", () => {
+    expect(
+      normalizeTranslationStyle(
+        "11) 60x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+        "11) 60sc We continue crocheting the hair strands without cutting the yarn.",
+        "en",
+      ),
+    ).toBe(
+      "11) 60sc. Without cutting the yarn, continue with the hair strands.",
+    );
+  });
+
+  it("normalizes a short FLO round", () => {
+    expect(
+      normalizeTranslationStyle(
+        "7) FLO ‘dan (5x, 1v)*6 = 42x",
+        "7) FLO from (5sc, 1inc)*6 = 42sc",
+        "en",
+      ),
+    ).toBe(
+      "7) In FLO, (5sc, 1inc)*6 = 42sc",
+    );
+  });
+
+  it("normalizes a branded color-yarn hook intro", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ 2.20 numara tığ, Mor renk (catania 240) ip ile örüyoruz.",
+        "✦ 2.20 size crochet hook, Purple color (Catania 240) We crochet with yarn.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Using a 2.20 mm crochet hook and purple yarn (catania 240), work as follows.",
+    );
+  });
+
   it("prefers Using for a crochet-hook instruction intro", () => {
     expect(
       normalizeTranslationStyle(
@@ -266,6 +302,42 @@ describe("normalizeTranslationStyle", () => {
         "en",
       ),
     ).toBe("Using a 2.00 mm crochet hook, work as follows.");
+  });
+
+  it("normalizes a finishing hair-strand instruction", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ 46 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 45x, 1x atla, sıradaki sık iğneye cc... bu şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 1 zincir çekip dikiş için ipimizi uzun kesiyoruz.",
+        "✦ Ch 46 and turn, Starting from the second chain 45sc, skip 1sc, the next single crochet SL.ST... we continue in this way until the end of the round. When we reach the end of the round 1 we chain and cut the yarn long for sewing.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
+    );
+  });
+
+  it("normalizes a repeated hair-strand instruction", () => {
+    expect(
+      normalizeTranslationStyle(
+        "(21 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 20x, 1x atla, sıradaki sık iğneye cc)*7",
+        "(21 Chain and turn, Starting from the second chain 20sc, skip 1sc, SL.ST into the next single crochet)*7",
+        "en",
+      ),
+    ).toBe(
+      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, SL.ST into the next stitch)*7",
+    );
+  });
+
+  it("normalizes repeated long hair strands followed by bangs", () => {
+    expect(
+      normalizeTranslationStyle(
+        "12) (46 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 45x, 1x atla sıradaki sık iğneye cc)*3, 3 tane uzun saç teli ördükten sonra kahkülleri öreceğiz.",
+        "12) (Ch 46 and turn, Starting from the second chain 45sc, skip 1sc to the next single crochet SL.ST)*3, 3 After crocheting the long hair strands, we will crochet the bangs.",
+        "en",
+      ),
+    ).toBe(
+      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch)*3. After making 3 long hair strands, work the bangs.",
+    );
   });
 
   it("normalizes a chain-turn foundation instruction with a stitch marker", () => {

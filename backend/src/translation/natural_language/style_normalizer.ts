@@ -150,6 +150,49 @@ const normalizeEnglishCrochetInstructionLine = (
     }
   }
 
+  const finishingHairStrand =
+    /^(\s*(?:[✦◆]\s*)?)(\d+)\s+zincir\s+çekip\s+geriye\s+dönüyoruz\s*[,，]\s*(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc(?:\.\.\.|…)?\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz[.]\s*sıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+dikiş\s+için\s+ipimizi\s+uzun\s+kesiyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (finishingHairStrand) {
+    const [, prefix, chains, stitches, skipped, finalChains] =
+      finishingHairStrand;
+
+    return `${prefix}Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch ${finalChains} and cut the yarn, leaving a long tail for sewing.`;
+  }
+
+  const repeatedHairStrand =
+    /^(\s*(?:\d+\)\s*)?)\(\s*(\d+)\s+zincir\s+çekip\s+geriye\s+dönüyoruz\s*[,，]\s*(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc\s*\)\s*\*\s*(\d+)([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (repeatedHairStrand) {
+    const [, prefix, chains, stitches, skipped, repeats, suffix] =
+      repeatedHairStrand;
+
+    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch)*${repeats}${suffix}`;
+  }
+
+  const repeatedLongHairThenBangs =
+    /^(\s*(?:\d+\)\s*)?)\(\s*(\d+)\s+zincir\s+çekip\s+geriye\s+dönüyoruz\s*[,，]\s*(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*(\d+)\s*x\s+atla\s+sıradaki\s+sık\s+iğneye\s+cc\s*\)\s*\*\s*(\d+)\s*[,，]\s*(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (repeatedLongHairThenBangs) {
+    const [
+      ,
+      prefix,
+      chains,
+      stitches,
+      skipped,
+      repeats,
+      longHairCount,
+    ] = repeatedLongHairThenBangs;
+
+    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch)*${repeats}. After making ${longHairCount} long hair strands, work the bangs.`;
+  }
+
   const chainTurnFoundation =
     /^(\s*(?:\d+\)\s*)?)(\d+)\s+zincir\s+dön\s*[,，]\s*ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*aynı\s+ilmek\s+içine\s+(\d+)\s*x\s*[,，]\s*\(\s*zincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\s*\)\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*v\s*=\s*(\d+)\s*x\s+(?:başlangıç\s+noktamız\s+burası\s+olacak|burası\s+başlangıç\s+noktamız\s+olacak)[.]\s*(?:[iİ]şaretleyiciyi|[iİ]şaretleyicimizi|markeri|markerı)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)[.]?\s*$/iu.exec(
       source,
@@ -334,6 +377,41 @@ const normalizeEnglishCrochetInstructionLine = (
     const end = legStuffingGuidance[3];
 
     return `${bullet}While crocheting the legs, add stuffing every ${start}-${end} rounds. While stuffing, make sure the work does not twist, as shown in the image. (If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.)`;
+  }
+
+  const shortLoopRound =
+    /^(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]?\s*dan\s+([\s\S]+)$/iu.exec(
+      source,
+    );
+
+  if (shortLoopRound) {
+    const loop = shortLoopRound[2]?.toUpperCase();
+    return translated.replace(
+      new RegExp(`^(${shortLoopRound[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})?${loop}\\s+from\\s+`, "iu"),
+      `${shortLoopRound[1]}In ${loop}, `,
+    );
+  }
+
+  const hairStrandContinuation =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s*x\s+örüyoruz\s+ipimizi\s+kesmeden\s+saç\s+telleri\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (hairStrandContinuation) {
+    return `${hairStrandContinuation[1]}${hairStrandContinuation[2]}sc. Without cutting the yarn, continue with the hair strands${hairStrandContinuation[3]}`;
+  }
+
+  const hookWithBrandedColorYarn =
+    /^(\s*✦\s*)?(\d+(?:[.,]\d+)?)\s+(?:numara|no)\s+tığ\s*[,，]\s*mor\s+renk\s*\(\s*([^)]+?)\s*\)\s+ip\s+ile\s+örüyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (hookWithBrandedColorYarn) {
+    const bullet = hookWithBrandedColorYarn[1] ? "✦ " : "";
+    const size = hookWithBrandedColorYarn[2];
+    const brand = hookWithBrandedColorYarn[3]?.trim();
+
+    return `${bullet}Using a ${size} mm crochet hook and purple yarn (${brand}), work as follows.`;
   }
 
   const hookAndStartingYarn =

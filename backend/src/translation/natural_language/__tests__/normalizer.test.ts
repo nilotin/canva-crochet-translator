@@ -147,6 +147,17 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  it("normalizes a hook intro with color and parenthesized yarn brand", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 numara tığ, Mor renk (catania 240) ip ile örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Using a 2.20 mm crochet hook and purple yarn (catania 240), work as follows.",
+    );
+  });
+
   it("normalizes a simple hook intro", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -186,6 +197,10 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
   it.each([
+    [
+      "Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+      "6x into the magic ring. This will be the beginning of the round; place a stitch marker here.",
+    ],
     ["12 sıra 66x", "12 rounds, 66x"],
     ["3 sıra 78x", "3 rounds, 78x"],
     ["Sihirli halka içine 6x", "6x into the magic ring"],
@@ -210,6 +225,75 @@ describe("normalizeSourceNaturalLanguage", () => {
     ["aynı zincir içine 3x", "3sc in the same chain"],
     ["aynı sık iğne içine 3tr", "3tr in the same stitch"],
   ])("normalizes reusable foot and leg phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes bangs count followed by long-hair continuation", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Toplamda 7 tane kahkülümüz olacak. Tekrar uzun saç tellerini örmeye devam ediyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "We will have 7 bangs in total. Continue making the long hair strands.",
+    );
+  });
+
+  it("normalizes a total bangs count", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Toplamda 7 tane kahkülümüz olacak.",
+        "en",
+      ),
+    ).toBe("We will have 7 bangs in total.");
+  });
+
+  it("turns a comma-separated hair transition into a sentence boundary", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        ", 3 tane uzun saç teli ördükten sonra kahkülleri öreceğiz.",
+        "en",
+      ),
+    ).toBe(
+      ". After making 3 long hair strands, work the bangs.",
+    );
+  });
+
+  it.each([
+    [
+      "1x atla sıradaki sık iğneye cc",
+      "skip 1x, cc into the next stitch",
+    ],
+    [
+      "3 tane uzun saç teli ördükten sonra kahkülleri öreceğiz.",
+      "After making 3 long hair strands, work the bangs.",
+    ],
+  ])("normalizes reusable hair-strand phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "46 zincir çekip geriye dönüyoruz,",
+      "Ch 46 and turn.",
+    ],
+    [
+      "21 zincir çekip geriye dönüyoruz.",
+      "Ch 21 and turn.",
+    ],
+    [
+      "zincir üzerine ikinci zincirden itibaren 45x",
+      "Starting from the second chain, 45x",
+    ],
+    [
+      "ikinci zincirden itibaren 20x",
+      "Starting from the second chain, 20x",
+    ],
+    [
+      "1x atla, sıradaki sık iğneye cc",
+      "skip 1x, cc into the next stitch",
+    ],
+  ])("normalizes reusable chain-turn hair-strand phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
@@ -270,6 +354,10 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
   it.each([
+    [
+      "Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+      "This will be the beginning of the round; place a stitch marker here.",
+    ],
     [
       "Bu bizim başlangıç noktamız olacak, işaretleyiciyi buraya takıyoruz.",
       "This will be the beginning of the round; place a stitch marker here.",
@@ -390,6 +478,24 @@ describe("normalizeSourceNaturalLanguage", () => {
       ),
     ).toBe(
       "15-29) 15 rounds, 42x. Without cutting the yarn, continue by joining the arms.",
+    );
+  });
+
+  it.each([
+    ["FLO ‘dan (5x, 1v)*6 = 42x", "In FLO, (5x, 1v)*6 = 42x"],
+    ["BLO'dan (5x, 1v)*6 = 42x", "In BLO, (5x, 1v)*6 = 42x"],
+  ])("normalizes short loop-origin phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes continuing with hair strands without cutting the yarn", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "60x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "60sc. Without cutting the yarn, continue with the hair strands.",
     );
   });
 

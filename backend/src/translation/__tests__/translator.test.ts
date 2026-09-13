@@ -868,6 +868,40 @@ describe("translateBlocks provider boundary", () => {
     );
   });
 
+  it("preserves slip-stitch notation across Canva formatting-unit boundaries", async () => {
+    const provider = new InspectingProvider();
+    const source = "1x atla, sıradaki sık iğneye cc";
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-slip-stitch",
+          text: source,
+          formattingRegions: [
+            {
+              id: "fmt-0",
+              start: 0,
+              end: "1x atla, ".length,
+            },
+            {
+              id: "fmt-1",
+              start: "1x atla, ".length,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("1sc");
+    expect(result?.translated).toContain("SL.ST");
+    expect(result?.translated).not.toMatch(/\bsl\s+st\b/iu);
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
   it("returns projected formatting regions for mixed notation and prose", async () => {
     const provider = new StubProvider({
       translations: [
@@ -1348,6 +1382,246 @@ describe("crochet instruction phrasing", () => {
       "1) Ch 8 and turn. Starting from the second chain, 1inc, 5sc, 4sc in the same chain (continue along the other side of the chain), 5sc, 1inc = 18sc. This will be the beginning of the round; place a stitch marker here.",
     );
     expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes the Page 11 finishing hair-strand instruction through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-finishing-hair-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-finishing-hair-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-finishing-hair",
+          text:
+            "✦ 46 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 45x, 1x atla, sıradaki sık iğneye cc... bu şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 1 zincir çekip dikiş için ipimizi uzun kesiyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes the Page 11 total-bangs sentence through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-total-bangs-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-total-bangs-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-total-bangs",
+          text: "Toplamda 7 tane kahkülümüz olacak.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "We will have 7 bangs in total.",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes the repeated Page 11 hair-strand instruction through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-repeated-hair-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-repeated-hair-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-repeated-hair",
+          text:
+            "(21 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 20x, 1x atla, sıradaki sık iğneye cc)*7",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, SL.ST into the next stitch)*7",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes the Page 11 long-hair to bangs instruction through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-long-hair-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-long-hair-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-long-hair",
+          text:
+            "12) (46 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden itibaren 45x, 1x atla sıradaki sık iğneye cc)*3, 3 tane uzun saç teli ördükten sonra kahkülleri öreceğiz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch)*3. After making 3 long hair strands, work the bangs.",
+    );
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes the complete Page 11 wig block through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-wig-block-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-wig-block-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-wig-block",
+          text:
+            "✦ 2.20 numara tığ, Mor renk (catania 240) ip ile örüyoruz.\n1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.\n2) 6v = 12x\n3) (1x, 1v)*6 = 18x\n4) (2x, 1v)*6 = 24x\n5) (3x, 1v)*6 = 30x\n6) (4x, 1v)*6 = 36x\n7) FLO ‘dan (5x, 1v)*6 = 42x\n8) (6x, 1v)*6 = 48x\n9)  (7x, 1v)*6 = 54x\n10) (8x, 1v)*6 = 60x\n11) 60x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "✦ Using a 2.20 mm crochet hook and purple yarn (catania 240), work as follows.\n1) 6sc into the magic ring. This will be the beginning of the round; place a stitch marker here.\n2) 6inc = 12sc\n3) (1sc, 1inc)*6 = 18sc\n4) (2sc, 1inc)*6 = 24sc\n5) (3sc, 1inc)*6 = 30sc\n6) (4sc, 1inc)*6 = 36sc\n7) In FLO, (5sc, 1inc)*6 = 42sc\n8) (6sc, 1inc)*6 = 48sc\n9)  (7sc, 1inc)*6 = 54sc\n10) (8sc, 1inc)*6 = 60sc\n11) 60sc. Without cutting the yarn, continue with the hair strands.",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes the Page 11 branded-color hook intro through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page11-hook-intro-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page11-hook-intro-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page11-hook-intro",
+          text:
+            "✦ 2.20 numara tığ, Mor renk (catania 240) ip ile örüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "✦ Using a 2.20 mm crochet hook and purple yarn (catania 240), work as follows.",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
   });
 
   it("normalizes Page 9 arm-joining terminology through the full pipeline", async () => {
