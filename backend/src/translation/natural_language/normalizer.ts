@@ -505,6 +505,11 @@ const normalizeEnglishCrochetStructures = (
         `skip ${count}x, cc into the next stitch`,
     )
     .replace(
+      /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*\)/giu,
+      (_match, chains: string) =>
+        `(ch ${chains}, cc into the next single crochet)`,
+    )
+    .replace(
       /\bsıradaki\s+sık\s+iğneye\s+cc\b/giu,
       "cc into the next single crochet",
     )
@@ -586,6 +591,44 @@ const normalizeEnglishCrochetStructures = (
           `${imageReference ? " as shown in the image" : ""} ` +
           `(because the base was turned inside out, the FLO loops remained on the inside), ` +
           `then work ${stitches}x`
+        );
+      },
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s+)?(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s*[,，]?\s*(?:(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+)?ipimizi\s+sabitliyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        imageReference: string | undefined,
+        round: string,
+        workedLoop: string,
+        attachmentLoop: string,
+        colorSource: string | undefined,
+      ) => {
+        const colors: Record<string, string> = {
+          yeşil: "green",
+          siyah: "black",
+          beyaz: "white",
+          kırmızı: "red",
+          mavi: "blue",
+          sarı: "yellow",
+          mor: "purple",
+          turuncu: "orange",
+          pembe: "pink",
+          kahverengi: "brown",
+          gri: "gray",
+          ekru: "ecru",
+        };
+
+        const color = colorSource
+          ? colors[colorSource.toLocaleLowerCase("tr-TR")]
+          : undefined;
+        const yarnPhrase = color ? `the ${color} yarn` : "the yarn";
+
+        return (
+          `${prefix}Attach ${yarnPhrase} to the ${attachmentLoop.toUpperCase()} ` +
+          `of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}` +
+          `${imageReference ? " as shown in the image" : ""}`
         );
       },
     )

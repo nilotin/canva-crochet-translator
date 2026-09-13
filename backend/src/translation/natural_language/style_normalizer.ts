@@ -166,18 +166,19 @@ const normalizeEnglishCrochetInstructionLine = (
   }
 
   const nestedRoundLoopAttachment =
-    /^(\s*(?:\d+\)\s*)?)(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s*[,，]?\s*(?:(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+)?ipimizi\s+sabitliyoruz[.]?/iu.exec(
+    /^(\s*(?:[✦◆]\s*)?(?:\d+\)\s*)?)(?:(görselde\s+görüldüğü\s+gibi)\s+)?(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s*[,，]?\s*(?:(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+)?ipimizi\s+sabitliyoruz[.]?/iu.exec(
       source,
     );
 
   if (nestedRoundLoopAttachment) {
     const prefix = nestedRoundLoopAttachment[1] ?? "";
-    const round = nestedRoundLoopAttachment[2] ?? "";
-    const workedLoop = nestedRoundLoopAttachment[3]?.toUpperCase() ?? "";
+    const imageReference = nestedRoundLoopAttachment[2];
+    const round = nestedRoundLoopAttachment[3] ?? "";
+    const workedLoop = nestedRoundLoopAttachment[4]?.toUpperCase() ?? "";
     const attachmentLoop =
-      nestedRoundLoopAttachment[4]?.toUpperCase() ?? "";
+      nestedRoundLoopAttachment[5]?.toUpperCase() ?? "";
     const colorSource =
-      nestedRoundLoopAttachment[5]?.toLocaleLowerCase("tr-TR") ?? "";
+      nestedRoundLoopAttachment[6]?.toLocaleLowerCase("tr-TR") ?? "";
     const yarnColor = colorSource
       ? TURKISH_YARN_COLORS[colorSource] ?? ""
       : "";
@@ -217,7 +218,7 @@ const normalizeEnglishCrochetInstructionLine = (
 
     const yarnPhrase = yarnColor ? `the ${yarnColor} yarn` : "the yarn";
     const normalizedOpening =
-      `${prefix}Attach ${yarnPhrase} to the ${attachmentLoop} of the single crochet stitches worked in the ${workedLoop} of Round ${round}.`;
+      `${prefix}Attach ${yarnPhrase} to the ${attachmentLoop} of the single crochet stitches worked in the ${workedLoop} of Round ${round}${imageReference ? " as shown in the image" : ""}.`;
 
     return translatedRemainder
       ? `${normalizedOpening} ${translatedRemainder}`

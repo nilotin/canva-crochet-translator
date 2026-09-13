@@ -43,6 +43,38 @@ class InspectingProvider implements TranslationProvider {
   }
 }
 
+// Mimics a real (imperfect) LLM translation provider: unlike
+// InspectingProvider (a pure echo, which can never expose an
+// output-splicing bug because it never restructures anything), this
+// stub returns a plausible mistranslation for the unnormalized Turkish
+// round-first loop-attachment clause -- structurally similar to what a
+// live OpenAI call actually produced for this construction (duplicated
+// semantic content, no shared sentence/period boundary with the
+// source). It exists to catch a regression where that raw clause is
+// ever allowed to reach a translation provider again instead of being
+// resolved deterministically beforehand. Every other block/span is
+// echoed back unchanged, exactly like InspectingProvider.
+class DuplicateOpeningProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => {
+        if (/sabitliyoruz/iu.test(text) && /sıra(?:da|nın)/iu.test(text)) {
+          return {
+            id,
+            translated:
+              "As shown in the image in Round 5 FLO single crochets worked from BLO we secure our green yarn through",
+          };
+        }
+        return { id, translated: text };
+      }),
+    };
+  }
+}
+
 class HookBoundaryProvider extends InspectingProvider {
   override async translate(
     request: Parameters<TranslationProvider["translate"]>[0],
@@ -2544,6 +2576,147 @@ describe("crochet instruction phrasing", () => {
       "✦ Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
     );
     expect(slipStitchResult?.valid).toBe(true);
+  });
+
+  it("keeps an image-referenced round-first loop attachment atomic across formatting boundaries", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "✦ Görselde görüldüğü gibi 5. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan yeşil ipimizi sabitliyoruz. " +
+      "(1 zincir, sıradaki sık iğneye cc)*32, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const boundary = source.indexOf("BLO") + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-round-first-image-loop-attachment",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
+    );
+    expect(result?.translated).toContain(
+      "(ch 1, SL.ST into the next single crochet)*32",
+    );
+
+    expect(
+      result?.translated.match(/Round 5/gu) ?? [],
+    ).toHaveLength(1);
+
+    expect(
+      result?.translated.match(/\bFLO\b/gu) ?? [],
+    ).toHaveLength(1);
+
+    expect(
+      result?.translated.match(/\bBLO\b/gu) ?? [],
+    ).toHaveLength(1);
+
+    expect(result?.translated).not.toContain("we secure");
+    expect(result?.translated).not.toContain("fasten off");
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  // LIVE REGRESSION: reproduces the actual reported Canva bug, where the
+  // deterministic semantic opening was emitted once and then a
+  // provider-derived rendering of the same relation was appended a
+  // second time. InspectingProvider (a pure echo) cannot expose this --
+  // it never restructures the sentence, so any "cut the provider output
+  // at its first period" splice happens to land correctly by accident.
+  // DuplicateOpeningProvider stands in for a real LLM call that does not
+  // preserve that structure. This test fails before the fix (the
+  // unnormalized clause reaches the provider and its garbled output gets
+  // spliced onto the deterministic opening) and passes after it (the
+  // clause is fully resolved before any provider call, so the trap
+  // provider is never invoked for it).
+  it("does not duplicate the semantic opening when a real provider restructures the round-first loop attachment (live regression)", async () => {
+    const provider = new DuplicateOpeningProvider();
+    const source =
+      "✦ Görselde görüldüğü gibi 5. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan yeşil ipimizi sabitliyoruz. " +
+      "(1 zincir, sıradaki sık iğneye cc)*32, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "live-round-first-loop-attachment",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: 2 },
+            { id: "fmt-1", start: 2, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
+    );
+    expect(result?.translated).toContain(
+      "(ch 1, SL.ST into the next single crochet)*32",
+    );
+    expect(result?.translated).toContain("cut the yarn");
+
+    expect(result?.translated.match(/Round 5/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bFLO\b/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bBLO\b/gu) ?? []).toHaveLength(1);
+    expect(
+      result?.translated.match(/as shown in the image/gu) ?? [],
+    ).toHaveLength(1);
+
+    expect(result?.translated).not.toContain("we secure");
+    expect(result?.translated).not.toContain("fasten off");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+
+    // The unnormalized Turkish clause must never reach a translation
+    // provider at all -- it is fully resolved deterministically first.
+    for (const request of provider.requests) {
+      for (const block of request.blocks) {
+        expect(block.text).not.toMatch(/sabitliyoruz/iu);
+      }
+    }
+  });
+
+  it("normalizes an image-referenced round-first loop attachment through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi 5. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan yeşil ipimizi sabitliyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-image-referenced-loop-attachment", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
+    );
+
+    expect(result?.translated).not.toContain("fasten off");
+    expect(result?.translated).not.toContain("we secure");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
   });
 
   it("normalizes generic slip-stitch and next-stitch phrasing through the full pipeline", async () => {

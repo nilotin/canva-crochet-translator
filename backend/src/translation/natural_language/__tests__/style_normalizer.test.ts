@@ -119,6 +119,30 @@ describe("normalizeTranslationStyle", () => {
     },
   );
 
+  it("preserves an image reference in round-first loop attachment phrasing", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ Görselde görüldüğü gibi 5. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan yeşil ipimizi sabitliyoruz.",
+        "As shown in the image in Round 5 FLO of the single crochets we worked from BLO we fasten off our green yarn from.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
+    );
+  });
+
+  it("keeps round-first loop attachment output unchanged without an image reference", () => {
+    expect(
+      normalizeTranslationStyle(
+        "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan, yeşil ipimizi sabitliyoruz.",
+        "in Round 18 BLO stitches worked FLO secure green yarn.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    );
+  });
+
   it("accepts a comma before the colored yarn in loop attachment phrasing", () => {
     expect(
       normalizeTranslationStyle(

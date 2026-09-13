@@ -569,6 +569,19 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "(1 zincir, sıradaki sık iğneye cc)*32",
+      "(ch 1, cc into the next single crochet)*32",
+    ],
+    [
+      "(2 zincir, sıradaki sık iğneye cc)*8",
+      "(ch 2, cc into the next single crochet)*8",
+    ],
+  ])("normalizes repeated chain and slip-stitch phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
       "(3 zincir, sıradaki sık iğneye 1x)*12",
       "(ch 3, 1x in the next single crochet)*12",
     ],
@@ -764,6 +777,49 @@ describe("normalizeSourceNaturalLanguage", () => {
       ),
     ).toBe(
       "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+  });
+
+  // Round-first referenced-loop attachment ("N. sırada FLO/BLO... ipimizi
+  // sabitliyoruz") -- the mirror image, word-order-wise, of the
+  // yarn-first family above. Generic across round, loop order, optional
+  // color, optional image reference, and (via the caller) a leading
+  // decorative bullet -- see the live-source coverage in
+  // atomic_spans.test.ts and translator.test.ts.
+  it("normalizes a round-first referenced-loop attachment with an image reference and yarn color", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi 5. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan yeşil ipimizi sabitliyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
+    );
+  });
+
+  it("normalizes a round-first referenced-loop attachment without an image reference or color", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan ipimizi sabitliyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    );
+  });
+
+  it("never reverses the attachment and worked loops for a round-first referenced-loop attachment", () => {
+    // "N. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan ... sabitliyoruz"
+    // means: worked loop = FLO, attachment loop = BLO. Swapping FLO/BLO in
+    // the source must swap them (not just re-render the same order) in the
+    // output.
+    expect(
+      normalizeSourceNaturalLanguage(
+        "12. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the black yarn to the FLO of the single crochet stitches worked in the BLO of Round 12.",
     );
   });
 
