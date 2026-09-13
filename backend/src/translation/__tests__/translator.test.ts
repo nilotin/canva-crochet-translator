@@ -1183,6 +1183,97 @@ describe("translateBlocks provider boundary", () => {
 });
 
 describe("crochet instruction phrasing", () => {
+
+  it("normalizes reference-image embroidery phrasing through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page4-embroidery-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id }) => ({
+            id,
+            translated:
+              "We can embroider the eyelashes by referring to the image.",
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page4-embroidery-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page4-eyelashes",
+          text: "Kirpikleri görsele bakarak işleyebiliriz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Embroider the eyelashes following the reference image.",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes directional ear placement through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page4-ear-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated:
+              text === "Count"
+                ? "Count"
+                : text === "stitches from the end of the eyelashes. Work"
+                  ? "stitches from the end of the eyelashes. Crochet"
+                  : text === "sc"
+                    ? "sc"
+                    : text ===
+                        "sc from top to bottom. Work the other ear in the same way"
+                      ? "sc from top to bottom. Crochet the other ear in the same way"
+                      : text === "from bottom to top."
+                        ? "from bottom to top."
+                        : text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page4-ear-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page4-ear",
+          text:
+            "Kirpik bitiminden 4x sayıyoruz, 1x, 3dc, 1x yukarıdan aşağı doğru örüyoruz. Diğer kulağı da aynı şekilde aşağıdan yukarı doğru örüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Count 4 stitches from the end of the eyelashes. Work 1sc, 3dc, 1sc from top to bottom. Work the other ear in the same way, from bottom to top.",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
   it.each([
     [
       "Kaş: 5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",

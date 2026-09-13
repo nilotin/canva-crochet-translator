@@ -289,6 +289,44 @@ export const normalizeSourceNaturalLanguage = (
     targetLanguage,
   )
     .replace(
+      /\b(kaşları\s+ve\s+)?kirpikleri\s+görsele\s+bakarak\s+işleyebiliriz\b/giu,
+      (_match, eyebrowsPrefix: string | undefined) =>
+        eyebrowsPrefix
+          ? targetPhrase(
+              targetLanguage,
+              "Embroider the eyebrows and eyelashes following the reference image",
+              "Borda las cejas y las pestañas siguiendo la imagen de referencia",
+            )
+          : targetPhrase(
+              targetLanguage,
+              "Embroider the eyelashes following the reference image",
+              "Borda las pestañas siguiendo la imagen de referencia",
+            ),
+    )
+    .replace(
+      /kirpik\s+bitiminden\s+(\d+)\s*x\s+sayıyoruz\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*dc\s*[,，]\s*(\d+)\s*x\s+yukarıdan\s+aşağı\s+doğru\s+örüyoruz\b/giu,
+      (
+        _match,
+        offset: string,
+        firstSc: string,
+        dc: string,
+        lastSc: string,
+      ) =>
+        targetPhrase(
+          targetLanguage,
+          `Count ${offset} ${offset === "1" ? "stitch" : "stitches"} from the end of the eyelashes. Work ${firstSc}sc, ${dc}dc, ${lastSc}sc from top to bottom`,
+          `Cuenta ${offset} ${offset === "1" ? "punto" : "puntos"} desde el final de las pestañas. Teje ${firstSc} pb, ${dc} pa, ${lastSc} pb de arriba hacia abajo`,
+        ),
+    )
+    .replace(
+      /diğer\s+kulağı\s+da\s+aynı\s+şekilde\s+aşağıdan\s+yukarı\s+doğru\s+örüyoruz\b/giu,
+      targetPhrase(
+        targetLanguage,
+        "Work the other ear in the same way, from bottom to top",
+        "Teje la otra oreja de la misma manera, de abajo hacia arriba",
+      ),
+    )
+    .replace(
       /(\d+)\s+zincir\s+çekip\s+kafaya\s+dikmek\s+için\s+ipimizi\s+uzun\s+kesiyoruz\b/giu,
       (_match, count: string) =>
         targetPhrase(

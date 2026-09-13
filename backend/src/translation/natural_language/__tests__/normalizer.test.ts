@@ -240,6 +240,33 @@ describe("normalizeSourceNaturalLanguage", () => {
     ).toBe("we will insert the eyes. we can insert the eyes.");
   });
 
+  it.each([
+    [
+      "Kirpikleri görsele bakarak işleyebiliriz.",
+      "Embroider the eyelashes following the reference image.",
+    ],
+    [
+      "Kaşları ve kirpikleri görsele bakarak işleyebiliriz.",
+      "Embroider the eyebrows and eyelashes following the reference image.",
+    ],
+  ])(
+    "normalizes reference-image embroidery phrasing: %s",
+    (source, expected) => {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+    },
+  );
+
+  it("normalizes directional ear placement from the eyelash edge", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Kirpik bitiminden 4x sayıyoruz, 1x, 3dc, 1x yukarıdan aşağı doğru örüyoruz. Diğer kulağı da aynı şekilde aşağıdan yukarı doğru örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Count 4 stitches from the end of the eyelashes. Work 1sc, 3dc, 1sc from top to bottom. Work the other ear in the same way, from bottom to top.",
+    );
+  });
+
   it("normalizes reusable ear sewing and placement instructions", () => {
     expect(
       normalizeSourceNaturalLanguage(

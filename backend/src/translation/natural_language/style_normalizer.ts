@@ -180,6 +180,61 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${leading}(we will insert the eyes into these chain spaces later)${trailing}`;
   }
 
+  const referenceImageEmbroidery =
+    /^\s*(?:✦\s*)?(kaşları\s+ve\s+)?kirpikleri\s+görsele\s+bakarak\s+işleyebiliriz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (referenceImageEmbroidery) {
+    const leading = source.match(/^\s*(?:✦\s*)?/u)?.[0] ?? "";
+    const prefix = leading.includes("✦") ? "✦ " : "";
+
+    return referenceImageEmbroidery[1]
+      ? `${prefix}Embroider the eyebrows and eyelashes following the reference image.`
+      : `${prefix}Embroider the eyelashes following the reference image.`;
+  }
+
+  const completeDirectionalEarPlacement =
+    /^\s*(?:✦\s*)?(?:kulak\s*[-–—]\s*)?kirpik\s+bitiminden\s+(\d+)\s*x\s+sayıyoruz\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*dc\s*[,，]\s*(\d+)\s*x\s+yukarıdan\s+aşağı\s+doğru\s+örüyoruz[.]\s*diğer\s+kulağı\s+da\s+aynı\s+şekilde\s+aşağıdan\s+yukarı\s+doğru\s+örüyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (completeDirectionalEarPlacement) {
+    const [, offset, firstSc, dc, lastSc] =
+      completeDirectionalEarPlacement;
+
+    const leadingBullet = /^\s*✦/u.test(source) ? "✦ " : "";
+    const earPrefix = /\bkulak\s*[-–—]/iu.test(source)
+      ? "Ear - "
+      : "";
+    const stitchWord =
+      Number(offset) === 1 ? "stitch" : "stitches";
+
+    return `${leadingBullet}${earPrefix}Count ${offset} ${stitchWord} from the end of the eyelashes. Work ${firstSc}sc, ${dc}dc, ${lastSc}sc from top to bottom. Work the other ear in the same way, from bottom to top.`;
+  }
+
+  const directionalEarPlacement =
+    /^\s*(?:✦\s*)?(?:kulak\s*[-–—]\s*)?kirpik\s+bitiminden\s+(\d+)\s*x\s+sayıyoruz\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*dc\s*[,，]\s*(\d+)\s*x\s+yukarıdan\s+aşağı\s+doğru\s+örüyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (directionalEarPlacement) {
+    const [, offset, firstSc, dc, lastSc] = directionalEarPlacement;
+    const leadingBullet = /^\s*✦/u.test(source) ? "✦ " : "";
+    const earPrefix = /\bkulak\s*[-–—]/iu.test(source) ? "Ear - " : "";
+    const stitchWord = Number(offset) === 1 ? "stitch" : "stitches";
+
+    return `${leadingBullet}${earPrefix}Count ${offset} ${stitchWord} from the end of the eyelashes. Work ${firstSc}sc, ${dc}dc, ${lastSc}sc from top to bottom.`;
+  }
+
+  if (
+    /^\s*diğer\s+kulağı\s+da\s+aynı\s+şekilde\s+aşağıdan\s+yukarı\s+doğru\s+örüyoruz[.]?\s*$/iu.test(
+      source,
+    )
+  ) {
+    return "Work the other ear in the same way, from bottom to top.";
+  }
+
   if (isStitchMarkerInstruction(source)) {
     const marker = source.match(/^\s*(?:\d+\)\s*)?/u)?.[0] ?? "";
     return `${marker}${STITCH_MARKER_INSTRUCTION}`;
