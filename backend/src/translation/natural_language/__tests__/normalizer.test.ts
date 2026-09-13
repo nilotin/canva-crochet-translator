@@ -707,6 +707,68 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "Yine bütün sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
+      "At the end of each round, join with cc, ch 1, and continue to the next round.",
+    ],
+  ])("normalizes repeated round-end joining phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes yarn-first referenced-loop attachment with counted work", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi yeşil ipimizi, 9. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan (tabanın ters yüzünü çevirdiğimiz için flo’lar iç kısımda kaldı) sabitliyoruz, 32x.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image (because the base was turned inside out, the FLO loops remained on the inside), then work 32x.",
+    );
+  });
+
+  it("normalizes slip stitches over referenced-round single crochets", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi, 9. sırada BLO’dan ördüğümüz sık iğnelerin üzerine yeşil ipimiz ile ilmek kaydırma yapıyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+  });
+
+  // Reproduces the exact live Canva source text for this construction
+  // (captured from a real translated page), which differs from the
+  // hand-typed fixture above in two ways real authored text commonly
+  // varies: a stray space before an apostrophe-attached suffix ("flo’
+  // lar" instead of "flo’lar"), and lowercase Blo/Flo casing.
+  it("normalizes yarn-first referenced-loop attachment despite a stray space before the apostrophe-suffixed word", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi yeşil ipimizi, 9. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan (tabanın ters yüzünü çevirdiğimiz için flo’ lar iç kısımda kaldı) sabitliyoruz, 32x.",
+        "en",
+      ),
+    ).toBe(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image (because the base was turned inside out, the FLO loops remained on the inside), then work 32x.",
+    );
+  });
+
+  // Reproduces the exact live Canva source text for this construction:
+  // the postposition "ile" attached directly to the noun as the suffix
+  // "-le" ("ipimizle"), a standard Turkish grammatical variant of the
+  // separate-word form ("ipimiz ile") used in the fixture above.
+  it("normalizes slip stitches over referenced-round single crochets when the postposition is suffixed onto the noun", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi, 9. sırada Blo’dan ördüğümüz sık iğnelerin üzerine yeşil ipimizle ilmek kaydırma yapıyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+  });
+
+  it.each([
+    [
       "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
       "At the end of each round, join with cc, ch 1, and continue to the next round.",
     ],

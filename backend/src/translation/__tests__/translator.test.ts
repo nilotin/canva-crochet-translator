@@ -1012,6 +1012,70 @@ describe("translateBlocks provider boundary", () => {
     );
   });
 
+  it("uses atomic translation when formatting bisects a referenced-loop attachment", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi yeşil ipimizi, 9. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan " +
+      "(tabanın ters yüzünü çevirdiğimiz için flo’lar iç kısımda kaldı) sabitliyoruz, 32x.";
+
+    const boundary = source.indexOf("BLO") + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-referenced-loop-attachment",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image",
+    );
+    expect(result?.translated).toContain(
+      "(because the base was turned inside out, the FLO loops remained on the inside), then work 32sc.",
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("uses atomic translation when formatting bisects referenced surface slip-stitch work", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi, 9. sırada BLO’dan ördüğümüz sık iğnelerin üzerine yeşil ipimiz ile ilmek kaydırma yapıyoruz.";
+
+    const boundary = source.indexOf("yeşil") + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-referenced-surface-work",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
   it("preserves slip-stitch notation across Canva formatting-unit boundaries", async () => {
     const provider = new InspectingProvider();
     const source = "1x atla, sıradaki sık iğneye cc";
@@ -2398,6 +2462,88 @@ describe("crochet instruction phrasing", () => {
     expect(codes).not.toContain("NUMBER_MISMATCH");
     expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
     expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes referenced-loop attachment and surface slip stitches through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi yeşil ipimizi, 9. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan " +
+      "(tabanın ters yüzünü çevirdiğimiz için flo’lar iç kısımda kaldı) sabitliyoruz, 32x. " +
+      "Yine bütün sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.\n" +
+      "Görselde görüldüğü gibi, 9. sırada BLO’dan ördüğümüz sık iğnelerin üzerine yeşil ipimiz ile ilmek kaydırma yapıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-referenced-loop-surface-work", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image",
+    );
+    expect(result?.translated).toContain(
+      "(because the base was turned inside out, the FLO loops remained on the inside), then work 32sc.",
+    );
+    expect(result?.translated).toContain(
+      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+    );
+    expect(result?.translated).toContain(
+      "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+
+    expect(result?.translated).not.toContain("Again, all At the end");
+    expect(result?.translated).not.toContain("we secure");
+    expect(result?.translated).not.toContain("we made from");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("PARENTHESES_MISMATCH");
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  // Reproduces the exact live Canva source text for these two blocks
+  // (captured from a real translated page), verbatim. This is the actual
+  // input that reached the backend and failed to normalize live even
+  // though the hand-typed fixtures above (identical Turkish content,
+  // but tidied spacing/casing) passed. It differs from the fixtures in
+  // two ways real authored text varies: a stray space before an
+  // apostrophe-attached suffix ("flo’ lar" instead of "flo’lar"), and the
+  // "ile" postposition suffixed directly onto its noun ("ipimizle")
+  // instead of written as a separate word ("ipimiz ile").
+  it("normalizes referenced-loop attachment and surface slip stitches from real Canva source text with authoring variance", async () => {
+    const provider = new InspectingProvider();
+    const block1 =
+      "10) Görselde görüldüğü gibi yeşil ipimizi, 9. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan (tabanın ters yüzünü çevirdiğimiz için flo’ lar iç kısımda kaldı) sabitliyoruz, 32x. Yine bütün sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.";
+    const block3 =
+      "✦ Görselde görüldüğü gibi, 9. sırada Blo’dan ördüğümüz sık iğnelerin üzerine yeşil ipimizle ilmek kaydırma yapıyoruz.";
+
+    const [attachResult, slipStitchResult] = await translateBlocks(
+      [
+        { id: "live-page22-block1", text: block1 },
+        { id: "live-page22-block3", text: block3 },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(attachResult?.translated).toContain(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image",
+    );
+    expect(attachResult?.translated).toContain(
+      "(because the base was turned inside out, the FLO loops remained on the inside), then work 32sc.",
+    );
+    expect(attachResult?.translated).toContain(
+      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+    );
+    expect(attachResult?.translated).not.toContain("we secure");
+    expect(attachResult?.valid).toBe(true);
+
+    expect(slipStitchResult?.translated).toBe(
+      "✦ Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+    );
+    expect(slipStitchResult?.valid).toBe(true);
   });
 
   it("normalizes generic slip-stitch and next-stitch phrasing through the full pipeline", async () => {

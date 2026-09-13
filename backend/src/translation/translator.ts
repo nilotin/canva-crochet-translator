@@ -1,5 +1,6 @@
 import { extractRoundReferences, renderRoundReference } from "./natural_language/round_references.js";
 import { extractSourceMeasurementSpans } from "./measurements.js";
+import { extractSourceAtomicNaturalLanguageSpans } from "./natural_language/atomic_spans.js";
 import { normalizeSourceNaturalLanguage } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
@@ -373,7 +374,12 @@ const translateFormattingUnits = async (
   // Use the existing whole-block fallback when a supplied boundary bisects it.
   const protectedSpans = [
     ...extractSourceMeasurementSpans(block.text),
-    ...(contentKind === "pattern" ? extractRoundReferences(block.text) : []),
+    ...(contentKind === "pattern"
+      ? [
+          ...extractRoundReferences(block.text),
+          ...extractSourceAtomicNaturalLanguageSpans(block.text),
+        ]
+      : []),
   ];
   if (block.formattingRegions?.some(({ start, end }) => protectedSpans.some(
     (span) => (start > span.start && start < span.end) ||

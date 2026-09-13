@@ -260,7 +260,7 @@ const normalizeEnglishCrochetStructures = (
         `${prefix}Join to the starting point with ${stitch}${imageReference ? " as shown in the image" : ""}`,
     )
     .replace(
-      /(^|[^\p{L}\p{N}_])sıra\s+sonlarında\s+(cc|x|dc|tr)\s+ile\s+birleştirip\s*[,，]?\s*(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıraya\s+geçiyoruz\b/giu,
+      /(^|[^\p{L}\p{N}_])(?:yine\s+bütün\s+)?sıra\s+sonlarında\s+(cc|x|dc|tr)\s+ile\s+birleştirip\s*[,，]?\s*(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıraya\s+geçiyoruz\b/giu,
       (
         _match,
         prefix: string,
@@ -551,6 +551,45 @@ const normalizeEnglishCrochetStructures = (
       },
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s+)?(yeşil|siyah|beyaz|kırmızı|mavi|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+ipimizi\s*[,，]?\s*(\d+)\.\s*sırada\s+(FLO|BLO)\s*[’'ʼ]?dan\s+ördüğümüz\s+sık\s+iğnelerin\s+(FLO|BLO)\s*[’'ʼ]?(?:sundan|sından|dan|den)\s*(?:\(\s*tabanın\s+ters\s+yüzünü\s+çevirdiğimiz\s+için\s+flo\s*[’'ʼ]?\s*lar\s+iç\s+kısımda\s+kaldı\s*\)\s*)?sabitliyoruz\s*[,，]\s*(\d+)\s*x\b/giu,
+      (
+        _match,
+        prefix: string,
+        imageReference: string | undefined,
+        colorSource: string,
+        round: string,
+        workedLoop: string,
+        attachmentLoop: string,
+        stitches: string,
+      ) => {
+        const colors: Record<string, string> = {
+          yeşil: "green",
+          siyah: "black",
+          beyaz: "white",
+          kırmızı: "red",
+          mavi: "blue",
+          sarı: "yellow",
+          mor: "purple",
+          turuncu: "orange",
+          pembe: "pink",
+          kahverengi: "brown",
+          gri: "gray",
+          ekru: "ecru",
+        };
+
+        const color =
+          colors[colorSource.toLocaleLowerCase("tr-TR")];
+
+        return (
+          `${prefix}Attach the ${color} yarn to the ${attachmentLoop.toUpperCase()} ` +
+          `of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}` +
+          `${imageReference ? " as shown in the image" : ""} ` +
+          `(because the base was turned inside out, the FLO loops remained on the inside), ` +
+          `then work ${stitches}x`
+        );
+      },
+    )
+    .replace(
       /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+(cc|x|dc|tr)\s*[’'ʼ]?\s*(?:nin|nın|nun|nün|in|ın|un|ün)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz\b/giu,
       (
         _match,
@@ -572,6 +611,41 @@ const normalizeEnglishCrochetStructures = (
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
         return `${prefix}Attach the yarn to the ${loop.toUpperCase()} of the ${ordinal} ${stitch}`;
+      },
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s*[,，]?\s*)?(\d+)\.\s*sırada\s+(FLO|BLO)\s*[’'ʼ]?dan\s+ördüğümüz\s+sık\s+iğnelerin\s+üzerine\s+(yeşil|siyah|beyaz|kırmızı|mavi|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+ipimiz\s*(?:ile\b|le\b)\s+ilmek\s+kaydırma\s+yapıyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        imageReference: string | undefined,
+        round: string,
+        loop: string,
+        colorSource: string,
+      ) => {
+        const colors: Record<string, string> = {
+          yeşil: "green",
+          siyah: "black",
+          beyaz: "white",
+          kırmızı: "red",
+          mavi: "blue",
+          sarı: "yellow",
+          mor: "purple",
+          turuncu: "orange",
+          pembe: "pink",
+          kahverengi: "brown",
+          gri: "gray",
+          ekru: "ecru",
+        };
+
+        const color =
+          colors[colorSource.toLocaleLowerCase("tr-TR")];
+
+        return (
+          `${prefix}Using ${color} yarn, work slip stitches over the single crochet stitches ` +
+          `worked in the ${loop.toUpperCase()} of Round ${round}` +
+          `${imageReference ? " as shown in the image" : ""}`
+        );
       },
     )
     .replace(

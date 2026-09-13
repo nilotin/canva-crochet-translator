@@ -1,3 +1,4 @@
+import { extractSourceAtomicNaturalLanguageSpans } from "./natural_language/atomic_spans.js";
 import { extractRoundReferences } from "./natural_language/round_references.js";
 import { extractSourceMeasurementSpans } from "./measurements.js";
 import { tokenizeSourceNotation } from "./notation/tokenizer.js";
@@ -48,11 +49,12 @@ const boundaries = (source: string, kind: "hard" | "soft") => {
     }
     if (character === ";" || character === ",") result.add(index + 1);
   }
-  const measurements = [
+  const protectedSpans = [
     ...extractSourceMeasurementSpans(source),
     ...extractRoundReferences(source),
+    ...extractSourceAtomicNaturalLanguageSpans(source),
   ];
-  return [...result].filter((index) => index > 0 && !measurements.some(
+  return [...result].filter((index) => index > 0 && !protectedSpans.some(
     ({ start, end }) => index > start && index < end,
   )).sort((a, b) => a - b);
 };
