@@ -1350,6 +1350,45 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes Page 7 leg-stuffing guidance through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page7-leg-stuffing-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page7-leg-stuffing-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page7-leg-stuffing",
+          text:
+            "✦ Bacakları örerken 6-7 sırada bir dolum yapalım. Doldururken görselde görüldüğü gibi örgünün dönmemesine dikkat edelim. (Dolum yaptıkça elimizle örgüyü sürekli düzeltirsek, örgümüz dönmez ve bacaklar çok muntazam olur.)",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "✦ While crocheting the legs, add stuffing every 6-7 rounds. While stuffing, make sure the work does not twist, as shown in the image. (If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.)",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes Page 6 yarn-color phrasing through the full pipeline", async () => {
     const provider: TranslationProvider = {
       name: "page6-yarn-colors-stub",

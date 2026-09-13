@@ -293,6 +293,23 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it.each([
+    [
+      "Bacakları örerken 6-7 sırada bir dolum yapalım.",
+      "While crocheting the legs, add stuffing every 6-7 rounds.",
+    ],
+    [
+      "Doldururken görselde görüldüğü gibi örgünün dönmemesine dikkat edelim.",
+      "While stuffing, make sure the work does not twist, as shown in the image.",
+    ],
+    [
+      "Dolum yaptıkça elimizle örgüyü sürekli düzeltirsek, örgümüz dönmez ve bacaklar çok muntazam olur.",
+      "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.",
+    ],
+  ])("normalizes reusable stuffing guidance: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
   it("normalizes the representative-photo notice for pattern instructions", () => {
     expect(
       normalizeSourceNaturalLanguage(

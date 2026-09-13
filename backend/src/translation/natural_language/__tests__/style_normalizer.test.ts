@@ -324,6 +324,18 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+  it("normalizes recurring leg-stuffing guidance", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ Bacakları örerken 6-7 sırada bir dolum yapalım. Doldururken görselde görüldüğü gibi örgünün dönmemesine dikkat edelim. (Dolum yaptıkça elimizle örgüyü sürekli düzeltirsek, örgümüz dönmez ve bacaklar çok muntazam olur.)",
+        "✦ While crocheting the legs 6-7 Let’s add some stuffing as we go. While stuffing, make sure the work does not twist, as shown in the image. (If we continually adjust the work with our hands as we add stuffing, the work will not twist, and the legs will be very neat.)",
+        "en",
+      ),
+    ).toBe(
+      "✦ While crocheting the legs, add stuffing every 6-7 rounds. While stuffing, make sure the work does not twist, as shown in the image. (If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.)",
+    );
+  });
+
   it("normalizes the hook intro with a starting yarn color", () => {
     expect(
       normalizeTranslationStyle(

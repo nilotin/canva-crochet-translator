@@ -234,6 +234,19 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
   }
 
+  const legStuffingGuidance =
+    /^\s*(✦\s*)?bacakları\s+örerken\s+(\d+)-(\d+)\s+sırada\s+bir\s+dolum\s+yapalım[.]\s*doldururken\s+görselde\s+görüldüğü\s+gibi\s+örgünün\s+dönmemesine\s+dikkat\s+edelim[.]\s*\(\s*dolum\s+yaptıkça\s+elimizle\s+örgüyü\s+sürekli\s+düzeltirsek\s*[,，]\s*örgümüz\s+dönmez\s+ve\s+bacaklar\s+çok\s+muntazam\s+olur[.]\s*\)\s*$/iu.exec(
+      source,
+    );
+
+  if (legStuffingGuidance) {
+    const bullet = legStuffingGuidance[1] ? "✦ " : "";
+    const start = legStuffingGuidance[2];
+    const end = legStuffingGuidance[3];
+
+    return `${bullet}While crocheting the legs, add stuffing every ${start}-${end} rounds. While stuffing, make sure the work does not twist, as shown in the image. (If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.)`;
+  }
+
   const hookAndStartingYarn =
     /^\s*(✦\s*)?(\d+(?:[.,]\d+)?)\s+(?:numara|no|mm)\s+tığ\s+ile\s+örüyoruz[.]\s+ekru\s+renk\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz[.]?\s*$/iu.exec(
       source,

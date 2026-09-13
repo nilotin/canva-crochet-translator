@@ -192,6 +192,19 @@ const normalizeEnglishCrochetStructures = (
       "With orange yarn",
     )
     .replace(
+      /\bbacakları\s+örerken\s+(\d+)-(\d+)\s+sırada\s+bir\s+dolum\s+yapalım\b/giu,
+      (_match, start: string, end: string) =>
+        `While crocheting the legs, add stuffing every ${start}-${end} rounds`,
+    )
+    .replace(
+      /\bdoldururken\s+görselde\s+görüldüğü\s+gibi\s+örgünün\s+dönmemesine\s+dikkat\s+edelim\b/giu,
+      "While stuffing, make sure the work does not twist, as shown in the image",
+    )
+    .replace(
+      /\bdolum\s+yaptıkça\s+elimizle\s+örgüyü\s+sürekli\s+düzeltirsek\s*[,，]\s*örgümüz\s+dönmez\s+ve\s+bacaklar\s+çok\s+muntazam\s+olur\b/giu,
+      "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater",
+    )
+    .replace(
       /\bfotoğraf\s+temsilidir\b/giu,
       "The images are for reference only",
     )
