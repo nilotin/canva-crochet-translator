@@ -277,6 +277,31 @@ describe("translateBlocks provider boundary", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("keeps comma-separated skip counts out of single-crochet notation in a mixed sequence", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "7x, 9 zincir, 10x atla (kol boşluğu oluşturuyoruz), 14x, 9 zincir, 10x atla (kol boşluğu), 7x";
+
+    const [result] = await translateBlocks(
+      [{ id: "mixed-chain-skip-sequence", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated.match(/\bsc\b|\d+sc\b/gu)).toHaveLength(3);
+    expect(result?.translated.match(/skip 10 sts/gu)).toHaveLength(2);
+    expect(result?.translated).not.toContain("skip 10sc");
+
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "LOST_PATTERN_NOTATION",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
   it("keeps FLO/BLO source variants out of provider prose spans", async () => {
     const provider = new InspectingProvider();
 
@@ -653,7 +678,7 @@ describe("translateBlocks provider boundary", () => {
     );
 
     expect(provider.requests).toHaveLength(1);
-    expect(provider.protectedTexts).toEqual(["zincir", "atla"]);
+    expect(provider.protectedTexts).toEqual(["ch", "skip", "sts"]);
     expect(provider.protectedTexts.join(" ")).not.toContain("24)");
     expect(provider.requests[0]?.userPrompt).toContain("proseContext");
   });
@@ -791,7 +816,11 @@ describe("translateBlocks provider boundary", () => {
       );
       expect(result).toMatchObject({ translated: expected, valid: true });
       expect(result?.errors).toEqual([]);
-      expect(seen).toEqual(["zincir", "atla", "zincir", "atla"]);
+      expect(seen).toEqual(
+        language === "en"
+          ? ["ch", "skip", "sts", "ch", "skip", "sts"]
+          : ["zincir", "atla", "zincir", "atla"],
+      );
       expect(seen.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
       expect(prompts.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
     },
@@ -2032,12 +2061,46 @@ describe("crochet instruction phrasing", () => {
     },
   );
 
+  it("normalizes generic chain-position instructions through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "12 zincir çekip geriye dönüyoruz. 4 zincir atlıyoruz. 3. zincirden itibaren 18x. zincir üzerine 5x";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-chain-position", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Ch 12 and turn.");
+    expect(result?.translated).toContain("skip 4 chains");
+    expect(result?.translated).toContain(
+      "Starting from the 3rd chain, work 18sc",
+    );
+    expect(result?.translated).toContain("work 5sc along the chain");
+
+    expect(result?.translated).not.toMatch(/\b\d+from\b/u);
+    expect(result?.translated).not.toMatch(/\b\d+\s+skip\s+chains\b/iu);
+    expect(result?.translated).not.toMatch(/\bonto the chain\b/iu);
+
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "LOST_PATTERN_NOTATION",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+
+    expect(result?.valid).toBe(true);
+  });
+
   it.each([
     ["12 sıra 66x", "12 rounds, 66 sc"],
     ["3 sıra 78x", "3 rounds, 78 sc"],
     ["28-30) 3 sıra 78x", "28-30) 3 rounds, 78 sc"],
     ["Sihirli halka içine 6x", "6sc into the magic ring"],
     ["2 zincir 2x atla", "ch 2, skip 2 sts"],
+    ["9 zincir, 10x atla", "ch 9, skip 10 sts"],
     ["zincir içine 2x", "2sc into the chain space"],
     [
       "2.00 mm tığ ile örüyoruz.",

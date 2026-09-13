@@ -6,6 +6,26 @@ const targetPhrase = (
   spanish: string,
 ) => (targetLanguage === "en" ? english : spanish);
 
+const englishOrdinal = (raw: string): string => {
+  const value = Number.parseInt(raw, 10);
+  const mod100 = value % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${value}th`;
+  }
+
+  const suffix =
+    value % 10 === 1
+      ? "st"
+      : value % 10 === 2
+        ? "nd"
+        : value % 10 === 3
+          ? "rd"
+          : "th";
+
+  return `${value}${suffix}`;
+};
+
 const normalizeMaterialsTerminology = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -115,6 +135,15 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `Ch ${count} and turn.`,
     )
     .replace(
+      /\b(\d+)\s+zincir\s+atlıyoruz\b/giu,
+      (_match, count: string) => `skip ${count} chains`,
+    )
+    .replace(
+      /\b(?:zincir\s+üzerine\s+)?(\d+)\.\s*zincirden\s+itibaren\s+(\d+)\s*x\b/giu,
+      (_match, chain: string, stitches: string) =>
+        `Starting from the ${englishOrdinal(chain)} chain, work ${stitches}x`,
+    )
+    .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+(\d+)\s*x\s+örüyoruz\b/giu,
       (_match, stitches: string) =>
         `Starting from the second chain, work ${stitches}x along the chain`,
@@ -126,6 +155,10 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\b/giu,
       "Starting from the second chain",
+    )
+    .replace(
+      /\bzincir\s+üzerine\s+(\d+)\s*x\b/giu,
+      (_match, stitches: string) => `work ${stitches}x along the chain`,
     )
     .replace(
       /\baynı\s+ilmek\s+içine\s+(\d+)\s*x\b/giu,
@@ -177,7 +210,7 @@ const normalizeEnglishCrochetStructures = (
         `${stitches}x into the magic ring${separator ? "." : ""}`,
     )
     .replace(
-      /\b(\d+)\s+zincir\s+(\d+)\s*x\s+atla\b/giu,
+      /\b(\d+)\s+zincir\s*,?\s*(\d+)\s*x\s+atla\b/giu,
       "ch $1, skip $2 sts",
     )
     .replace(

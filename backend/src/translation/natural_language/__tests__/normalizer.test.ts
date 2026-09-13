@@ -298,6 +298,33 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
   it.each([
+    ["4 zincir atlıyoruz", "skip 4 chains"],
+    ["3. zincirden itibaren 18x", "Starting from the 3rd chain, work 18x"],
+    ["zincir üzerine 5x", "work 5x along the chain"],
+  ])("normalizes reusable chain-position phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    ["1. zincirden itibaren 8x", "Starting from the 1st chain, work 8x"],
+    ["2. zincirden itibaren 8x", "Starting from the 2nd chain, work 8x"],
+    ["4. zincirden itibaren 8x", "Starting from the 4th chain, work 8x"],
+    ["11. zincirden itibaren 8x", "Starting from the 11th chain, work 8x"],
+    ["21. zincirden itibaren 8x", "Starting from the 21st chain, work 8x"],
+    ["22. zincirden itibaren 8x", "Starting from the 22nd chain, work 8x"],
+    ["23. zincirden itibaren 8x", "Starting from the 23rd chain, work 8x"],
+  ])("renders numeric chain ordinals safely: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    ["9 zincir, 10x atla", "ch 9, skip 10 sts"],
+    ["4 zincir, 3x atla", "ch 4, skip 3 sts"],
+  ])("normalizes comma-separated chain-and-skip phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
     [
       "zincir üzerine ikinci zincirden 37x örüyoruz",
       "Starting from the second chain, work 37x along the chain",
