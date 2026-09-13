@@ -694,6 +694,49 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "Siyah ip (catania 110) ile başlıyoruz.",
+      "Start with black yarn (catania 110).",
+    ],
+    [
+      "Mor renk ip (catania 240) ile başlıyoruz.",
+      "Start with purple yarn (catania 240).",
+    ],
+  ])("normalizes reusable yarn-start phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
+      "At the end of each round, join with cc, ch 1, and continue to the next round.",
+    ],
+    [
+      "Sıra sonlarında cc ile birleştirip 2 zincir çekip bir üst sıraya geçiyoruz.",
+      "At the end of each round, join with cc, ch 2, and continue to the next round.",
+    ],
+  ])("normalizes reusable round-end join-and-continue phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "Ördüğümüz tabanın ters yüzünü çeviriyoruz.",
+      "Turn the crocheted base inside out.",
+    ],
+    [
+      "Ördüğümüz parçanın ters yüzünü çeviriyoruz.",
+      "Turn the crocheted piece inside out.",
+    ],
+    [
+      "Sık iğnelerin ters yüzü dışarıda, düz yüzü içeride kalacak",
+      "The back of the single crochet stitches should face outward, and the front should face inward",
+    ],
+  ])("normalizes reusable inside-out crochet phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
       "Ekru renk ip (catania 105) ile başlıyoruz.",
       "Start with ecru yarn (catania 105).",
     ],

@@ -2114,6 +2114,66 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes crocheted-piece inside-out phrasing through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Ördüğümüz tabanın ters yüzünü çeviriyoruz. " +
+      "(Sık iğnelerin ters yüzü dışarıda, düz yüzü içeride kalacak)";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-inside-out-crochet", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Turn the crocheted base inside out. " +
+      "(The back of the single crochet stitches should face outward, and the front should face inward)",
+    );
+
+    expect(result?.translated).not.toContain(
+      "Turn the back of the base",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("PARENTHESES_MISMATCH");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes yarn start and round-end joining through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Siyah ip (catania 110) ile başlıyoruz. " +
+      "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-yarn-start-round-end", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Start with black yarn (catania 110).",
+    );
+    expect(result?.translated).toContain(
+      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+    );
+
+    expect(result?.translated).not.toContain(
+      "Black yarn (catania 110) we begin with",
+    );
+    expect(result?.translated).not.toContain(
+      "SL.ST join with",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes leg-relative yarn attachment through the full pipeline", async () => {
     const provider = new InspectingProvider();
     const source =

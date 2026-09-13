@@ -260,6 +260,16 @@ const normalizeEnglishCrochetStructures = (
         `${prefix}Join to the starting point with ${stitch}${imageReference ? " as shown in the image" : ""}`,
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])sıra\s+sonlarında\s+(cc|x|dc|tr)\s+ile\s+birleştirip\s*[,，]?\s*(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıraya\s+geçiyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        stitch: string,
+        chains: string,
+      ) =>
+        `${prefix}At the end of each round, join with ${stitch}, ch ${chains}, and continue to the next round`,
+    )
+    .replace(
       /\b(\d+)\s+zincir\s+çekip\s*[,，]?\s*bir\s+üst\s+sıradan\s+devam\s+ediyoruz\b/giu,
       (_match, chains: string) =>
         `Ch ${chains} and continue with the next round`,
@@ -323,6 +333,35 @@ const normalizeEnglishCrochetStructures = (
       "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+(?:renk\s+)?ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        colorSource: string,
+        brand: string,
+      ) => {
+        const colors: Record<string, string> = {
+          siyah: "black",
+          beyaz: "white",
+          kırmızı: "red",
+          mavi: "blue",
+          yeşil: "green",
+          sarı: "yellow",
+          mor: "purple",
+          turuncu: "orange",
+          pembe: "pink",
+          kahverengi: "brown",
+          gri: "gray",
+          ekru: "ecru",
+        };
+
+        const color =
+          colors[colorSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Start with ${color} yarn (${brand.trim()})`;
+      },
+    )
+    .replace(
       /\bekru\s+renk\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b/giu,
       (_match, brand: string) =>
         `Start with ecru yarn (${brand.trim()})`,
@@ -331,6 +370,29 @@ const normalizeEnglishCrochetStructures = (
       /\bturuncu\s+ipimize\s*\(\s*([^)]+?)\s*\)\s+geçiyoruz\b/giu,
       (_match, brand: string) =>
         `Switch to orange yarn (${brand.trim()})`,
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])ördüğümüz\s+(tabanın|parçanın)\s+ters\s+yüzünü\s+çeviriyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        itemSource: string,
+      ) => {
+        const items: Record<string, string> = {
+          tabanın: "base",
+          parçanın: "piece",
+        };
+
+        const item =
+          items[itemSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Turn the crocheted ${item} inside out`;
+      },
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])sık\s+iğnelerin\s+ters\s+yüzü\s+dışarıda\s*[,，]\s*düz\s+yüzü\s+içeride\s+kalacak\b/giu,
+      (_match, prefix: string) =>
+        `${prefix}The back of the single crochet stitches should face outward, and the front should face inward`,
     )
     .replace(
       /\brenk\s+geçişlerinde\s+bir\s+önceki\s+ipi\s+kesmeden\s*[,，]\s*içeride\s+beklemeye\s+alıyoruz\b/giu,
