@@ -1274,6 +1274,91 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+
+  it("normalizes the Page 5 chain-turn foundation instruction through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page5-foundation-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page5-foundation-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page5-foundation",
+          text:
+            "1) 4 zincir dön, ikinci zincirden itibaren 2x, aynı ilmek içine 3x, (zincirin diğer tarafından devam ediyoruz), 1x, 1v = 8x   Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) Ch 4 and turn. Starting from the second chain, 2sc, 3sc in the same stitch (continue along the other side of the chain), 1sc, 1inc = 8sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes Page 5 arm phrasing through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page5-arm-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page5-arm-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page5-arm",
+          text:
+            "2) 1v, 2x, 2v, 2x, 1v = 12x\n3-5) 3 sıra 12x\n6) Aynı ilmek içine 3tr, 11x\n7) M(aynı anda üç ilmeği birlikte kesmek), 11x\n8) 1e, 4x, 1e, 4x = 10x\n9) 10x\n10) 1v, 4x, 1v, 4x = 12x\n11-35) 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "6) 3tr in the same stitch, 11sc",
+    );
+    expect(result?.translated).toContain(
+      "7) M (decrease 3 stitches together), 11sc",
+    );
+    expect(result?.translated).toContain(
+      "11-35) 25 rounds, 12sc. Ch 1 and cut the yarn.",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
   it.each([
     [
       "Kaş: 5x uzunluğunda, aralarında 10x kalacak şekilde, gözden 3 sıra üzerinden işliyoruz.",

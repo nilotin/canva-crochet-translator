@@ -150,6 +150,69 @@ const normalizeEnglishCrochetInstructionLine = (
     }
   }
 
+  const chainTurnFoundation =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s+zincir\s+dön\s*[,，]\s*ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*aynı\s+ilmek\s+içine\s+(\d+)\s*x\s*[,，]\s*\(\s*zincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\s*\)\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*v\s*=\s*(\d+)\s*x\s+(?:başlangıç\s+noktamız\s+burası\s+olacak|burası\s+başlangıç\s+noktamız\s+olacak)[.]\s*(?:[iİ]şaretleyiciyi|[iİ]şaretleyicimizi|markeri|markerı)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (chainTurnFoundation) {
+    const [
+      ,
+      markerPrefix,
+      chains,
+      firstSc,
+      sameStitchSc,
+      nextSc,
+      increases,
+      total,
+    ] = chainTurnFoundation;
+
+    return `${markerPrefix}Ch ${chains} and turn. Starting from the second chain, ${firstSc}sc, ${sameStitchSc}sc in the same stitch (continue along the other side of the chain), ${nextSc}sc, ${increases}inc = ${total}sc. ${STITCH_MARKER_INSTRUCTION}`;
+  }
+
+  const sameStitchTreble =
+    /^(\s*(?:\d+\)\s*)?)aynı\s+ilmek\s+içine\s+(\d+)\s*tr\s*[,，]\s*(\d+)\s*x([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (sameStitchTreble) {
+    return `${sameStitchTreble[1]}${sameStitchTreble[2]}tr in the same stitch, ${sameStitchTreble[3]}sc${sameStitchTreble[4]}`;
+  }
+
+  const multiStitchDecrease =
+    /^(\s*(?:\d+\)\s*)?)M\s*\(\s*aynı\s+anda\s+(bir|iki|üç|dört|beş|\d+)\s+ilmeği\s+birlikte\s+kesmek\s*\)\s*[,，]\s*(\d+)\s*x([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (multiStitchDecrease) {
+    const wordCounts: Record<string, string> = {
+      bir: "1",
+      iki: "2",
+      üç: "3",
+      dört: "4",
+      beş: "5",
+    };
+
+    const decreaseCount =
+      wordCounts[
+        (multiStitchDecrease[2] ?? "").toLocaleLowerCase("tr-TR")
+      ] ?? multiStitchDecrease[2];
+
+    return `${multiStitchDecrease[1]}M (decrease ${decreaseCount} stitches together), ${multiStitchDecrease[3]}sc${multiStitchDecrease[4]}`;
+  }
+
+  const writtenChainCut =
+    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (writtenChainCut) {
+    const roundWord =
+      Number(writtenChainCut[2]) === 1 ? "round" : "rounds";
+
+    return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
+  }
+
   const roundCount =
     /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)x([.]?\s*)$/iu.exec(
       source,

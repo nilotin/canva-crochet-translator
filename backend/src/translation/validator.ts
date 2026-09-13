@@ -37,6 +37,37 @@ const sameSequence = (left: readonly string[], right: readonly string[]) =>
   left.length === right.length &&
   left.every((value, index) => value === right[index]);
 
+const TURKISH_WRITTEN_CROCHET_COUNTS: Record<string, string> = {
+  bir: "1",
+  iki: "2",
+  üç: "3",
+  dört: "4",
+  beş: "5",
+};
+
+const comparableSourceNumbersWithWrittenCrochetCounts = (
+  source: string,
+): string[] => {
+  const pattern =
+    /\d+(?:[.,]\d+)?|(?<!\p{L})(bir|iki|üç|dört|beş)(?!\p{L})\s+(?=(?:zincir\p{L}*|ilme(?:k|ğ)\p{L}*)(?!\p{L}))/giu;
+
+  return [...source.matchAll(pattern)].map((match) => {
+    const written = match[1];
+
+    if (written) {
+      return (
+        TURKISH_WRITTEN_CROCHET_COUNTS[
+          written.toLocaleLowerCase("tr-TR")
+        ] ?? written
+      );
+    }
+
+    return match[0]
+      .toLocaleLowerCase("tr-TR")
+      .replaceAll(/\s+/g, "");
+  });
+};
+
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -247,7 +278,16 @@ export const validateTranslation = (
 
   const sourceNumbers = normalizedMatches(source, /\d+(?:[.,]\d+)?/gu);
   const translatedNumbers = normalizedMatches(translated, /\d+(?:[.,]\d+)?/gu);
-  if (!sameSequence(sourceNumbers, translatedNumbers)) {
+
+  const numericSequenceMatches =
+    sameSequence(sourceNumbers, translatedNumbers) ||
+    (options.contentKind !== "materials" &&
+      sameSequence(
+        comparableSourceNumbersWithWrittenCrochetCounts(source),
+        translatedNumbers,
+      ));
+
+  if (!numericSequenceMatches) {
     errors.push(
       error(
         "NUMBER_MISMATCH",

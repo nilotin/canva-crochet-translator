@@ -86,7 +86,53 @@ const normalizeEnglishCrochetStructures = (
       ) =>
         `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches} sc. Ch ${chains} and cut the yarn`,
     )
+    .replace(
+      /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (
+        _match,
+        marker: string,
+        rounds: string,
+        stitches: string,
+      ) =>
+        `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches}sc. Ch 1 and cut the yarn`,
+    )
     .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
+    .replace(
+      /\b(\d+)\s+zincir\s+dön\b/giu,
+      (_match, count: string) => `Ch ${count} and turn`,
+    )
+    .replace(
+      /\bikinci\s+zincirden\s+itibaren\b/giu,
+      "Starting from the second chain",
+    )
+    .replace(
+      /\baynı\s+ilmek\s+içine\s+(\d+)\s*x\b/giu,
+      (_match, count: string) => `${count}sc in the same stitch`,
+    )
+    .replace(
+      /\baynı\s+ilmek\s+içine\s+(\d+)\s*tr\b/giu,
+      (_match, count: string) => `${count}tr in the same stitch`,
+    )
+    .replace(
+      /\bzincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\b/giu,
+      "continue along the other side of the chain",
+    )
+    .replace(
+      /\bM\s*\(\s*aynı\s+anda\s+(bir|iki|üç|dört|beş|\d+)\s+ilmeği\s+birlikte\s+kesmek\s*\)/giu,
+      (_match, countRaw: string) => {
+        const wordCounts: Record<string, string> = {
+          bir: "1",
+          iki: "2",
+          üç: "3",
+          dört: "4",
+          beş: "5",
+        };
+        const count =
+          wordCounts[countRaw.toLocaleLowerCase("tr-TR")] ?? countRaw;
+
+        return `M (decrease ${count} stitches together)`;
+      },
+    )
     .replace(
       /(\d+)\s+zincir\s+çekip\s+dönüyoruz\b/giu,
       (_match, count: string) => `Ch ${count} and turn`,

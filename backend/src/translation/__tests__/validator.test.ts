@@ -269,6 +269,46 @@ describe("validateTranslation", () => {
     expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
   });
 
+  it("accepts a written Turkish stitch count rendered numerically", () => {
+    const result = validateTranslation(
+      "7) M(aynı anda üç ilmeği birlikte kesmek), 11x",
+      "7) M (decrease 3 stitches together), 11sc",
+      "en",
+    );
+
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("accepts a written Turkish chain count rendered numerically", () => {
+    const result = validateTranslation(
+      "11-35) 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.",
+      "11-35) 25 rounds, 12sc. Ch 1 and cut the yarn.",
+      "en",
+    );
+
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("still rejects a changed written Turkish crochet count", () => {
+    const result = validateTranslation(
+      "7) M(aynı anda üç ilmeği birlikte kesmek), 11x",
+      "7) M (decrease 4 stitches together), 11sc",
+      "en",
+    );
+
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("does not treat ordinary Turkish number words as protected numeric values", () => {
+    const result = validateTranslation(
+      "Bir süre sonra 5x örüyoruz.",
+      "After 1 while, work 5sc.",
+      "en",
+    );
+
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
   it("rejects a missing repetition count", () => {
     const result = validateTranslation("(1x, v) x 6", "(1sc, inc)", "en");
 

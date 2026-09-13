@@ -197,12 +197,40 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     ["7 zincir çekip dönüyoruz.", "Ch 7 and turn."],
+    ["4 zincir dön", "Ch 4 and turn"],
+    ["ikinci zincirden itibaren", "Starting from the second chain"],
+    ["aynı ilmek içine 3x", "3sc in the same stitch"],
+    ["aynı ilmek içine 3tr", "3tr in the same stitch"],
+    [
+      "zincirin diğer tarafından devam ediyoruz",
+      "continue along the other side of the chain",
+    ],
     ["32x BLO'dan", "32sc in BLO"],
     ["BLO'dan 32x", "32sc in BLO"],
     ["aynı zincir içine 3x", "3sc in the same chain"],
     ["aynı sık iğne içine 3tr", "3tr in the same stitch"],
   ])("normalizes reusable foot and leg phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes multi-stitch decrease explanations", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "M(aynı anda üç ilmeği birlikte kesmek)",
+        "en",
+      ),
+    ).toBe("M (decrease 3 stitches together)");
+  });
+
+  it("normalizes round counts followed by a written one-chain cut-yarn instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "11-35) 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "11-35) 25 rounds, 12sc. Ch 1 and cut the yarn.",
+    );
   });
 
   it.each([

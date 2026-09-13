@@ -268,6 +268,50 @@ describe("normalizeTranslationStyle", () => {
     ).toBe("Using a 2.00 mm crochet hook, work as follows.");
   });
 
+  it("normalizes a chain-turn foundation instruction with a stitch marker", () => {
+    expect(
+      normalizeTranslationStyle(
+        "1) 4 zincir dön, ikinci zincirden itibaren 2x, aynı ilmek içine 3x, (zincirin diğer tarafından devam ediyoruz), 1x, 1v = 8x   Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+        "1) 4 Chain and turn, Starting from the second chain 2sc, into the same stitch 3sc, (We continue along the other side of the chain), 1sc, 1inc = 8sc This will be our starting point. We attach the stitch marker here.",
+        "en",
+      ),
+    ).toBe(
+      "1) Ch 4 and turn. Starting from the second chain, 2sc, 3sc in the same stitch (continue along the other side of the chain), 1sc, 1inc = 8sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+  });
+
+  it("normalizes stitches worked into the same stitch", () => {
+    expect(
+      normalizeTranslationStyle(
+        "6) Aynı ilmek içine 3tr, 11x",
+        "6) Into the same stitch 3tr, 11sc",
+        "en",
+      ),
+    ).toBe("6) 3tr in the same stitch, 11sc");
+  });
+
+  it("normalizes multi-stitch decrease explanations", () => {
+    expect(
+      normalizeTranslationStyle(
+        "7) M(aynı anda üç ilmeği birlikte kesmek), 11x",
+        "7) M(decrease three stitches together at once), 11sc",
+        "en",
+      ),
+    ).toBe("7) M (decrease 3 stitches together), 11sc");
+  });
+
+  it("normalizes written one-chain cut-yarn endings", () => {
+    expect(
+      normalizeTranslationStyle(
+        "11-35) 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.",
+        "11-35) 25 rounds, 12sc We chain one and cut the yarn.",
+        "en",
+      ),
+    ).toBe(
+      "11-35) 25 rounds, 12sc. Ch 1 and cut the yarn.",
+    );
+  });
+
   it("normalizes the reusable stitch-marker instruction", () => {
     expect(
       normalizeTranslationStyle(
