@@ -127,12 +127,17 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
     .replace(
+      /\b(\d+)\.\s*sıranın\s+sonunda\s+(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
+      (_match, round: string, chains: string) =>
+        `At the end of Round ${round}, ch ${chains} (buttonhole) and turn.`,
+    )
+    .replace(
       /\b(\d+)\s*x\s*[-–—]\s*(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
       (_match, stitches: string, chains: string) =>
         `${stitches}x, ch ${chains} (buttonhole) and turn`,
     )
     .replace(
-      /\b(\d+)\s+zincir\s+dön\b/giu,
+      /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
       (_match, count: string) => `Ch ${count} and turn`,
     )
     .replace(
@@ -331,6 +336,10 @@ const normalizeEnglishCrochetStructures = (
       /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (_match, chains: string) =>
         `At the end of the round, ch ${chains} and cut the yarn`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (_match, chains: string) => `ch ${chains} and cut the yarn`,
     )
     .replace(
       /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc\b/giu,

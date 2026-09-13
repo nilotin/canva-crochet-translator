@@ -126,6 +126,21 @@ const normalizeCrochetSequenceLine = (source: string): string | undefined => {
 const STITCH_MARKER_INSTRUCTION =
   "This will be the beginning of the round; place a stitch marker here.";
 
+const TURKISH_YARN_COLORS: Record<string, string> = {
+  siyah: "black",
+  beyaz: "white",
+  kırmızı: "red",
+  mavi: "blue",
+  yeşil: "green",
+  sarı: "yellow",
+  mor: "purple",
+  turuncu: "orange",
+  pembe: "pink",
+  kahverengi: "brown",
+  gri: "gray",
+  ekru: "ecru",
+};
+
 const isStitchMarkerInstruction = (source: string): boolean =>
   /başlangıç\s+noktamız/iu.test(source) &&
   /işaretleyici\p{L}*/iu.test(source) &&
@@ -151,7 +166,7 @@ const normalizeEnglishCrochetInstructionLine = (
   }
 
   const nestedRoundLoopAttachment =
-    /^(\s*(?:\d+\)\s*)?)(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz[.]?/iu.exec(
+    /^(\s*(?:\d+\)\s*)?)(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+(?:(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+)?ipimizi\s+sabitliyoruz[.]?/iu.exec(
       source,
     );
 
@@ -161,14 +176,48 @@ const normalizeEnglishCrochetInstructionLine = (
     const workedLoop = nestedRoundLoopAttachment[3]?.toUpperCase() ?? "";
     const attachmentLoop =
       nestedRoundLoopAttachment[4]?.toUpperCase() ?? "";
+    const colorSource =
+      nestedRoundLoopAttachment[5]?.toLocaleLowerCase("tr-TR") ?? "";
+    const yarnColor = colorSource
+      ? TURKISH_YARN_COLORS[colorSource] ?? ""
+      : "";
 
-    const translatedRemainder = translated.replace(
-      /^.*?[.](?:\s+|$)/u,
-      "",
-    );
+    const sourceRemainder = source
+      .slice(nestedRoundLoopAttachment[0].length)
+      .trimStart();
 
+    const nextInstructionMarker =
+      /^(\d+(?:-\d+)?\))\s*/u.exec(sourceRemainder)?.[1];
+
+    let translatedRemainder: string;
+
+    if (nextInstructionMarker) {
+      const escapedMarker = nextInstructionMarker.replace(
+        /[.*+?^${}()|[\]\\]/gu,
+        "\\$&",
+      );
+      const translatedMarker = new RegExp(
+        `(?:^|\\s)(${escapedMarker})(?=\\s)`,
+        "u",
+      ).exec(translated);
+
+      translatedRemainder = translatedMarker
+        ? translated.slice(
+            (translatedMarker.index ?? 0) +
+              translatedMarker[0].length -
+              (translatedMarker[1]?.length ?? 0),
+          )
+        : translated.replace(/^.*?[.](?:\s+|$)/u, "");
+    } else {
+      translatedRemainder = translated.replace(
+        /^.*?[.](?:\s+|$)/u,
+        "",
+      );
+    }
+
+    const yarnPhrase = yarnColor ? `the ${yarnColor} yarn` : "the yarn";
     const normalizedOpening =
-      `${prefix}Attach the yarn to the ${attachmentLoop} of the single crochet stitches worked in the ${workedLoop} of Round ${round}.`;
+      `${prefix}Attach ${yarnPhrase} to the ${attachmentLoop} of the single crochet stitches worked in the ${workedLoop} of Round ${round}.`;
 
     return translatedRemainder
       ? `${normalizedOpening} ${translatedRemainder}`

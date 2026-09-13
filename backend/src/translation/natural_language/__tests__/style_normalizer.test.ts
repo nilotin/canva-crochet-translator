@@ -94,6 +94,51 @@ describe("normalizeTranslationStyle", () => {
     },
   );
 
+  it.each([
+    [
+      "4) 12. sırada BLO’dan ördüğümüz sık iğnelerinin FLO’sundan ipimizi sabitliyoruz.",
+      "4) in Round 12 BLO stitches worked FLO attach yarn.",
+      "4) Attach the yarn to the FLO of the single crochet stitches worked in the BLO of Round 12.",
+    ],
+    [
+      "6) 18. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan ipimizi sabitliyoruz.",
+      "6) in Round 18 FLO stitches worked BLO attach yarn.",
+      "6) Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 18.",
+    ],
+    [
+      "9) 18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz.",
+      "9) in Round 18 BLO stitches worked FLO secure black yarn.",
+      "9) Attach the black yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    ],
+  ])(
+    "normalizes directional loop attachment with optional yarn color",
+    (source, translated, expected) => {
+      expect(
+        normalizeTranslationStyle(source, translated, "en"),
+      ).toBe(expected);
+    },
+  );
+
+  it("drops duplicated provider prose before the next numbered instruction", () => {
+    const source =
+      "27) 23. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz. " +
+      "1) 72dcv = 144dc, 2 zincir, dön, " +
+      "2) 144dc, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const translated =
+      "27) in Round 23 BLO of the single crochets we made from FLO we secure our black yarn through the " +
+      "1) 72dc-inc = 144dc, Ch 2 and turn, " +
+      "2) 144dc, Ch 1 and cut the yarn.";
+
+    expect(
+      normalizeTranslationStyle(source, translated, "en"),
+    ).toBe(
+      "27) Attach the black yarn to the FLO of the single crochet stitches worked in the BLO of Round 23. " +
+        "1) 72dc-inc = 144dc, Ch 2 and turn, " +
+        "2) 144dc, Ch 1 and cut the yarn.",
+    );
+  });
+
   it("does not rewrite longer FLO/BLO instructions", () => {
     expect(
       normalizeTranslationStyle(

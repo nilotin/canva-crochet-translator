@@ -2089,6 +2089,44 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes generic round-end, chain-cut, and loop-attachment instructions through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "12. sıranın sonunda 4 zincir (düğme iliği) dön.\n" +
+      "3 zincir, dön\n" +
+      "120dc, 2 zincir çekip ipimizi kesiyoruz.\n" +
+      "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-finishing-phrasing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "At the end of Round 12, ch 4 (buttonhole) and turn.",
+    );
+    expect(result?.translated).toContain("Ch 3 and turn");
+    expect(result?.translated).toContain(
+      "120dc, ch 2 and cut the yarn",
+    );
+    expect(result?.translated).toContain(
+      "Attach the black yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    );
+
+    expect(result?.translated).not.toMatch(/Round 12 at the end/iu);
+    expect(result?.translated).not.toMatch(/\b3 chain,? turn\b/iu);
+    expect(result?.translated).not.toMatch(/\bWe chain\b/iu);
+    expect(result?.translated).not.toContain(
+      "Attach the black yarn to the BLO of the single crochet stitches worked in the FLO of Round 18.",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes generic chain-position instructions through the full pipeline", async () => {
     const provider = new InspectingProvider();
 

@@ -212,6 +212,19 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "12. sıranın sonunda 4 zincir (düğme iliği) dön",
+      "At the end of Round 12, ch 4 (buttonhole) and turn.",
+    ],
+    [
+      "27. sıranın sonunda 3 zincir (düğme iliği) dön",
+      "At the end of Round 27, ch 3 (buttonhole) and turn.",
+    ],
+  ])("normalizes round-end buttonhole turns: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
       "42x - 5 zincir (düğme iliği) dön",
       "42x, ch 5 (buttonhole) and turn",
     ],
@@ -226,6 +239,7 @@ describe("normalizeSourceNaturalLanguage", () => {
   it.each([
     ["7 zincir çekip dönüyoruz.", "Ch 7 and turn."],
     ["4 zincir dön", "Ch 4 and turn"],
+    ["3 zincir, dön", "Ch 3 and turn"],
     ["ikinci zincirden itibaren", "Starting from the second chain"],
     ["aynı ilmek içine 3x", "3sc in the same stitch"],
     ["aynı ilmek içine 3tr", "3tr in the same stitch"],
@@ -355,6 +369,19 @@ describe("normalizeSourceNaturalLanguage", () => {
       "At the end of the round, ch 2 and cut the yarn.",
     ],
   ])("normalizes reusable continuation phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "2 zincir çekip ipimizi kesiyoruz",
+      "ch 2 and cut the yarn",
+    ],
+    [
+      "120dc, 2 zincir çekip ipimizi kesiyoruz",
+      "120dc, ch 2 and cut the yarn",
+    ],
+  ])("normalizes standalone chain-and-cut phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
