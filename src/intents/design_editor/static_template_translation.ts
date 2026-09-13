@@ -191,6 +191,59 @@ const normalizeForStaticMatch = (text: string): string =>
 const sameTemplateText = (left: string, right: string): boolean =>
   normalizeForStaticMatch(left) === normalizeForStaticMatch(right);
 
+// Long deterministic template bodies can contain an occasional source-design
+// typo. Accept at most one insertion/deletion/substitution after the normal
+// static normalization. This is deliberately limited to long fixed bodies;
+// headings and other short atoms still require exact normalized equality.
+const differsByAtMostOneEdit = (left: string, right: string): boolean => {
+  if (left === right) return true;
+  if (Math.abs(left.length - right.length) > 1) return false;
+
+  let leftIndex = 0;
+  let rightIndex = 0;
+  let edits = 0;
+
+  while (leftIndex < left.length && rightIndex < right.length) {
+    if (left[leftIndex] === right[rightIndex]) {
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+
+    edits += 1;
+    if (edits > 1) return false;
+
+    if (left.length > right.length) {
+      leftIndex += 1;
+    } else if (right.length > left.length) {
+      rightIndex += 1;
+    } else {
+      leftIndex += 1;
+      rightIndex += 1;
+    }
+  }
+
+  if (leftIndex < left.length || rightIndex < right.length) {
+    edits += 1;
+  }
+
+  return edits <= 1;
+};
+
+const sameLongTemplateBody = (left: string, right: string): boolean => {
+  const normalizedLeft = normalizeForStaticMatch(left);
+  const normalizedRight = normalizeForStaticMatch(right);
+
+  if (normalizedLeft === normalizedRight) return true;
+
+  // Never fuzzy-match short template atoms such as headings.
+  if (normalizedLeft.length < 200 || normalizedRight.length < 200) {
+    return false;
+  }
+
+  return differsByAtMostOneEdit(normalizedLeft, normalizedRight);
+};
+
 const isExplanationsHeading = (text: string): boolean =>
   EXPLANATIONS_HEADING_TR_VARIANTS.some((candidate) =>
     sameTemplateText(text, candidate),
@@ -523,7 +576,7 @@ const classifyPage2PlainShape = (
 ): Page2PlainShape | undefined => {
   if (
     orderedPageBlocks.length === 3 &&
-    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
+    sameLongTemplateBody(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
     isDeterministicGlossary(orderedPageBlocks[2]?.sourceText ?? "")
   ) {
     return { materialsIndex: 0, instructionsIndex: 1, glossaryIndex: 2 };
@@ -531,7 +584,7 @@ const classifyPage2PlainShape = (
 
   if (
     orderedPageBlocks.length === 4 &&
-    sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
+    sameLongTemplateBody(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
     sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", ".") &&
     isDeterministicGlossary(orderedPageBlocks[3]?.sourceText ?? "")
   ) {
@@ -589,7 +642,7 @@ const classifyPage2HeadingsShape = (
     } else if (sameTemplateText(text, ABBREVIATIONS_HEADING_TR)) {
       if (abbreviationsHeadingIndex !== undefined) unmatched.push(index);
       else abbreviationsHeadingIndex = index;
-    } else if (sameTemplateText(text, INSTRUCTIONS_TR)) {
+    } else if (sameLongTemplateBody(text, INSTRUCTIONS_TR)) {
       if (explanationsBodyIndex !== undefined) unmatched.push(index);
       else explanationsBodyIndex = index;
     } else if (isDeterministicGlossary(text)) {

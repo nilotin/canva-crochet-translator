@@ -434,6 +434,123 @@ describe("translation review", () => {
       ]);
     });
 
+
+    it("routes the real live Page 2 instructions typo through materials-only translation", async () => {
+      const materials = "✦ 2 adet Catania TR263";
+      const liveInstructions = INSTRUCTIONS_TR.replace(
+        "iletişime",
+        "iletişme",
+      );
+
+      const texts = [
+        "MALZEMELER",
+        "TERİMLER\n",
+        "AÇIKLAMALAR",
+        materials,
+        liveInstructions,
+        GLOSSARY_TR,
+      ];
+
+      const currentPage = pageInventory("materials-page", 1, texts);
+
+      const fetcher = jest.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          translations: [
+            {
+              id: "local-block-4",
+              source: materials,
+              translated: "✦ 2 balls of Catania TR263",
+              valid: true,
+              errors: [],
+              warnings: [],
+            },
+          ],
+        }),
+      }));
+
+      const review = await translateCurrentPage(
+        "en",
+        "live-instructions-one-edit",
+        {
+          queryCurrentPage: currentPageQuery(texts) as never,
+          getPageMetadata: (async () => ({
+            type: "absolute",
+            id: "materials-page",
+          })) as never,
+          readInventory: (async () => ({
+            pages: [
+              pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+              currentPage,
+            ],
+            skippedPages: [],
+          })) as never,
+          fetch: fetcher as never,
+          ...translationAuth,
+        },
+      );
+
+      expect(fetcher).toHaveBeenCalledTimes(1);
+
+      const body = backendTranslations(fetcher);
+
+      expect(body.contentKind).toBe("materials");
+      expect(body.blocks).toHaveLength(1);
+      expect(body.blocks[0]).toMatchObject({
+        id: "local-block-4",
+        text: materials,
+      });
+
+      expect(review.blocks[4]?.translated).toBe(INSTRUCTIONS.en);
+    });
+
+    it("fails closed when a long deterministic instructions body differs by more than one edit", async () => {
+      const materials = "✦ Generic yarn";
+
+      const twoEditInstructions = INSTRUCTIONS_TR
+        .replace("iletişime", "iletişme")
+        .replace("instagram", "instgram");
+
+      const texts = [
+        "MALZEMELER",
+        "TERİMLER",
+        "AÇIKLAMALAR",
+        materials,
+        twoEditInstructions,
+        GLOSSARY_TR,
+      ];
+
+      const currentPage = pageInventory("materials-page", 1, texts);
+      const fetcher = jest.fn();
+
+      await expect(
+        translateCurrentPage(
+          "en",
+          "instructions-more-than-one-edit",
+          {
+            queryCurrentPage: currentPageQuery(texts) as never,
+            getPageMetadata: (async () => ({
+              type: "absolute",
+              id: "materials-page",
+            })) as never,
+            readInventory: (async () => ({
+              pages: [
+                pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+                currentPage,
+              ],
+              skippedPages: [],
+            })) as never,
+            fetch: fetcher as never,
+            ...translationAuth,
+          },
+        ),
+      ).rejects.toThrow(
+        "Protected reference page could not be resolved deterministically; refusing full-page LLM fallback.",
+      );
+
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+
     it.each([
       ["en", MATERIALS_HEADING.en, ABBREVIATIONS_HEADING.en, EXPLANATIONS_HEADING.en, GLOSSARY.en, INSTRUCTIONS.en],
       ["es", MATERIALS_HEADING.es, ABBREVIATIONS_HEADING.es, EXPLANATIONS_HEADING.es, GLOSSARY.es, INSTRUCTIONS.es],
