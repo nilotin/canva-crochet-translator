@@ -652,7 +652,7 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it.each([
-    ["en", "24) 25sc, ch 1, skip 1 sts, 10sc, ch 1, skip 1 sts, 29sc"],
+    ["en", "24) 25sc, ch 1, skip 1 st, 10sc, ch 1, skip 1 st, 29sc"],
     ["es", "24) 25pb, 1 cad, saltar 1pb, 10pb, 1 cad, saltar 1pb, 29pb"],
   ] as const)(
     "reconstructs the Segment 14 mixed pattern by span ID in %s",
@@ -1293,7 +1293,7 @@ describe("crochet instruction phrasing", () => {
     [
       "Bu sıradan sonra gözleri boşluklara yerleştirebiliriz.",
       "After this row, we can place the eyes in the gaps.",
-      "After this round, we can insert the eyes into the gaps.",
+      "After this round, we can insert the eyes into the chain spaces.",
     ],
   ])(
     "uses insert for eye placement in amigurumi context",

@@ -79,7 +79,8 @@ const normalizeCrochetSequenceLine = (source: string): string | undefined => {
     let match = /^(\d+)\s+zincir\s+(\d+)x\s+atla$/iu.exec(part);
     if (match) {
       hasSpecialStructure = true;
-      translatedParts.push(`ch ${match[1]}, skip ${match[2]} sts`);
+      const stitchWord = Number(match[2]) === 1 ? "st" : "sts";
+      translatedParts.push(`ch ${match[1]}, skip ${match[2]} ${stitchWord}`);
       continue;
     }
 
@@ -89,12 +90,13 @@ const normalizeCrochetSequenceLine = (source: string): string | undefined => {
     );
     if (match && skipMatch) {
       hasSpecialStructure = true;
-      translatedParts.push(`ch ${match[1]}, skip ${skipMatch[1]} sts`);
+      const stitchWord = Number(skipMatch[1]) === 1 ? "st" : "sts";
+      translatedParts.push(`ch ${match[1]}, skip ${skipMatch[1]} ${stitchWord}`);
       index += 1;
       continue;
     }
 
-    match = /^zincir\s+içine\s+(\d+)x$/iu.exec(part);
+    match = /^zincir\s+(?:içine|üzeri)\s+(\d+)x$/iu.exec(part);
     if (match) {
       hasSpecialStructure = true;
       translatedParts.push(`${match[1]}sc into the chain space`);
@@ -183,13 +185,21 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${marker}${STITCH_MARKER_INSTRUCTION}`;
   }
 
-  if (/gözleri[^.!?\n]{0,80}(?:takacağız|yerleştirebiliriz)/iu.test(source)) {
+  if (
+    /gözleri[^.!?\n]{0,80}(?:takacağız|takıyoruz|yerleştirebiliriz|yerleştiriyoruz)/iu.test(
+      source,
+    )
+  ) {
     return translated
       .replace(
         /\b(?:attach|place|position) the eyes\b/giu,
         "insert the eyes",
       )
-      .replace(/\binsert the eyes in\b/giu, "insert the eyes into");
+      .replace(/\binsert the eyes in\b/giu, "insert the eyes into")
+      .replace(
+        /\binsert the eyes into (?:the )?(?:gaps|spaces)\b/giu,
+        "insert the eyes into the chain spaces",
+      );
   }
 
   if (/(?<!\p{L})tığ(?!\p{L})[\s\S]*\bile\s+örüyoruz\b/iu.test(source)) {

@@ -206,6 +206,43 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+
+  it("uses singular stitch grammar when skipping one stitch", () => {
+    expect(
+      normalizeTranslationStyle(
+        "23) 29x, 1 zincir 1x atla, 9x, 1 zincir 1x atla, 20x",
+        "23) 29sc, 1 chain skip 1sc, 9sc, 1 chain skip 1sc, 20sc",
+        "en",
+      ),
+    ).toBe(
+      "23) 29sc, ch 1, skip 1 st, 9sc, ch 1, skip 1 st, 20sc",
+    );
+  });
+
+  it("normalizes stitches worked over a chain space", () => {
+    expect(
+      normalizeTranslationStyle(
+        "24) 29x, zincir üzeri 1x, 9x, zincir üzeri 1x, 20x = 60x",
+        "24) 29sc, along the chain 1sc, 9sc, along the chain 1sc, 20sc = 60sc",
+        "en",
+      ),
+    ).toBe(
+      "24) 29sc, 1sc into the chain space, 9sc, 1sc into the chain space, 20sc = 60sc",
+    );
+  });
+
+  it("normalizes eye placement into the chain spaces", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ Bu sıradan sonra gözleri boşluklara takıyoruz.",
+        "✦ After this round, attach the eyes in the gaps.",
+        "en",
+      ),
+    ).toBe(
+      "✦ After this round, insert the eyes into the chain spaces.",
+    );
+  });
+
   it.each([
     [
       "(zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
@@ -215,7 +252,7 @@ describe("normalizeTranslationStyle", () => {
     [
       "Bu sıradan sonra gözleri boşluklara yerleştirebiliriz.",
       "After this row, we can place the eyes in the gaps.",
-      "After this round, we can insert the eyes into the gaps.",
+      "After this round, we can insert the eyes into the chain spaces.",
     ],
   ])("normalizes amigurumi eye insertion wording", (source, input, expected) => {
     expect(normalizeTranslationStyle(source, input, "en")).toBe(expected);
