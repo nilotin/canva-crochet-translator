@@ -2114,6 +2114,29 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes leg-relative yarn attachment through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Birinci bacağın bittiği yerin yanındaki ilk sık iğneden ipimizi sabitliyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-leg-relative-attachment", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Attach the yarn to the first single crochet next to where the first leg ends.",
+    );
+
+    expect(result?.translated).not.toContain("We secure the yarn");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes starting-point joining and next-round continuation through the full pipeline", async () => {
     const provider = new InspectingProvider();
     const source =
@@ -2235,6 +2258,25 @@ describe("crochet instruction phrasing", () => {
     expect(codes).not.toContain("LOST_PATTERN_NOTATION");
     expect(codes).not.toContain("NUMBER_MISMATCH");
     expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  it("preserves the sentence boundary after a numbered stitch-count instruction", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "1) 45x örüyoruz. Başlangıç noktamıza cc ile birleştiriyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "numbered-stitch-work-boundary", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) Work 45sc. Join to the starting point with SL.ST.",
+    );
+
+    expect(result?.errors).toEqual([]);
     expect(result?.valid).toBe(true);
   });
 

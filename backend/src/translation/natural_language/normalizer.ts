@@ -467,6 +467,28 @@ const normalizeEnglishCrochetStructures = (
       ) => `${prefix}Skip ${count}${stitch}`,
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+bacağın\s+bittiği\s+yerin\s+yanındaki\s+ilk\s+sık\s+iğneden\s+ipimizi\s+sabitliyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        ordinalSource: string,
+      ) => {
+        const ordinals: Record<string, string> = {
+          birinci: "first",
+          ikinci: "second",
+          üçüncü: "third",
+          dördüncü: "fourth",
+          beşinci: "fifth",
+          altıncı: "sixth",
+        };
+
+        const ordinal =
+          ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Attach the yarn to the first single crochet next to where the ${ordinal} leg ends`;
+      },
+    )
+    .replace(
       /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+(cc|x|dc|tr)\s*[’'ʼ]?\s*(?:nin|nın|nun|nün|in|ın|un|ün)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz\b/giu,
       (
         _match,

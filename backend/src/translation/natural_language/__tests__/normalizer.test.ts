@@ -513,6 +513,19 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "Birinci bacağın bittiği yerin yanındaki ilk sık iğneden ipimizi sabitliyoruz.",
+      "Attach the yarn to the first single crochet next to where the first leg ends.",
+    ],
+    [
+      "İkinci bacağın bittiği yerin yanındaki ilk sık iğneden ipimizi sabitliyoruz.",
+      "Attach the yarn to the first single crochet next to where the second leg ends.",
+    ],
+  ])("normalizes leg-relative yarn attachment: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
       "İkinci cc’nin BLO’sundan ipimizi sabitliyoruz.",
       "Attach the yarn to the BLO of the second cc.",
     ],
