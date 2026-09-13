@@ -497,6 +497,31 @@ describe("translateBlocks provider boundary", () => {
     );
   });
 
+  it("normalizes a hook intro with the yarn brand after ile through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "alternate-hook-yarn-intro",
+          text:
+            "2.20 numara tığ, siyah ip ile (catania 110) örüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Using a 2.20 mm crochet hook and siyah yarn (catania 110), work as follows.",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("MEASUREMENT_INTEGRITY_MISMATCH");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("does not introduce numeric mismatches for written Turkish chain counts", async () => {
     const provider = new InspectingProvider();
 
@@ -2086,6 +2111,42 @@ describe("crochet instruction phrasing", () => {
       "NUMBER_MISMATCH",
     );
 
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes generic chain-position and finishing instructions through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "6 zincir atlayıp (düğme iliği oluşturuyoruz), yedinci zincirden itibaren 49x örüyoruz. " +
+      "1 zincir çekip ipimizi dikiş için uzun kesiyoruz. " +
+      "1 zincir çekip ördüğümüz parçanın iki ucunu, görselde görüldüğü gibi cc ile birleştiriyoruz. " +
+      "1 zincir çekip bir üst sıradan devam ediyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-chain-position-finishing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Skip 6 chains (to form a buttonhole), then work 49sc starting from the seventh chain",
+    );
+    expect(result?.translated).not.toContain(
+      "Skip 6 chains and (",
+    );
+    expect(result?.translated).toContain(
+      "Ch 1 and cut the yarn, leaving a long tail for sewing",
+    );
+    expect(result?.translated).toContain(
+      "Ch 1 and join the two ends of the piece with SL.ST as shown in the image",
+    );
+    expect(result?.translated).toContain(
+      "Ch 1 and continue with the next round",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
     expect(result?.valid).toBe(true);
   });
 

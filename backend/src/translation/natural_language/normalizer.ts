@@ -145,6 +145,38 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `Ch ${count} and turn.`,
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+atlayıp\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*\)\s*[,，]?\s*(birinci|ikinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*x(?:\s+örüyoruz)?\b/giu,
+      (
+        _match,
+        prefix: string,
+        chains: string,
+        ordinalSource: string,
+        stitches: string,
+      ) => {
+        const ordinals: Record<string, string> = {
+          birinci: "first",
+          ikinci: "second",
+          üçüncü: "third",
+          dördüncü: "fourth",
+          beşinci: "fifth",
+          altıncı: "sixth",
+          yedinci: "seventh",
+          sekizinci: "eighth",
+          dokuzuncu: "ninth",
+          onuncu: "tenth",
+        };
+
+        const ordinal =
+          ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Skip ${chains} chains (to form a buttonhole), then work ${stitches}x starting from the ${ordinal} chain`;
+      },
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+atlayıp\b/giu,
+      (_match, count: string) => `Skip ${count} chains and`,
+    )
+    .replace(
       /\b(\d+)\s+zincir\s+atlıyoruz\b/giu,
       (_match, count: string) => `skip ${count} chains`,
     )
@@ -152,6 +184,32 @@ const normalizeEnglishCrochetStructures = (
       /\b(?:zincir\s+üzerine\s+)?(\d+)\.\s*zincirden\s+itibaren\s+(\d+)\s*x\b/giu,
       (_match, chain: string, stitches: string) =>
         `Starting from the ${englishOrdinal(chain)} chain, work ${stitches}x`,
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(birinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*x(?:\s+örüyoruz)?\b/giu,
+      (
+        _match,
+        prefix: string,
+        ordinalSource: string,
+        stitches: string,
+      ) => {
+        const ordinals: Record<string, string> = {
+          birinci: "first",
+          üçüncü: "third",
+          dördüncü: "fourth",
+          beşinci: "fifth",
+          altıncı: "sixth",
+          yedinci: "seventh",
+          sekizinci: "eighth",
+          dokuzuncu: "ninth",
+          onuncu: "tenth",
+        };
+
+        const ordinal =
+          ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Starting from the ${ordinal} chain, work ${stitches}x`;
+      },
     )
     .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+(\d+)\s*x\s+örüyoruz\b/giu,
@@ -181,6 +239,20 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bzincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\b/giu,
       "continue along the other side of the chain",
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+çekip\s+ördüğümüz\s+parçanın\s+iki\s+ucunu\s*[,，]?\s*görselde\s+görüldüğü\s+gibi\s+(cc|x|dc|tr)\s+ile\s+birleştiriyoruz\b/giu,
+      (
+        _match,
+        chains: string,
+        stitch: string,
+      ) =>
+        `Ch ${chains} and join the two ends of the piece with ${stitch} as shown in the image`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıradan\s+devam\s+ediyoruz\b/giu,
+      (_match, chains: string) =>
+        `Ch ${chains} and continue with the next round`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+çekip\s+devam\s+ediyoruz\b/giu,
@@ -505,6 +577,23 @@ const normalizeToolMaterialIntro = (
   let normalized = source;
 
   normalized = normalized.replace(
+    /\b(\d+(?:[.,]\d+)?)\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s+ile\s*\(\s*([^)]+?)\s*\)\s+örüyoruz\b/giu,
+    (
+      _match,
+      size: string,
+      yarnDescription: string,
+      yarnBrand: string,
+    ) => {
+      const description = yarnDescription.trim();
+      const brand = yarnBrand.trim();
+
+      return targetLanguage === "en"
+        ? `Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`
+        : `Con un ganchillo de ${size} mm y hilo ${description} (${brand}), tejemos de la siguiente manera`;
+    },
+  );
+
+  normalized = normalized.replace(
     /\b(\d+(?:[.,]\d+)?)\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+örüyoruz\b/giu,
     (
       _match,
@@ -701,6 +790,11 @@ export const normalizeSourceNaturalLanguage = (
         "Work the other ear in the same way, from bottom to top",
         "Teje la otra oreja de la misma manera, de abajo hacia arriba",
       ),
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+çekip\s+ipimizi\s+dikiş\s+için\s+uzun\s+kesiyoruz\b/giu,
+      (_match, prefix: string, chains: string) =>
+        `${prefix}Ch ${chains} and cut the yarn, leaving a long tail for sewing`,
     )
     .replace(
       /(\d+)\s+zincir\s+çekip\s+kafaya\s+dikmek\s+için\s+ipimizi\s+uzun\s+kesiyoruz\b/giu,

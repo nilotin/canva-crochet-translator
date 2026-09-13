@@ -136,6 +136,17 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
 
+  it("normalizes a hook intro when the yarn brand follows ile", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 numara tığ, siyah ip ile (catania 110) örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Using a 2.20 mm crochet hook and siyah yarn (catania 110), work as follows.",
+    );
+  });
+
   it("normalizes the live hook and yarn intro into crochet-native English", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -220,6 +231,19 @@ describe("normalizeSourceNaturalLanguage", () => {
       "At the end of Round 27, ch 3 (buttonhole) and turn.",
     ],
   ])("normalizes round-end buttonhole turns: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "6 zincir atlayıp (düğme iliği oluşturuyoruz), yedinci zincirden itibaren 49x örüyoruz",
+      "Skip 6 chains (to form a buttonhole), then work 49x starting from the seventh chain",
+    ],
+    [
+      "4 zincir atlayıp (düğme iliği oluşturuyoruz), üçüncü zincirden itibaren 12x örüyoruz",
+      "Skip 4 chains (to form a buttonhole), then work 12x starting from the third chain",
+    ],
+  ])("normalizes reusable buttonhole skip-and-work phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
@@ -342,6 +366,40 @@ describe("normalizeSourceNaturalLanguage", () => {
     ["3. zincirden itibaren 18x", "Starting from the 3rd chain, work 18x"],
     ["zincir üzerine 5x", "work 5x along the chain"],
   ])("normalizes reusable chain-position phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "6 zincir atlayıp",
+      "Skip 6 chains and",
+    ],
+    [
+      "yedinci zincirden itibaren 49x örüyoruz",
+      "Starting from the seventh chain, work 49x",
+    ],
+    [
+      "üçüncü zincirden itibaren 12x",
+      "Starting from the third chain, work 12x",
+    ],
+  ])("normalizes reusable written chain-position phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "1 zincir çekip ipimizi dikiş için uzun kesiyoruz.",
+      "Ch 1 and cut the yarn, leaving a long tail for sewing.",
+    ],
+    [
+      "1 zincir çekip ördüğümüz parçanın iki ucunu, görselde görüldüğü gibi cc ile birleştiriyoruz.",
+      "Ch 1 and join the two ends of the piece with cc as shown in the image.",
+    ],
+    [
+      "2 zincir çekip bir üst sıradan devam ediyoruz.",
+      "Ch 2 and continue with the next round.",
+    ],
+  ])("normalizes reusable finishing and joining phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
