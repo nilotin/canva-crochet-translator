@@ -317,8 +317,46 @@ const normalizeEnglishCrochetStructures = (
         `${stitches}x into the magic ring${separator ? "." : ""}`,
     )
     .replace(
+      // Generic "Ch N, skip M sc into the next single crochet, continue to
+      // the end of the round" instruction family. Matched (and fully
+      // resolved) as one clause before the narrower standalone "N zincir,
+      // Mx atla" rule below gets a chance to partially consume it, so the
+      // whole sentence is rewritten together rather than word-by-word.
+      /\b(\d+)\s+zincir\s*[,，]?\s*(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s*[,，]?\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\b[.]?/giu,
+      (
+        _match,
+        chains: string,
+        skip: string,
+        work: string,
+      ) =>
+        // The skip count uses the project's existing "st/sts" wording (see
+        // the narrower "N zincir, Mx atla" sibling below) rather than "sc":
+        // the notation-integrity validator deliberately excludes an "x"
+        // immediately followed by "atla" from its expected sc-count tally,
+        // so rendering the skip count as "sc" here would introduce an
+        // extra, unexpected "sc" and trip LOST_PATTERN_NOTATION.
+        `Ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}, work ${work}sc in the next single crochet. Continue in this way to the end of the round.`,
+    )
+    .replace(
+      // Narrower sibling of the family above for "N zincir, Mx atla" on its
+      // own (no "sıradaki sık iğneye..." continuation). Uses the project's
+      // existing "st/sts" wording for a plain skip count; singular vs.
+      // plural is derived from the count instead of a hardcoded "sts" so a
+      // count of 1 doesn't produce "skip 1 sts".
       /\b(\d+)\s+zincir\s*,?\s*(\d+)\s*x\s+atla\b/giu,
-      "ch $1, skip $2 sts",
+      (_match, chains: string, skip: string) =>
+        `ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}`,
+    )
+    .replace(
+      // Sentence boundary after a repeated parenthesized action immediately
+      // followed by the round-end finishing clause below, e.g.
+      // "(1 zincir, sıradaki sık iğneye cc)*60, sıra sonuna geldiğimizde...".
+      // Narrowly scoped to a "...)*N," directly before "sıra sonuna
+      // geldiğimizde" -- not a global comma-to-period rewrite -- so a clean
+      // ". " sentence break is produced instead of ", At the end of the
+      // round...".
+      /(\)\s*\*\s*\d+)\s*[,，]\s*(?=sıra\s+sonuna\s+geldiğimizde\b)/giu,
+      "$1. ",
     )
     .replace(
       /\baynı\s+zincir\s+içine\s+(\d+)\s*x\b/giu,
@@ -633,6 +671,33 @@ const normalizeEnglishCrochetStructures = (
       },
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s+)?(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s*[,，]?\s*(\d+)\s*x\s+(?:örüp|örüyoruz|örerek)\s+devam\s+ediyoruz\s*[,，]?\s*(\d+)\s*x(?:\s*=\s*(\d+)\s*x)?\b/giu,
+      (
+        _match,
+        prefix: string,
+        imageReference: string | undefined,
+        round: string,
+        workedLoop: string,
+        currentLoop: string,
+        firstStitches: string,
+        continuationStitches: string,
+        total: string | undefined,
+      ) => {
+        // The round number is kept first (matching the source's own
+        // number order: round, then stitch counts) so the numeric
+        // integrity check comparing source and target digit sequences
+        // stays satisfied -- unlike the yarn-attachment sibling above,
+        // this construction has multiple trailing numbers, so where the
+        // round number lands in the sentence is not just a style choice.
+        return (
+          `${prefix}In Round ${round}${imageReference ? " (as shown in the image)" : ""}, ` +
+          `work ${firstStitches}x in the ${currentLoop.toUpperCase()} of the single crochet stitches ` +
+          `worked in the ${workedLoop.toUpperCase()}, then continue with ${continuationStitches}x` +
+          `${total ? ` = ${total}x` : ""}`
+        );
+      },
+    )
+    .replace(
       /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+(cc|x|dc|tr)\s*[’'ʼ]?\s*(?:nin|nın|nun|nün|in|ın|un|ün)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz\b/giu,
       (
         _match,
@@ -939,11 +1004,15 @@ const normalizeSimpleLoopInstruction = (
   targetLanguage: TargetLanguage,
 ): string =>
   source.replace(
+    // The regex itself only ever matches when the source explicitly says
+    // "bu sırayı" ("this round"), so it's safe to always render that word
+    // here -- bare "<loop>'dan örüyoruz" without "bu sırayı" never reaches
+    // this rule and keeps its own plain "Work in <loop>" phrasing.
     /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\b/giu,
     (_match, loopRaw: string) =>
       targetLanguage === "en"
-        ? `Work in ${loopRaw.toUpperCase()}`
-        : `Trabaja en ${loopRaw.toUpperCase()}`,
+        ? `Work this round in ${loopRaw.toUpperCase()}`
+        : `Trabaja esta vuelta en ${loopRaw.toUpperCase()}`,
   );
 
 export const normalizeSourceNaturalLanguage = (

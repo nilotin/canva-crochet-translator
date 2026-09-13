@@ -103,7 +103,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "Bu sırayı FLO’dan örüyoruz, 6x",
         "en",
       ),
-    ).toBe("Work in FLO, 6x");
+    ).toBe("Work this round in FLO, 6x");
   });
 
   it("accepts apostrophe and spacing variants in conditional loop instructions", () => {
@@ -123,7 +123,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "2.20 mm tığ ile bu sırayı FLO’dan örüyoruz",
         "en",
       ),
-    ).toBe("2.20 mm tığ ile Work in FLO");
+    ).toBe("2.20 mm tığ ile Work this round in FLO");
   });
 
   it("does not rewrite an unsupported conditional technique unsafely", () => {
@@ -131,7 +131,7 @@ describe("normalizeSourceNaturalLanguage", () => {
       "Bu sırayı FLO’dan örüyoruz (farklı bir teknik kullananlar, BLO’dan örecekler)";
 
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(
-      "Work in FLO (farklı bir teknik kullananlar, BLO’dan örecekler)",
+      "Work this round in FLO (farklı bir teknik kullananlar, BLO’dan örecekler)",
     );
   });
 
@@ -216,6 +216,10 @@ describe("normalizeSourceNaturalLanguage", () => {
     ["3 sıra 78x", "3 rounds, 78x"],
     ["Sihirli halka içine 6x", "6x into the magic ring"],
     ["2 zincir 2x atla", "ch 2, skip 2 sts"],
+    // Singular skip count must not produce the plural "1 sts" -- see the
+    // Page 25 regression below for the full "atla ... devam ediyoruz"
+    // instruction family this rule is a narrower sibling of.
+    ["1 zincir 1x atla", "ch 1, skip 1 st"],
     ["zincir içine 2x", "2x into the chain space"],
   ])("normalizes crochet instruction structure: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
@@ -450,6 +454,10 @@ describe("normalizeSourceNaturalLanguage", () => {
     [
       "Sıra sonuna geldiğimizde 2 zincir çekip ipimizi kesiyoruz.",
       "At the end of the round, ch 2 and cut the yarn.",
+    ],
+    [
+      "Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.",
+      "At the end of the round, ch 1 and cut the yarn.",
     ],
   ])("normalizes reusable continuation phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
@@ -823,6 +831,62 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  // Sibling of the round-first loop-attachment family above, but the action
+  // is "work N stitches into the referenced loop, then continue" rather
+  // than yarn attachment -- see Page 24 lines 23/26. Also resolved fully
+  // before provider translation so the FLO/BLO relationship can't be
+  // reinterpreted or duplicated downstream.
+  it("normalizes a round-first referenced-loop stitch count with a continuation count", () => {
+    // The round number is kept first in the output, matching the source's
+    // own number order (round, then stitch counts), so the numeric
+    // integrity check comparing source/target digit sequences stays
+    // satisfied -- see the full-pipeline regression in translator.test.ts.
+    expect(
+      normalizeSourceNaturalLanguage(
+        "22. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 24x örüp devam ediyoruz, 12x",
+        "en",
+      ),
+    ).toBe(
+      "In Round 22, work 24x in the BLO of the single crochet stitches worked in the FLO, then continue with 12x",
+    );
+  });
+
+  it("normalizes the same family with a stated total and the alternate verb form", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "25. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 48x örüyoruz devam ediyoruz, 12x = 60x",
+        "en",
+      ),
+    ).toBe(
+      "In Round 25, work 48x in the BLO of the single crochet stitches worked in the FLO, then continue with 12x = 60x",
+    );
+  });
+
+  it("never reverses the worked and current loops for the referenced-loop stitch-count family", () => {
+    // "N. sırada BLO’dan ördüğümüz ... FLO’sundan ..." means: worked loop =
+    // BLO, current/work-into loop = FLO. Swapping FLO/BLO in the source must
+    // swap them in the output too.
+    expect(
+      normalizeSourceNaturalLanguage(
+        "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan 16x örüp devam ediyoruz, 8x",
+        "en",
+      ),
+    ).toBe(
+      "In Round 18, work 16x in the FLO of the single crochet stitches worked in the BLO, then continue with 8x",
+    );
+  });
+
+  it("supports an optional image reference for the referenced-loop stitch-count family", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Görselde görüldüğü gibi 22. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 24x örüp devam ediyoruz, 12x",
+        "en",
+      ),
+    ).toBe(
+      "In Round 22 (as shown in the image), work 24x in the BLO of the single crochet stitches worked in the FLO, then continue with 12x",
+    );
+  });
+
   it.each([
     [
       "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
@@ -1100,6 +1164,73 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "es")).not.toContain(
       "Nose:",
     );
+  });
+
+  // Page 25: generic "Ch N, skip M sc, work K sc in the next single
+  // crochet, continue to the end of the round" family (line 52). Resolved
+  // as one clause so the narrower standalone "N zincir, Mx atla" rule never
+  // gets a chance to partially consume it first.
+  it("normalizes the chain/skip/work/continue-to-end-of-round instruction family", () => {
+    // The skip count uses the project's existing "st/sts" wording (see the
+    // singular/plural fix on the narrower "N zincir, Mx atla" rule above)
+    // rather than "sc" -- the notation-integrity validator deliberately
+    // excludes an "x" immediately followed by "atla" from its expected
+    // sc-count tally, so an extra "sc" here would trip LOST_PATTERN_NOTATION.
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2 zincir, 1x atla, sıradaki sık iğneye 1x, bu şekilde sıra sonuna kadar devam ediyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Ch 2, skip 1 st, work 1sc in the next single crochet. Continue in this way to the end of the round.",
+    );
+  });
+
+  it("normalizes the same family with a plural skip count", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2 zincir, 2x atla, sıradaki sık iğneye 1x, bu şekilde sıra sonuna kadar devam ediyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Ch 2, skip 2 sts, work 1sc in the next single crochet. Continue in this way to the end of the round.",
+    );
+  });
+
+  // Page 25 line 53: a repeated parenthesized action directly followed by
+  // the round-end finishing clause needs a clean sentence boundary instead
+  // of ", At the end of the round...". Scoped narrowly to "...)*N," right
+  // before "sıra sonuna geldiğimizde" -- not a global comma rewrite.
+  it("produces a clean sentence boundary between a repeated action and the round-end finishing clause", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "(1 zincir, sıradaki sık iğneye cc)*60, sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "(ch 1, cc into the next single crochet)*60. At the end of the round, ch 1 and cut the yarn.",
+    );
+  });
+
+  it("does not rewrite a comma before the finishing clause when it does not follow a repeated action", () => {
+    // Guards against overgeneralizing the sentence-boundary fix above into
+    // a blanket comma-to-period rewrite in front of the finishing clause.
+    expect(
+      normalizeSourceNaturalLanguage(
+        "12x, sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe("12x, At the end of the round, ch 1 and cut the yarn.");
+  });
+
+  // Page 25 line 33: "Bu sırayı BLO’dan örüyoruz" explicitly says "bu
+  // sırayı" ("this round"), so the round should be named in the output.
+  // Bare "BLO’dan örüyoruz" (without "bu sırayı") is untouched by this
+  // rule and keeps its own plain "Work in BLO" phrasing elsewhere.
+  it("names the round for an explicit \"bu sırayı\" simple loop instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage("Bu sırayı Blo’dan örüyoruz", "en"),
+    ).toBe("Work this round in BLO");
   });
 
 });

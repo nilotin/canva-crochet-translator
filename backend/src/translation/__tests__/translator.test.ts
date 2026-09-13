@@ -75,6 +75,37 @@ class DuplicateOpeningProvider extends InspectingProvider {
   }
 }
 
+// Sibling trap for the referenced-loop stitch-count family (Page 24 lines
+// 23/26): "N. sırada FLO'dan ördüğümüz sık iğnelerin BLO'sundan Nx örüp
+// devam ediyoruz, Mx[ = Tx]". Unlike DuplicateOpeningProvider (yarn
+// attachment), this construction works stitches directly, so a realistic
+// mistranslation both reverses which loop is which AND duplicates the
+// round/loop mention -- structurally close to what a real LLM produces
+// when it reinterprets the clause instead of receiving it pre-resolved.
+class RestructuredStitchCountProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => {
+        if (
+          /devam\s+ediyoruz/iu.test(text) &&
+          /sıra(?:da|nın)/iu.test(text)
+        ) {
+          return {
+            id,
+            translated:
+              "in Round 22 BLO of the single crochets we worked from FLO from the 24sc we work and continue",
+          };
+        }
+        return { id, translated: text };
+      }),
+    };
+  }
+}
+
 class HookBoundaryProvider extends InspectingProvider {
   override async translate(
     request: Parameters<TranslationProvider["translate"]>[0],
@@ -2692,6 +2723,78 @@ describe("crochet instruction phrasing", () => {
         expect(block.text).not.toMatch(/sabitliyoruz/iu);
       }
     }
+  });
+
+  // Page 24 sibling of the live regression above: the referenced-loop
+  // relation appears mid-instruction as a stitch-count action ("work N in
+  // the referenced loop, then continue with M") rather than yarn
+  // attachment. RestructuredStitchCountProvider stands in for a real LLM
+  // call that both reverses the FLO/BLO relationship and duplicates the
+  // round mention. This test fails before the fix (the unnormalized
+  // clause reaches the provider and its garbled, reversed output survives)
+  // and passes after it (the clause is fully resolved before any provider
+  // call, so the trap provider is never invoked for it).
+  it("does not reverse or duplicate the referenced-loop relation when a real provider restructures the stitch-count family (Page 24 live regression, Round 22)", async () => {
+    const provider = new RestructuredStitchCountProvider();
+    const source =
+      "22. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan 24x örüp devam ediyoruz, 12x";
+
+    const [result] = await translateBlocks(
+      [{ id: "live-referenced-loop-stitch-count", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "In Round 22, work 24sc in the BLO of the single crochet stitches worked in the FLO, then continue with 12sc",
+    );
+
+    expect(result?.translated.match(/Round 22/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bFLO\b/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bBLO\b/gu) ?? []).toHaveLength(1);
+
+    expect(result?.translated).not.toContain("we worked from FLO");
+    expect(result?.translated).not.toContain("BLO of the single crochets we worked");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+
+    for (const request of provider.requests) {
+      for (const block of request.blocks) {
+        expect(block.text).not.toMatch(/devam\s+ediyoruz/iu);
+      }
+    }
+  });
+
+  it("does not reverse or duplicate the referenced-loop relation when a real provider restructures the stitch-count family (Page 24 live regression, Round 25 with total)", async () => {
+    const provider = new RestructuredStitchCountProvider();
+    const source =
+      "25. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan 48x örüyoruz devam ediyoruz, 12x = 60x";
+
+    const [result] = await translateBlocks(
+      [{ id: "live-referenced-loop-stitch-count-total", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "In Round 25, work 48sc in the BLO of the single crochet stitches worked in the FLO, then continue with 12sc = 60sc",
+    );
+
+    expect(result?.translated.match(/Round 25/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bFLO\b/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bBLO\b/gu) ?? []).toHaveLength(1);
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
   });
 
   it("normalizes an image-referenced round-first loop attachment through the full pipeline", async () => {

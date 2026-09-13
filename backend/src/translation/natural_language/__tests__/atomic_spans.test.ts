@@ -41,4 +41,31 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
       "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan ipimizi sabitliyoruz",
     );
   });
+
+  it("protects the referenced-loop stitch-count relation (Page 24) as a single atomic span", () => {
+    const source =
+      "22. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 24x örüp devam ediyoruz, 12x";
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+    expect(spans).toHaveLength(1);
+    expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(source);
+  });
+
+  it("protects the referenced-loop stitch-count relation with a stated total and the alternate verb form", () => {
+    const source =
+      "25. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 48x örüyoruz devam ediyoruz, 12x = 60x";
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+    expect(spans).toHaveLength(1);
+    expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(source);
+  });
+
+  it("protects the referenced-loop stitch-count relation generically for the opposite loop order", () => {
+    const source =
+      "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan 16x örüp devam ediyoruz, 8x";
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+    expect(spans).toHaveLength(1);
+    expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(source);
+  });
 });
