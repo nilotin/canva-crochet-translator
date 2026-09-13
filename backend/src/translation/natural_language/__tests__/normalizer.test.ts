@@ -399,6 +399,18 @@ describe("normalizeSourceNaturalLanguage", () => {
       "2 zincir çekip bir üst sıradan devam ediyoruz.",
       "Ch 2 and continue with the next round.",
     ],
+    [
+      "Görselde görüldüğü gibi başlangıç noktamıza cc ile birleştiriyoruz.",
+      "Join to the starting point with cc as shown in the image.",
+    ],
+    [
+      "başlangıç noktamıza x ile birleştiriyoruz.",
+      "Join to the starting point with x.",
+    ],
+    [
+      "1 zincir çekip, bir üst sıradan devam ediyoruz.",
+      "Ch 1 and continue with the next round.",
+    ],
   ])("normalizes reusable finishing and joining phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });

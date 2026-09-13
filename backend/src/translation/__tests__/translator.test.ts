@@ -2114,6 +2114,35 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes starting-point joining and next-round continuation through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi başlangıç noktamıza cc ile birleştiriyoruz. " +
+      "1 zincir çekip, bir üst sıradan devam ediyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-starting-point-join", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Join to the starting point with SL.ST as shown in the image.",
+    );
+    expect(result?.translated).toContain(
+      "Ch 1 and continue with the next round.",
+    );
+
+    expect(result?.translated).not.toContain("SL.ST we join");
+    expect(result?.translated).not.toContain("1 we chain");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes generic chain-position and finishing instructions through the full pipeline", async () => {
     const provider = new InspectingProvider();
     const source =

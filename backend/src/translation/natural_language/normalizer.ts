@@ -250,7 +250,17 @@ const normalizeEnglishCrochetStructures = (
         `Ch ${chains} and join the two ends of the piece with ${stitch} as shown in the image`,
     )
     .replace(
-      /\b(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıradan\s+devam\s+ediyoruz\b/giu,
+      /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s+)?başlangıç\s+noktamıza\s+(cc|x|dc|tr)\s+ile\s+birleştiriyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        imageReference: string | undefined,
+        stitch: string,
+      ) =>
+        `${prefix}Join to the starting point with ${stitch}${imageReference ? " as shown in the image" : ""}`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s+çekip\s*[,，]?\s*bir\s+üst\s+sıradan\s+devam\s+ediyoruz\b/giu,
       (_match, chains: string) =>
         `Ch ${chains} and continue with the next round`,
     )
