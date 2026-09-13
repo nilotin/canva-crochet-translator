@@ -373,6 +373,26 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it.each([
+    "⊱KOL BIRLEŞTIRME⊰",
+    "⊱KOL BİRLEŞTİRME⊰",
+  ])("normalizes the arm-joining heading: %s", (source) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(
+      "⊱ARM JOINING⊰",
+    );
+  });
+
+  it("normalizes continuing with arm joining without cutting the yarn", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "15-29) 15 sıra 42x, İpimizi kesmeden kol birleştirme ile devam ediyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "15-29) 15 rounds, 42x. Without cutting the yarn, continue by joining the arms.",
+    );
+  });
+
   it("normalizes the representative-photo notice for pattern instructions", () => {
     expect(
       normalizeSourceNaturalLanguage(

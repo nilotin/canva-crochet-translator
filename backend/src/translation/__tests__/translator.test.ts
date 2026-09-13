@@ -1350,6 +1350,52 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes Page 9 arm-joining terminology through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page9-arm-joining-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page9-arm-joining-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const results = await translateBlocks(
+      [
+        {
+          id: "page9-heading",
+          text: "⊱KOL BIRLEŞTIRME⊰",
+        },
+        {
+          id: "page9-continuation",
+          text:
+            "15-29) 15 sıra 42x, İpimizi kesmeden kol birleştirme ile devam ediyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(results[0]?.translated).toBe("⊱ARM JOINING⊰");
+    expect(results[0]?.valid).toBe(true);
+
+    expect(results[1]?.translated).toBe(
+      "15-29) 15 rounds, 42sc. Without cutting the yarn, continue by joining the arms.",
+    );
+    expect(results[1]?.valid).toBe(true);
+  });
+
   it("normalizes Page 8 leg and body instructions through the full pipeline", async () => {
     const provider: TranslationProvider = {
       name: "page8-leg-body-stub",

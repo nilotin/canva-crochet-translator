@@ -253,6 +253,25 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
   }
 
+  const continueWithArmJoining =
+    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s*[,，]\s*[iİ]pimizi\s+kesmeden\s+kol\s+birleştirme\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (continueWithArmJoining) {
+    const roundWord =
+      Number(continueWithArmJoining[2]) === 1 ? "round" : "rounds";
+
+    return `${continueWithArmJoining[1]}${continueWithArmJoining[2]} ${roundWord}, ${continueWithArmJoining[3]}sc. Without cutting the yarn, continue by joining the arms${continueWithArmJoining[4]}`;
+  }
+
+  const armJoiningHeading =
+    /^\s*⊱\s*kol\s+b[iİIı]rleşt[iİIı]rme\s*⊰\s*$/iu.test(source);
+
+  if (armJoiningHeading) {
+    return "⊱ARM JOINING⊰";
+  }
+
   const legJoinInstruction =
     /^(\s*✦\s*)?[iİ]kinci\s+bacaktan\s+(\d+)\s+zincir\s+ile\s+bacakların\s+arka\s+tarafı\s+bize\s+dönük\s+olacak\s+şekilde\s+ilk\s+bacak\s+ile\s+birleştiriyoruz([.]?\s*)$/iu.exec(
       source,

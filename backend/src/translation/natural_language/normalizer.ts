@@ -250,6 +250,14 @@ const normalizeEnglishCrochetStructures = (
       "$1sc (along the chain)",
     )
     .replace(
+      /⊱\s*kol\s+b[iİIı]rleşt[iİIı]rme\s*⊰/giu,
+      "⊱ARM JOINING⊰",
+    )
+    .replace(
+      /[,，]\s*[iİ]pimizi\s+kesmeden\s+kol\s+birleştirme\s+ile\s+devam\s+ediyoruz\b/giu,
+      ". Without cutting the yarn, continue by joining the arms",
+    )
+    .replace(
       /\bfotoğraf\s+temsilidir\b/giu,
       "The images are for reference only",
     )

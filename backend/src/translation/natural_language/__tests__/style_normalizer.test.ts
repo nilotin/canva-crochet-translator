@@ -324,6 +324,28 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+  it("normalizes continuing with arm joining", () => {
+    expect(
+      normalizeTranslationStyle(
+        "15-29) 15 sıra 42x, İpimizi kesmeden kol birleştirme ile devam ediyoruz.",
+        "15-29) 15 rounds, 42sc, Without cutting the yarn, we continue by joining the arms.",
+        "en",
+      ),
+    ).toBe(
+      "15-29) 15 rounds, 42sc. Without cutting the yarn, continue by joining the arms.",
+    );
+  });
+
+  it("normalizes the arm-joining heading", () => {
+    expect(
+      normalizeTranslationStyle(
+        "⊱KOL BIRLEŞTIRME⊰",
+        "⊱ARM ASSEMBLY⊰",
+        "en",
+      ),
+    ).toBe("⊱ARM JOINING⊰");
+  });
+
   it("normalizes joining the second leg to the first leg", () => {
     expect(
       normalizeTranslationStyle(
