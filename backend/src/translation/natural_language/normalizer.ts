@@ -333,6 +333,15 @@ const normalizeEnglishCrochetStructures = (
       (_match, chains: string) => `then ch ${chains} again and`,
     )
     .replace(
+      /(^|(?:[.!?;]\s+)|(?:[\r\n]+\s*))(\d+)\s*(x|dc|tr)\s+örüyoruz\s*[.]?/giu,
+      (
+        _match,
+        prefix: string,
+        count: string,
+        stitch: string,
+      ) => `${prefix}Work ${count}${stitch}.`,
+    )
+    .replace(
       /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (_match, chains: string) =>
         `At the end of the round, ch ${chains} and cut the yarn`,
@@ -349,6 +358,50 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bsıradaki\s+sık\s+iğneye\s+cc\b/giu,
       "cc into the next single crochet",
+    )
+    .replace(
+      /(^|[,;]\s+|[.!?]\s+)([^.!?;,]+?)\s+yerden\s+(\d+)\s*(cc|x|dc|tr)\s+atlıyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        location: string,
+        count: string,
+        stitch: string,
+      ) =>
+        `${prefix}Skip ${count}${stitch} from ${location.trim()} yer`,
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(\d+)\s*(cc|x|dc|tr)\s+atlıyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        count: string,
+        stitch: string,
+      ) => `${prefix}Skip ${count}${stitch}`,
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+(cc|x|dc|tr)\s*[’'ʼ]?\s*(?:nin|nın|nun|nün|in|ın|un|ün)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        ordinalSource: string,
+        stitch: string,
+        loop: string,
+      ) => {
+        const ordinals: Record<string, string> = {
+          birinci: "first",
+          ikinci: "second",
+          üçüncü: "third",
+          dördüncü: "fourth",
+          beşinci: "fifth",
+          altıncı: "sixth",
+        };
+
+        const ordinal =
+          ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Attach the yarn to the ${loop.toUpperCase()} of the ${ordinal} ${stitch}`;
+      },
     )
     .replace(
       /(^|[^\p{L}\p{N}_])([iİ]lmek\s+kaydırmaların)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+(\d+)\s*x\s+örüyoruz\b/giu,
@@ -370,6 +423,35 @@ const normalizeEnglishCrochetStructures = (
       /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s*\)/giu,
       (_match, chains: string, stitches: string) =>
         `(ch ${chains}, ${stitches}x in the next single crochet)`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s+yaparak\b/giu,
+      (_match, chains: string, stitches: string) =>
+        `Ch ${chains} and work ${stitches}x in the next single crochet while`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s*[,，]\s*(?=sıradaki\s+sık\s+iğneye\b)/giu,
+      (_match, chains: string) => `Ch ${chains}, `,
+    )
+    .replace(
+      /(^|[^\p{L}\p{N}_])(iki|üç|dört)\s+parça\s+arasındaki\s+(cc|x|dc|tr)\s+üzerine\s+yine\s+\3\s+yapıyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        pieceCountSource: string,
+        stitch: string,
+      ) => {
+        const pieceCounts: Record<string, string> = {
+          iki: "two",
+          üç: "three",
+          dört: "four",
+        };
+
+        const pieceCount =
+          pieceCounts[pieceCountSource.toLocaleLowerCase("tr-TR")];
+
+        return `${prefix}Work another ${stitch} into the ${stitch} between the ${pieceCount} pieces`;
+      },
     )
     .replace(
       /\bsıradaki\s+sık\s+iğneye\s+(\d+)\s*x\b/giu,

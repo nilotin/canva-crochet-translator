@@ -72,7 +72,7 @@ describe("translateBlocks provider boundary", () => {
     });
 
     const [result] = await translateBlocks(
-      [{ id: "mixed-placeholder", text: "6x örüyoruz" }],
+      [{ id: "mixed-placeholder", text: "6x sonra duruyoruz" }],
       "en",
       { provider },
     );
@@ -391,7 +391,7 @@ describe("translateBlocks provider boundary", () => {
       [
         {
           id: longInternalId,
-          text: "6x örüyoruz",
+          text: "6x sonra duruyoruz",
         },
       ],
       "en",
@@ -844,7 +844,7 @@ describe("translateBlocks provider boundary", () => {
     };
 
     const [result] = await translateBlocks(
-      [{ id: "mixed", text: "20x örüyoruz" }],
+      [{ id: "mixed", text: "20x sonra duruyoruz" }],
       "en",
       { provider },
     );
@@ -2086,6 +2086,102 @@ describe("crochet instruction phrasing", () => {
       "NUMBER_MISMATCH",
     );
 
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes embedded skip and next-stitch prose through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Görselde görüldüğü gibi, ilk parçanın bittiği yerden 1cc atlıyoruz. " +
+      "İkinci cc’nin BLO’sundan ipimizi sabitliyoruz.\n" +
+      "1 zincir, sıradaki sık iğneye 1x yaparak yakanın bütün çevresini dönüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-embedded-crochet-prose", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Skip 1SL.ST from ilk parçanın bittiği yer.",
+    );
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the second SL.ST.",
+    );
+    expect(result?.translated).toContain(
+      "Ch 1 and work 1sc in the next single crochet while yakanın bütün çevresini dönüyoruz.",
+    );
+
+    expect(result?.translated).not.toContain("yerden Skip");
+    expect(result?.translated).not.toContain("SL.ST we skip");
+    expect(result?.translated).not.toContain(
+      "in the next single crochet yaparak",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes a standalone stitch-count work instruction through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source = "21x örüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-standalone-stitch-work", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("Work 21sc.");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes generic skip, ordinal-loop, and referenced-stitch phrasing through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "3cc atlıyoruz.\n" +
+      "İkinci cc’nin BLO’sundan ipimizi sabitliyoruz.\n" +
+      "2 zincir, sıradaki sık iğneye 1x yaparak devam ediyoruz.\n" +
+      "iki parça arasındaki cc üzerine yine cc yapıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-page16-phrasing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Skip 3SL.ST.");
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the second SL.ST.",
+    );
+    expect(result?.translated).toContain(
+      "Ch 2 and work 1sc in the next single crochet while devam ediyoruz.",
+    );
+    expect(result?.translated).toContain(
+      "Work another SL.ST into the SL.ST between the two pieces.",
+    );
+
+    expect(result?.translated).not.toContain("SL.ST we skip");
+    expect(result?.translated).not.toMatch(
+      /second SL\.ST.*BLO.*secure/iu,
+    );
+    expect(result?.translated).not.toContain("2 chain");
+    expect(result?.translated).not.toContain(
+      "SL.ST on top again SL.ST we make",
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
     expect(result?.valid).toBe(true);
   });
 

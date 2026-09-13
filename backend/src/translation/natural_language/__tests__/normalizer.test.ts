@@ -387,6 +387,92 @@ describe("normalizeSourceNaturalLanguage", () => {
 
   it.each([
     [
+      "18x örüyoruz.",
+      "Work 18x.",
+    ],
+    [
+      "7dc örüyoruz.",
+      "Work 7dc.",
+    ],
+    [
+      "5tr örüyoruz.",
+      "Work 5tr.",
+    ],
+  ])("normalizes standalone stitch-count work instructions: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "ilk parçanın bittiği yerden 3cc atlıyoruz.",
+      "Skip 3cc from ilk parçanın bittiği yer.",
+    ],
+    [
+      "başlangıç noktasının yanındaki yerden 2x atlıyoruz.",
+      "Skip 2x from başlangıç noktasının yanındaki yer.",
+    ],
+  ])("normalizes location-aware counted stitch skipping: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "3cc atlıyoruz.",
+      "Skip 3cc.",
+    ],
+    [
+      "2x atlıyoruz.",
+      "Skip 2x.",
+    ],
+  ])("normalizes counted stitch skipping: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "İkinci cc’nin BLO’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the second cc.",
+    ],
+    [
+      "İkinci cc'nin FLO'sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the FLO of the second cc.",
+    ],
+    [
+      "Üçüncü x’in BLO’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the third x.",
+    ],
+  ])("normalizes ordinal stitch loop attachment: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "2 zincir, sıradaki sık iğneye 1x yaparak devam ediyoruz.",
+      "Ch 2 and work 1x in the next single crochet while devam ediyoruz.",
+    ],
+    [
+      "1 zincir, sıradaki sık iğneye 2x yaparak devam ediyoruz.",
+      "Ch 1 and work 2x in the next single crochet while devam ediyoruz.",
+    ],
+  ])("normalizes a bare chain prefix before next-stitch phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "iki parça arasındaki cc üzerine yine cc yapıyoruz.",
+      "Work another cc into the cc between the two pieces.",
+    ],
+    [
+      "üç parça arasındaki x üzerine yine x yapıyoruz.",
+      "Work another x into the x between the three pieces.",
+    ],
+  ])("normalizes repeated work into a referenced stitch: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
       "(3 zincir, sıradaki sık iğneye 1x)*12",
       "(ch 3, 1x in the next single crochet)*12",
     ],
