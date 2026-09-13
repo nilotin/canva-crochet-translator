@@ -2061,6 +2061,34 @@ describe("crochet instruction phrasing", () => {
     },
   );
 
+  it("normalizes buttonhole chain-turn instructions through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const source = "42x - 5 zincir (düğme iliği) dön";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-buttonhole-turn", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "42sc, ch 5 (buttonhole) and turn",
+    );
+
+    expect(result?.translated).not.toContain("5 chain");
+    expect(result?.translated).not.toContain("buttonhole) turn");
+
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "LOST_PATTERN_NOTATION",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes generic chain-position instructions through the full pipeline", async () => {
     const provider = new InspectingProvider();
 

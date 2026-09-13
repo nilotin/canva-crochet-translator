@@ -211,6 +211,19 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
   it.each([
+    [
+      "42x - 5 zincir (düğme iliği) dön",
+      "42x, ch 5 (buttonhole) and turn",
+    ],
+    [
+      "18x – 4 zincir (düğme iliği) dön",
+      "18x, ch 4 (buttonhole) and turn",
+    ],
+  ])("normalizes reusable buttonhole chain-turn phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
     ["7 zincir çekip dönüyoruz.", "Ch 7 and turn."],
     ["4 zincir dön", "Ch 4 and turn"],
     ["ikinci zincirden itibaren", "Starting from the second chain"],

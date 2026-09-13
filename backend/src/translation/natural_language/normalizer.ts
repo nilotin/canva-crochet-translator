@@ -127,6 +127,11 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
     .replace(
+      /\b(\d+)\s*x\s*[-–—]\s*(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
+      (_match, stitches: string, chains: string) =>
+        `${stitches}x, ch ${chains} (buttonhole) and turn`,
+    )
+    .replace(
       /\b(\d+)\s+zincir\s+dön\b/giu,
       (_match, count: string) => `Ch ${count} and turn`,
     )
