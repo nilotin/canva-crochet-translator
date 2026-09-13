@@ -351,6 +351,32 @@ const normalizeEnglishCrochetStructures = (
       "cc into the next single crochet",
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])([iİ]lmek\s+kaydırmaların)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+(\d+)\s*x\s+örüyoruz\b/giu,
+      (
+        _match,
+        prefix: string,
+        _subject: string,
+        loop: string,
+        stitches: string,
+      ) =>
+        `${prefix}Work ${stitches}x in the ${loop.toUpperCase()} of the slip stitches`,
+    )
+    .replace(
+      /\b(\d+)\s*cc\s*\(\s*ilmek\s+kaydırma\s*\)\s*yapıyoruz\s*[.]?/giu,
+      (_match, stitches: string) =>
+        `Work ${stitches}cc (slip stitches).`,
+    )
+    .replace(
+      /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s*\)/giu,
+      (_match, chains: string, stitches: string) =>
+        `(ch ${chains}, ${stitches}x in the next single crochet)`,
+    )
+    .replace(
+      /\bsıradaki\s+sık\s+iğneye\s+(\d+)\s*x\b/giu,
+      (_match, stitches: string) =>
+        `${stitches}x in the next single crochet`,
+    )
+    .replace(
       /[,，]\s*(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,
       (_match, count: string) =>
         `. After making ${count} long hair strands, work the bangs`,

@@ -2089,6 +2089,56 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes generic slip-stitch and next-stitch phrasing through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan, yeşil ipimizi sabitliyoruz.\n" +
+      "(3 zincir, sıradaki sık iğneye 1x)*12\n" +
+      "12cc (ilmek kaydırma) yapıyoruz.\n" +
+      "İlmek kaydırmaların BLO’sundan 9x örüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-slip-stitch-phrasing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    );
+    expect(result?.translated).toContain(
+      "(ch 3, 1sc in the next single crochet)*12",
+    );
+    expect(result?.translated).toContain(
+      "Work 12SL.ST (slip stitches).",
+    );
+    expect(result?.translated).toContain(
+      "Work 9sc in the BLO of the slip stitches.",
+    );
+
+    expect(result?.translated).not.toMatch(
+      /in Round 18.*BLO.*FLO/iu,
+    );
+    expect(result?.translated).not.toMatch(
+      /\b3 chain\b/iu,
+    );
+    expect(result?.translated).not.toContain(
+      "into the next single crochet 1sc",
+    );
+    expect(result?.translated).not.toMatch(
+      /12SL\.ST.*we work/iu,
+    );
+    expect(result?.translated).not.toMatch(
+      /of the slip stitches BLO from/iu,
+    );
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes generic round-end, chain-cut, and loop-attachment instructions through the full pipeline", async () => {
     const provider = new InspectingProvider();
     const source =

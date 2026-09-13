@@ -119,6 +119,18 @@ describe("normalizeTranslationStyle", () => {
     },
   );
 
+  it("accepts a comma before the colored yarn in loop attachment phrasing", () => {
+    expect(
+      normalizeTranslationStyle(
+        "8) 18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan, yeşil ipimizi sabitliyoruz.",
+        "8) in Round 18 BLO stitches worked FLO secure green yarn.",
+        "en",
+      ),
+    ).toBe(
+      "8) Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 18.",
+    );
+  });
+
   it("drops duplicated provider prose before the next numbered instruction", () => {
     const source =
       "27) 23. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz. " +

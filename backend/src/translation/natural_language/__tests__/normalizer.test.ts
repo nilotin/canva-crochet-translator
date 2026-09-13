@@ -385,6 +385,54 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it.each([
+    [
+      "(3 zincir, sıradaki sık iğneye 1x)*12",
+      "(ch 3, 1x in the next single crochet)*12",
+    ],
+    [
+      "(2 zincir, sıradaki sık iğneye 2x)*8",
+      "(ch 2, 2x in the next single crochet)*8",
+    ],
+  ])("normalizes repeated chain and next-stitch phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "sıradaki sık iğneye 1x",
+      "1x in the next single crochet",
+    ],
+    [
+      "sıradaki sık iğneye 3x",
+      "3x in the next single crochet",
+    ],
+  ])("normalizes counted stitches worked into the next single crochet: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes a counted slip-stitch instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "12cc (ilmek kaydırma) yapıyoruz.",
+        "en",
+      ),
+    ).toBe("Work 12cc (slip stitches).");
+  });
+
+  it.each([
+    [
+      "İlmek kaydırmaların BLO’sundan 9x örüyoruz.",
+      "Work 9x in the BLO of the slip stitches.",
+    ],
+    [
+      "İlmek kaydırmaların FLO'sundan 9x örüyoruz.",
+      "Work 9x in the FLO of the slip stitches.",
+    ],
+  ])("normalizes loop work over a slip-stitch group: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
   it("normalizes chain-and-turn wording with geriye", () => {
     expect(
       normalizeSourceNaturalLanguage(
