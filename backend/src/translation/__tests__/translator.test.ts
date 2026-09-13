@@ -1350,6 +1350,72 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes Page 8 leg and body instructions through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page8-leg-body-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page8-leg-body-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const results = await translateBlocks(
+      [
+        {
+          id: "page8-cut-yarn",
+          text:
+            "✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)\n52) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+        },
+        {
+          id: "page8-second-leg",
+          text:
+            "✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.\n52) 26x\n53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+        },
+        {
+          id: "page8-alignment",
+          text:
+            "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+        },
+        {
+          id: "page8-join",
+          text:
+            "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+        },
+        {
+          id: "page8-body-round",
+          text:
+            "1) 26x(ilk bacak), 3x (zincir üstü), 26x (ikinci bacak), 3x (zincir üstü) ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak = 58x",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(results.map((result) => result.translated)).toEqual([
+      "✦ With ecru yarn: (Cut the orange yarn.)\n52) 24sc. Ch 1 and cut the yarn.",
+      "✦ On the second leg, work the first 51 rounds in the same way.\n52) 26sc\n53) Work 12sc, then continue with the body without cutting the yarn.",
+      "✦ For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center.",
+      "✦ From the second leg, ch 3 and join to the first leg with the backs of the legs facing you.",
+      "1) 26sc (first leg), 3sc (along the chain), 26sc (second leg), 3sc (along the chain) = 58sc. This will be the beginning of the round; place a stitch marker here.",
+    ]);
+
+    for (const result of results) {
+      expect(result.valid).toBe(true);
+    }
+  });
+
   it("normalizes Page 7 leg-stuffing guidance through the full pipeline", async () => {
     const provider: TranslationProvider = {
       name: "page7-leg-stuffing-stub",

@@ -222,6 +222,25 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${multiStitchDecrease[1]}M (decrease ${decreaseCount} stitches together), ${multiStitchDecrease[3]}sc${multiStitchDecrease[4]}`;
   }
 
+  const stitchCountChainCut =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s*x\s*[,，]\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (stitchCountChainCut) {
+    return `${stitchCountChainCut[1]}${stitchCountChainCut[2]}sc. Ch ${stitchCountChainCut[3]} and cut the yarn${stitchCountChainCut[4]}`;
+  }
+
+  const yarnHeadingWithCut =
+    /^(\s*✦\s*)?ekru\s+renk\s+ip\s+ile\s*[;:]?\s*\(\s*turuncu\s+ipimizi\s+kesiyoruz\s*[.]?\s*\)\s*$/iu.exec(
+      source,
+    );
+
+  if (yarnHeadingWithCut) {
+    const bullet = yarnHeadingWithCut[1] ? "✦ " : "";
+    return `${bullet}With ecru yarn: (Cut the orange yarn.)`;
+  }
+
   const writtenChainCut =
     /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz([.]?\s*)$/iu.exec(
       source,
@@ -232,6 +251,57 @@ const normalizeEnglishCrochetInstructionLine = (
       Number(writtenChainCut[2]) === 1 ? "round" : "rounds";
 
     return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
+  }
+
+  const legJoinInstruction =
+    /^(\s*✦\s*)?[iİ]kinci\s+bacaktan\s+(\d+)\s+zincir\s+ile\s+bacakların\s+arka\s+tarafı\s+bize\s+dönük\s+olacak\s+şekilde\s+ilk\s+bacak\s+ile\s+birleştiriyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (legJoinInstruction) {
+    const bullet = legJoinInstruction[1] ? "✦ " : "";
+    return `${bullet}From the second leg, ch ${legJoinInstruction[2]} and join to the first leg with the backs of the legs facing you${legJoinInstruction[3]}`;
+  }
+
+  const joinedLegRound =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s*x\s*\(\s*ilk\s+bacak\s*\)\s*[,，]\s*(\d+)\s*x\s*\(\s*zincir\s+üstü\s*\)\s*[,，]\s*(\d+)\s*x\s*\(\s*ikinci\s+bacak\s*\)\s*[,，]\s*(\d+)\s*x\s*\(\s*zincir\s+üstü\s*\)\s+ilmek\s+belirleyiciyi\s+buraya\s+takıyoruz[.]\s*başlangıç\s+noktamız\s+burası\s+olacak\s*=\s*(\d+)\s*x\s*$/iu.exec(
+      source,
+    );
+
+  if (joinedLegRound) {
+    return `${joinedLegRound[1]}${joinedLegRound[2]}sc (first leg), ${joinedLegRound[3]}sc (along the chain), ${joinedLegRound[4]}sc (second leg), ${joinedLegRound[5]}sc (along the chain) = ${joinedLegRound[6]}sc. ${STITCH_MARKER_INSTRUCTION}`;
+  }
+
+  const legAlignmentGuidance =
+    /^(\s*✦\s*)?bende\s+her\s+iki\s+bacağın\s+bitiş\s+noktası\s+bacağın\s+iç\s+kısmının\s+ortasına\s+denk\s+geldi[.]\s*sizde\s+denk\s+gelmiyorsa\s+(\d+)-(\d+)\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örerek\s+orta\s+noktaya\s+gelin([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (legAlignmentGuidance) {
+    const bullet = legAlignmentGuidance[1] ? "✦ " : "";
+    return `${bullet}For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work ${legAlignmentGuidance[2]}-${legAlignmentGuidance[3]} fewer or additional single crochet stitches to reach the center${legAlignmentGuidance[4]}`;
+  }
+
+  const secondLegSameRounds =
+    /^(\s*✦\s*)?[iİ]kinci\s+bacakta\s+da\s+ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (secondLegSameRounds) {
+    const bullet = secondLegSameRounds[1] ? "✦ " : "";
+    const rounds = secondLegSameRounds[2] ?? "";
+    const roundWord = Number(rounds) === 1 ? "round" : "rounds";
+
+    return `${bullet}On the second leg, work the first ${rounds} ${roundWord} in the same way${secondLegSameRounds[3]}`;
+  }
+
+  const continueBodyWithoutCutting =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s*x\s+örüyoruz\s*[,，]\s*ipimizi\s+kesmeden\s+gövde\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu.exec(
+      source,
+    );
+
+  if (continueBodyWithoutCutting) {
+    return `${continueBodyWithoutCutting[1]}Work ${continueBodyWithoutCutting[2]}sc, then continue with the body without cutting the yarn${continueBodyWithoutCutting[3]}`;
   }
 
   const legStuffingGuidance =

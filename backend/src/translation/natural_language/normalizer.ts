@@ -76,6 +76,15 @@ const normalizeEnglishCrochetStructures = (
         `Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches.)`,
     )
     .replace(
+      /((?:\d+\)\s*)?)(\d+)\s*x\s*[,，]\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (
+        _match,
+        marker: string,
+        stitches: string,
+        chains: string,
+      ) => `${marker}${stitches}sc. Ch ${chains} and cut the yarn`,
+    )
+    .replace(
       /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+örüyoruz\s*,\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (
         _match,
@@ -184,6 +193,10 @@ const normalizeEnglishCrochetStructures = (
       "When changing colors, do not cut the previous yarn; leave it inside until needed again",
     )
     .replace(
+      /\bekru\s+renk\s+ip\s+ile\s*[;:]?\s*\(\s*turuncu\s+ipimizi\s+kesiyoruz\s*[.]?\s*\)/giu,
+      "With ecru yarn: (Cut the orange yarn.)",
+    )
+    .replace(
       /\bekru\s+renk\s+ip\s+ile\b/giu,
       "With ecru yarn",
     )
@@ -203,6 +216,38 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bdolum\s+yaptıkça\s+elimizle\s+örgüyü\s+sürekli\s+düzeltirsek\s*[,，]\s*örgümüz\s+dönmez\s+ve\s+bacaklar\s+çok\s+muntazam\s+olur\b/giu,
       "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater",
+    )
+    .replace(
+      /(?<!\p{L})[iİ]kinci\s+bacakta\s+da\s+ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz(?!\p{L})/giu,
+      (_match, rounds: string) =>
+        `On the second leg, work the first ${rounds} ${rounds === "1" ? "round" : "rounds"} in the same way`,
+    )
+    .replace(
+      /\b(\d+)\s*x\s+örüyoruz\s*[,，]\s*ipimizi\s+kesmeden\s+gövde\s+ile\s+devam\s+ediyoruz\b/giu,
+      (_match, stitches: string) =>
+        `Work ${stitches}sc, then continue with the body without cutting the yarn`,
+    )
+    .replace(
+      /\bbende\s+her\s+iki\s+bacağın\s+bitiş\s+noktası\s+bacağın\s+iç\s+kısmının\s+ortasına\s+denk\s+geldi[.]\s*sizde\s+denk\s+gelmiyorsa\s+(\d+)-(\d+)\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örerek\s+orta\s+noktaya\s+gelin\b/giu,
+      (_match, min: string, max: string) =>
+        `For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work ${min}-${max} fewer or additional single crochet stitches to reach the center`,
+    )
+    .replace(
+      /(?<!\p{L})[iİ]kinci\s+bacaktan\s+(\d+)\s+zincir\s+ile\s+bacakların\s+arka\s+tarafı\s+bize\s+dönük\s+olacak\s+şekilde\s+ilk\s+bacak\s+ile\s+birleştiriyoruz(?!\p{L})/giu,
+      (_match, chains: string) =>
+        `From the second leg, ch ${chains} and join to the first leg with the backs of the legs facing you`,
+    )
+    .replace(
+      /(\d+)\s*x\s*\(\s*ilk\s+bacak\s*\)/giu,
+      "$1sc (first leg)",
+    )
+    .replace(
+      /(\d+)\s*x\s*\(\s*ikinci\s+bacak\s*\)/giu,
+      "$1sc (second leg)",
+    )
+    .replace(
+      /(\d+)\s*x\s*\(\s*zincir\s+üstü\s*\)/giu,
+      "$1sc (along the chain)",
     )
     .replace(
       /\bfotoğraf\s+temsilidir\b/giu,

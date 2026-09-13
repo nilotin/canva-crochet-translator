@@ -240,6 +240,24 @@ describe("normalizeSourceNaturalLanguage", () => {
     ).toBe("M (decrease 3 stitches together)");
   });
 
+  it("normalizes a stitch-count row followed by a chain-and-cut instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "52) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe("52) 24sc. Ch 1 and cut the yarn.");
+  });
+
+  it("normalizes a yarn-color heading that also cuts the orange yarn", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)",
+        "en",
+      ),
+    ).toBe("With ecru yarn: (Cut the orange yarn.)");
+  });
+
   it("normalizes round counts followed by a written one-chain cut-yarn instruction", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -307,6 +325,51 @@ describe("normalizeSourceNaturalLanguage", () => {
       "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.",
     ],
   ])("normalizes reusable stuffing guidance: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.",
+      "On the second leg, work the first 51 rounds in the same way.",
+    ],
+    [
+      "12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+      "Work 12sc, then continue with the body without cutting the yarn.",
+    ],
+  ])("normalizes reusable second-leg continuation phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it("normalizes reusable leg-alignment guidance", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+        "en",
+      ),
+    ).toBe(
+      "For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center.",
+    );
+  });
+
+  it.each([
+    [
+      "İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+      "From the second leg, ch 3 and join to the first leg with the backs of the legs facing you.",
+    ],
+    [
+      "26x(ilk bacak)",
+      "26sc (first leg)",
+    ],
+    [
+      "26x (ikinci bacak)",
+      "26sc (second leg)",
+    ],
+    [
+      "3x (zincir üstü)",
+      "3sc (along the chain)",
+    ],
+  ])("normalizes reusable leg-join phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
