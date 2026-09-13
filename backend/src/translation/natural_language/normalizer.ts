@@ -183,6 +183,11 @@ const normalizeEnglishCrochetStructures = (
       "continue along the other side of the chain",
     )
     .replace(
+      /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+çekip\s+devam\s+ediyoruz\b/giu,
+      (_match, prefix: string, chains: string) =>
+        `${prefix}Ch ${chains} and continue`,
+    )
+    .replace(
       /\bM\s*\(\s*aynı\s+anda\s+(bir|iki|üç|dört|beş|\d+)\s+ilmeği\s+birlikte\s+kesmek\s*\)/giu,
       (_match, countRaw: string) => {
         const wordCounts: Record<string, string> = {

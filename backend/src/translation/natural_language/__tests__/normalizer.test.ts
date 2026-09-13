@@ -255,6 +255,19 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it.each([
+    [
+      "2 zincir çekip devam ediyoruz.",
+      "Ch 2 and continue.",
+    ],
+    [
+      "5 zincir çekip devam ediyoruz",
+      "Ch 5 and continue",
+    ],
+  ])("normalizes chain-and-continue phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
   it("normalizes bangs count followed by long-hair continuation", () => {
     expect(
       normalizeSourceNaturalLanguage(
