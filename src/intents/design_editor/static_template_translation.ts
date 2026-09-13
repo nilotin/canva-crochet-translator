@@ -4,6 +4,10 @@ import type {
   TranslationResponse,
 } from "./translation_review";
 import type { WholeDocumentInventory } from "./whole_document_inventory";
+import {
+  isDeterministicGlossary,
+  translateGlossaryDeterministically,
+} from "./generic_glossary_translation";
 
 type Page = WholeDocumentInventory["pages"][number];
 
@@ -41,6 +45,12 @@ export const MATERIALS_HEADING_TR = "Malzemeler";
 export const MATERIALS_HEADING = { en: "Materials", es: "Materiales" } as const;
 
 export const EXPLANATIONS_HEADING_TR = "Açıklamalar";
+
+const EXPLANATIONS_HEADING_TR_VARIANTS = [
+  EXPLANATIONS_HEADING_TR,
+  "Açıklamaları",
+] as const;
+
 export const EXPLANATIONS_HEADING = {
   en: "Explanations",
   es: "Explicaciones",
@@ -180,6 +190,11 @@ const normalizeForStaticMatch = (text: string): string =>
 
 const sameTemplateText = (left: string, right: string): boolean =>
   normalizeForStaticMatch(left) === normalizeForStaticMatch(right);
+
+const isExplanationsHeading = (text: string): boolean =>
+  EXPLANATIONS_HEADING_TR_VARIANTS.some((candidate) =>
+    sameTemplateText(text, candidate),
+  );
 
 const bulletStarts = (text: string): number[] => {
   const starts: number[] = [];
@@ -509,7 +524,7 @@ const classifyPage2PlainShape = (
   if (
     orderedPageBlocks.length === 3 &&
     sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
-    sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", GLOSSARY_TR)
+    isDeterministicGlossary(orderedPageBlocks[2]?.sourceText ?? "")
   ) {
     return { materialsIndex: 0, instructionsIndex: 1, glossaryIndex: 2 };
   }
@@ -518,7 +533,7 @@ const classifyPage2PlainShape = (
     orderedPageBlocks.length === 4 &&
     sameTemplateText(orderedPageBlocks[1]?.sourceText ?? "", INSTRUCTIONS_TR) &&
     sameTemplateText(orderedPageBlocks[2]?.sourceText ?? "", ".") &&
-    sameTemplateText(orderedPageBlocks[3]?.sourceText ?? "", GLOSSARY_TR)
+    isDeterministicGlossary(orderedPageBlocks[3]?.sourceText ?? "")
   ) {
     return {
       materialsIndex: 0,
@@ -568,7 +583,7 @@ const classifyPage2HeadingsShape = (
     if (sameTemplateText(text, MATERIALS_HEADING_TR)) {
       if (materialsHeadingIndex !== undefined) unmatched.push(index);
       else materialsHeadingIndex = index;
-    } else if (sameTemplateText(text, EXPLANATIONS_HEADING_TR)) {
+    } else if (isExplanationsHeading(text)) {
       if (explanationsHeadingIndex !== undefined) unmatched.push(index);
       else explanationsHeadingIndex = index;
     } else if (sameTemplateText(text, ABBREVIATIONS_HEADING_TR)) {
@@ -577,7 +592,7 @@ const classifyPage2HeadingsShape = (
     } else if (sameTemplateText(text, INSTRUCTIONS_TR)) {
       if (explanationsBodyIndex !== undefined) unmatched.push(index);
       else explanationsBodyIndex = index;
-    } else if (sameTemplateText(text, GLOSSARY_TR)) {
+    } else if (isDeterministicGlossary(text)) {
       if (abbreviationsBodyIndex !== undefined) unmatched.push(index);
       else abbreviationsBodyIndex = index;
     } else if (sameTemplateText(text, ".")) {
@@ -619,6 +634,22 @@ const classifyPage2HeadingsShape = (
   };
 };
 
+export const isProtectedPage2Candidate = (page: Page): boolean => {
+  const blocks = [...page.blocks].sort((a, b) => a.order - b.order);
+
+  if (blocks.length !== 6 && blocks.length !== 7) {
+    return false;
+  }
+
+  const texts = blocks.map(({ sourceText }) => sourceText);
+
+  return (
+    texts.some((text) => sameTemplateText(text, MATERIALS_HEADING_TR)) &&
+    texts.some((text) => isExplanationsHeading(text)) &&
+    texts.some((text) => sameTemplateText(text, ABBREVIATIONS_HEADING_TR))
+  );
+};
+
 export type Page2HybridSkeleton = {
   // The block whose SOURCE text must be sent through the existing
   // /api/translate pipeline (and ONLY this block -- see
@@ -646,6 +677,13 @@ export const recognizePage2Hybrid = (
   const plain = classifyPage2PlainShape(orderedPageBlocks);
 
   if (plain) {
+    const glossaryTranslation = translateGlossaryDeterministically(
+      orderedPageBlocks[plain.glossaryIndex]!.sourceText,
+      language,
+    );
+
+    if (!glossaryTranslation) return undefined;
+
     const deterministicTranslations: TranslationResponse["translations"] = [
       translationResult(
         orderedBlocks[plain.instructionsIndex]!,
@@ -656,7 +694,7 @@ export const recognizePage2Hybrid = (
       translationResult(
         orderedBlocks[plain.glossaryIndex]!,
         orderedPageBlocks[plain.glossaryIndex]!,
-        GLOSSARY[language],
+        glossaryTranslation,
         "replace",
       ),
     ];
@@ -681,6 +719,13 @@ export const recognizePage2Hybrid = (
   const headings = classifyPage2HeadingsShape(orderedPageBlocks);
 
   if (headings) {
+    const glossaryTranslation = translateGlossaryDeterministically(
+      orderedPageBlocks[headings.abbreviationsBodyIndex]!.sourceText,
+      language,
+    );
+
+    if (!glossaryTranslation) return undefined;
+
     const deterministicTranslations: TranslationResponse["translations"] = [
       translationResult(
         orderedBlocks[headings.materialsHeadingIndex]!,
@@ -709,7 +754,7 @@ export const recognizePage2Hybrid = (
       translationResult(
         orderedBlocks[headings.abbreviationsBodyIndex]!,
         orderedPageBlocks[headings.abbreviationsBodyIndex]!,
-        GLOSSARY[language],
+        glossaryTranslation,
         "replace",
       ),
     ];

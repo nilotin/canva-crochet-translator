@@ -16,6 +16,7 @@ import { saveBulkReview } from "./bulk_review_persistence";
 import { formattingBlocksSignature } from "./formatting_freshness";
 import {
   buildStaticTemplateTranslationResponse,
+  isProtectedPage2Candidate,
   recognizePage2Hybrid,
 } from "./static_template_translation";
 
@@ -197,6 +198,16 @@ export const translatePendingBulkPages = async (
             // matching for this run rather than guessing).
             firstPage: inventory.pages.find((p) => p.discoveryIndex === 0),
           });
+
+      // Generic Page-2 routing invariant:
+      // Materials body is the ONLY provider-eligible block.
+      // Headings, explanations and terms must never fall through to
+      // the generic full-page LLM route.
+      if (!page2Hybrid && isProtectedPage2Candidate(page)) {
+        throw new Error(
+          "Protected reference page could not be resolved deterministically; refusing full-page LLM fallback.",
+        );
+      }
 
       let result: TranslationResponse;
 

@@ -736,6 +736,223 @@ describe("bulk translation", () => {
     expect(result.translatedPages).toBe(1);
   });
 
+
+  it("generic Page 2 sends only the materials body to the provider", async () => {
+    const inventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "reference-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            {
+              id: "materials-heading",
+              sourceText: "MALZEMELER",
+              order: 0,
+              formattingRegions: [],
+            },
+            {
+              id: "materials-body",
+              sourceText: "Kadife ip, 2 mm tığ",
+              order: 1,
+              formattingRegions: [],
+            },
+            {
+              id: "explanations-heading",
+              sourceText: "AÇIKLAMALARI",
+              order: 2,
+              formattingRegions: [],
+            },
+            {
+              id: "explanations-body",
+              sourceText: INSTRUCTIONS_TR,
+              order: 3,
+              formattingRegions: [],
+            },
+            {
+              id: "terms-heading",
+              sourceText: "TERİMLER",
+              order: 4,
+              formattingRegions: [],
+            },
+            {
+              id: "terms-body",
+              sourceText:
+                "✦ ydcv: ydc arttırma\n" +
+                "✦ zn: zincir\n" +
+                "✦ x: sık iğne",
+              order: 5,
+              formattingRegions: [],
+            },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const queue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "reference-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-reference-page",
+          status: "pending",
+          blockIds: [
+            "materials-heading",
+            "materials-body",
+            "explanations-heading",
+            "explanations-body",
+            "terms-heading",
+            "terms-body",
+          ],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "materials-body",
+            source: "Kadife ip, 2 mm tığ",
+            translated: "Velvet yarn, 2 mm hook",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    await translatePendingBulkPages("en", inventory, queue, {
+      fetch: fetcher as unknown as typeof fetch,
+      ...translationAuth,
+      backendHost: "http://backend",
+      saveReview: jest.fn(async () => undefined),
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    const [, request] = (
+      fetcher.mock.calls as unknown as [string, RequestInit][]
+    )[0]!;
+
+    const body = JSON.parse(String(request.body));
+
+    expect(body.contentKind).toBe("materials");
+    expect(body.blocks).toHaveLength(1);
+    expect(body.blocks[0]).toMatchObject({
+      id: "materials-body",
+      text: "Kadife ip, 2 mm tığ",
+    });
+
+    const payload = JSON.stringify(body.blocks);
+
+    expect(payload).not.toContain("MALZEMELER");
+    expect(payload).not.toContain("AÇIKLAMALARI");
+    expect(payload).not.toContain("TERİMLER");
+    expect(payload).not.toContain(INSTRUCTIONS_TR);
+    expect(payload).not.toContain("ydcv");
+  });
+
+  it("protected Page 2 with an unknown glossary term fails closed without calling the provider", async () => {
+    const inventory: WholeDocumentInventory = {
+      pages: [
+        {
+          pageId: "protected-reference-page",
+          discoveryIndex: 1,
+          locked: false,
+          blocks: [
+            {
+              id: "materials-heading",
+              sourceText: "MALZEMELER",
+              order: 0,
+              formattingRegions: [],
+            },
+            {
+              id: "materials-body",
+              sourceText: "Pamuk ip",
+              order: 1,
+              formattingRegions: [],
+            },
+            {
+              id: "explanations-heading",
+              sourceText: "AÇIKLAMALARI",
+              order: 2,
+              formattingRegions: [],
+            },
+            {
+              id: "explanations-body",
+              sourceText: INSTRUCTIONS_TR,
+              order: 3,
+              formattingRegions: [],
+            },
+            {
+              id: "terms-heading",
+              sourceText: "TERİMLER",
+              order: 4,
+              formattingRegions: [],
+            },
+            {
+              id: "terms-body",
+              sourceText: "✦ xyz: bilinmeyen teknik",
+              order: 5,
+              formattingRegions: [],
+            },
+          ],
+        },
+      ],
+      skippedPages: [],
+    };
+
+    const queue: BulkReviewQueue = {
+      entries: [
+        {
+          pageId: "protected-reference-page",
+          discoveryIndex: 1,
+          fingerprint: "fp-protected-reference-page",
+          status: "pending",
+          blockIds: [
+            "materials-heading",
+            "materials-body",
+            "explanations-heading",
+            "explanations-body",
+            "terms-heading",
+            "terms-body",
+          ],
+        },
+      ],
+      counts: {
+        pending: 1,
+        translating: 0,
+        ready: 0,
+        needs_review: 0,
+        blocked: 0,
+        failed: 0,
+      },
+    };
+
+    const fetcher = jest.fn();
+
+    await translatePendingBulkPages("en", inventory, queue, {
+      fetch: fetcher as unknown as typeof fetch,
+      ...translationAuth,
+      backendHost: "http://backend",
+      saveReview: jest.fn(async () => undefined),
+    });
+
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("falls back to the normal full-page backend pipeline when Page 2 is not statically recognized (e.g. missing/altered instructions text)", async () => {
     const unrecognizedInventory: WholeDocumentInventory = {
       pages: [
