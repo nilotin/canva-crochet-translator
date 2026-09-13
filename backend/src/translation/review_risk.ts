@@ -17,6 +17,9 @@ export const HIGH_RISK_INSTRUCTION_CONCEPTS = [
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+export const FRONT_PLACEMENT_SOURCE =
+  /(?<!\p{L})ön(?:de|den|e|ü|ün|ünde|ünden|üne|ündeki)?(?!\p{L})/iu;
+
 // "bir üst sıraya geçiyoruz" / "bir alt sıraya geçiyoruz" is the ordinary
 // Turkish crochet idiom for moving to the next row up or down. It reads as
 // a single row-transition instruction, not a claim that one piece sits
@@ -35,19 +38,8 @@ export const stripRowTransitionIdiom = (text: string): string =>
 export const findHighRiskInstructionConcepts = (source: string): string[] => {
   const normalized = source.toLocaleLowerCase("tr-TR");
   return HIGH_RISK_INSTRUCTION_CONCEPTS.filter((concept) => {
-    if (
-      concept === "ön" &&
-      /(?<!\p{L})önlü[kğ]\p{L}*(?!\p{L})/iu.test(normalized)
-    ) {
-      const withoutApron = normalized.replace(
-        /(?<!\p{L})önlü[kğ]\p{L}*(?!\p{L})/giu,
-        "",
-      );
-
-      return new RegExp(
-        `(?<!\\p{L})${escapeRegExp(concept)}\\p{L}*(?!\\p{L})`,
-        "iu",
-      ).test(withoutApron);
+    if (concept === "ön") {
+      return FRONT_PLACEMENT_SOURCE.test(normalized);
     }
 
     if (

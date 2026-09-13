@@ -102,7 +102,7 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `Ch ${count} and turn`,
     )
     .replace(
-      /\bikinci\s+zincirden\s+itibaren\b/giu,
+      /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\b/giu,
       "Starting from the second chain",
     )
     .replace(
@@ -134,7 +134,7 @@ const normalizeEnglishCrochetStructures = (
       },
     )
     .replace(
-      /(\d+)\s+zincir\s+çekip\s+dönüyoruz\b/giu,
+      /(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\b/giu,
       (_match, count: string) => `Ch ${count} and turn`,
     )
     .replace(
@@ -168,6 +168,28 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\b/giu,
       "This will be the beginning of the round; place a stitch marker here",
+    )
+    .replace(
+      /\bekru\s+renk\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b/giu,
+      (_match, brand: string) =>
+        `Start with ecru yarn (${brand.trim()})`,
+    )
+    .replace(
+      /\bturuncu\s+ipimize\s*\(\s*([^)]+?)\s*\)\s+geçiyoruz\b/giu,
+      (_match, brand: string) =>
+        `Switch to orange yarn (${brand.trim()})`,
+    )
+    .replace(
+      /\brenk\s+geçişlerinde\s+bir\s+önceki\s+ipi\s+kesmeden\s*[,，]\s*içeride\s+beklemeye\s+alıyoruz\b/giu,
+      "When changing colors, do not cut the previous yarn; leave it inside until needed again",
+    )
+    .replace(
+      /\bekru\s+renk\s+ip\s+ile\b/giu,
+      "With ecru yarn",
+    )
+    .replace(
+      /\bturuncu\s+ip\s+ile\b/giu,
+      "With orange yarn",
     )
     .replace(
       /\bfotoğraf\s+temsilidir\b/giu,

@@ -1314,6 +1314,87 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes the Page 6 chain-turn foundation through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page6-foundation-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page6-foundation-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const source =
+      "1) 8 zincir çekip geriye dönüyoruz. Zincir üzerine ikinci zincirden itibaren 1v, 5x, aynı zincir içine 4x, (zincirin diğer tarafından devam ediyoruz), 5x, 1v = 18x   Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page6-foundation", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) Ch 8 and turn. Starting from the second chain, 1inc, 5sc, 4sc in the same chain (continue along the other side of the chain), 5sc, 1inc = 18sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes Page 6 yarn-color phrasing through the full pipeline", async () => {
+    const provider: TranslationProvider = {
+      name: "page6-yarn-colors-stub",
+      model: "stub-model",
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id, text }) => ({
+            id,
+            translated: text,
+          })),
+        };
+      },
+      async checkReadiness() {
+        return {
+          ok: true,
+          provider: "page6-yarn-colors-stub",
+          model: "stub-model",
+        };
+      },
+    };
+
+    const source =
+      "✦ Turuncu ipimize (catania 411) geçiyoruz. Renk geçişlerinde bir önceki ipi kesmeden, içeride beklemeye alıyoruz.\n✦ Ekru renk ip ile;\n✦ Turuncu ip ile;";
+
+    const [result] = await translateBlocks(
+      [{ id: "page6-yarn-colors", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "✦ Switch to orange yarn (catania 411). When changing colors, do not cut the previous yarn; leave it inside until needed again.",
+    );
+    expect(result?.translated).toContain("✦ With ecru yarn:");
+    expect(result?.translated).toContain("✦ With orange yarn:");
+    expect(result?.errors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SEMANTIC_ANCHOR_MISSING",
+        }),
+      ]),
+    );
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes Page 5 arm phrasing through the full pipeline", async () => {
     const provider: TranslationProvider = {
       name: "page5-arm-stub",

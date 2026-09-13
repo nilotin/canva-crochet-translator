@@ -170,6 +170,27 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${markerPrefix}Ch ${chains} and turn. Starting from the second chain, ${firstSc}sc, ${sameStitchSc}sc in the same stitch (continue along the other side of the chain), ${nextSc}sc, ${increases}inc = ${total}sc. ${STITCH_MARKER_INSTRUCTION}`;
   }
 
+  const chainTurnFoundationWithSideStitches =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz[.]\s*(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\s+(\d+)\s*v\s*[,，]\s*(\d+)\s*x\s*[,，]\s*aynı\s+zincir\s+içine\s+(\d+)\s*x\s*[,，]\s*\(\s*zincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\s*\)\s*[,，]\s*(\d+)\s*x\s*[,，]\s*(\d+)\s*v\s*=\s*(\d+)\s*x\s+(?:başlangıç\s+noktamız\s+burası\s+olacak|burası\s+başlangıç\s+noktamız\s+olacak)[.]\s*(?:[iİ]şaretleyiciyi|[iİ]şaretleyicimizi|markeri|markerı)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (chainTurnFoundationWithSideStitches) {
+    const [
+      ,
+      markerPrefix,
+      chains,
+      firstIncrease,
+      firstSideSc,
+      sameChainSc,
+      secondSideSc,
+      finalIncrease,
+      total,
+    ] = chainTurnFoundationWithSideStitches;
+
+    return `${markerPrefix}Ch ${chains} and turn. Starting from the second chain, ${firstIncrease}inc, ${firstSideSc}sc, ${sameChainSc}sc in the same chain (continue along the other side of the chain), ${secondSideSc}sc, ${finalIncrease}inc = ${total}sc. ${STITCH_MARKER_INSTRUCTION}`;
+  }
+
   const sameStitchTreble =
     /^(\s*(?:\d+\)\s*)?)aynı\s+ilmek\s+içine\s+(\d+)\s*tr\s*[,，]\s*(\d+)\s*x([.]?\s*)$/iu.exec(
       source,
@@ -211,6 +232,46 @@ const normalizeEnglishCrochetInstructionLine = (
       Number(writtenChainCut[2]) === 1 ? "round" : "rounds";
 
     return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
+  }
+
+  const hookAndStartingYarn =
+    /^\s*(✦\s*)?(\d+(?:[.,]\d+)?)\s+(?:numara|no|mm)\s+tığ\s+ile\s+örüyoruz[.]\s+ekru\s+renk\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (hookAndStartingYarn) {
+    const bullet = hookAndStartingYarn[1] ? "✦ " : "";
+    const size = hookAndStartingYarn[2];
+    const brand = hookAndStartingYarn[3]?.trim();
+
+    return `${bullet}Using a ${size} mm crochet hook, work as follows. Start with ecru yarn (${brand}).`;
+  }
+
+  const yarnColorChange =
+    /^\s*(✦\s*)?turuncu\s+ipimize\s*\(\s*([^)]+?)\s*\)\s+geçiyoruz[.]\s*renk\s+geçişlerinde\s+bir\s+önceki\s+ipi\s+kesmeden\s*[,，]\s*içeride\s+beklemeye\s+alıyoruz[.]?\s*$/iu.exec(
+      source,
+    );
+
+  if (yarnColorChange) {
+    const bullet = yarnColorChange[1] ? "✦ " : "";
+    const brand = yarnColorChange[2]?.trim();
+
+    return `${bullet}Switch to orange yarn (${brand}). When changing colors, do not cut the previous yarn; leave it inside until needed again.`;
+  }
+
+  const yarnColorHeading =
+    /^\s*(✦\s*)?(ekru\s+renk|turuncu)\s+ip\s+ile\s*[;:]?\s*$/iu.exec(
+      source,
+    );
+
+  if (yarnColorHeading) {
+    const bullet = yarnColorHeading[1] ? "✦ " : "";
+    const color =
+      yarnColorHeading[2]?.toLocaleLowerCase("tr-TR") === "turuncu"
+        ? "orange"
+        : "ecru";
+
+    return `${bullet}With ${color} yarn:`;
   }
 
   const roundCount =

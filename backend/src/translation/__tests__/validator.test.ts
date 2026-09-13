@@ -118,6 +118,23 @@ describe("validateTranslation", () => {
     );
   });
 
+  it("does not treat önceki as a critical front-placement anchor", () => {
+    const result = validateTranslation(
+      "Renk geçişlerinde bir önceki ipi kesmeden, içeride beklemeye alıyoruz.",
+      "When changing colors, do not cut the previous yarn; leave it inside.",
+      "en",
+    );
+
+    expect(errorCodes(result)).not.toContain("SEMANTIC_ANCHOR_MISSING");
+    expect(result.warnings).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "SEMANTIC_ANCHOR_MISSING",
+        }),
+      ]),
+    );
+  });
+
   it("does not treat crochet surface wording like zincir üstü as a critical above anchor", () => {
     const result = validateTranslation(
       "Zincir üstüne 5x örüyoruz.",

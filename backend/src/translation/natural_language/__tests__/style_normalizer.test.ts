@@ -280,6 +280,18 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+  it("normalizes a chain-turn foundation with side stitches", () => {
+    expect(
+      normalizeTranslationStyle(
+        "1) 8 zincir çekip geriye dönüyoruz. Zincir üzerine ikinci zincirden itibaren 1v, 5x, aynı zincir içine 4x, (zincirin diğer tarafından devam ediyoruz), 5x, 1v = 18x Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+        "1) 8 Chain and turn back. On the chain, starting from the second chain 1inc, 5sc, 4sc in the same chain, (continue along the other side of the chain), 5sc, 1inc = 18sc This will be our starting point. Attach the marker here.",
+        "en",
+      ),
+    ).toBe(
+      "1) Ch 8 and turn. Starting from the second chain, 1inc, 5sc, 4sc in the same chain (continue along the other side of the chain), 5sc, 1inc = 18sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+  });
+
   it("normalizes stitches worked into the same stitch", () => {
     expect(
       normalizeTranslationStyle(
@@ -310,6 +322,45 @@ describe("normalizeTranslationStyle", () => {
     ).toBe(
       "11-35) 25 rounds, 12sc. Ch 1 and cut the yarn.",
     );
+  });
+
+  it("normalizes the hook intro with a starting yarn color", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ 2.00 numara tığ ile örüyoruz. Ekru renk ip (catania 105) ile başlıyoruz.",
+        "✦ We crochet using a 2.00 hook. We begin with (catania 105) in ecru yarn.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Using a 2.00 mm crochet hook, work as follows. Start with ecru yarn (catania 105).",
+    );
+  });
+
+  it("normalizes a carried-yarn color change instruction", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ Turuncu ipimize (catania 411) geçiyoruz. Renk geçişlerinde bir önceki ipi kesmeden, içeride beklemeye alıyoruz.",
+        "✦ to our orange yarn (catania 411) we switch. When changing colors, without cutting the previous yarn, we leave it waiting inside.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Switch to orange yarn (catania 411). When changing colors, do not cut the previous yarn; leave it inside until needed again.",
+    );
+  });
+
+  it.each([
+    [
+      "✦ Ekru renk ip ile;",
+      "✦ With ecru-colored yarn;",
+      "✦ With ecru yarn:",
+    ],
+    [
+      "✦ Turuncu ip ile;",
+      "✦ With orange yarn;",
+      "✦ With orange yarn:",
+    ],
+  ])("normalizes yarn-color headings: %s", (source, input, expected) => {
+    expect(normalizeTranslationStyle(source, input, "en")).toBe(expected);
   });
 
   it("normalizes the reusable stitch-marker instruction", () => {

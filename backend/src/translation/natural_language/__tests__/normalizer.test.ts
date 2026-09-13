@@ -213,6 +213,24 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it("normalizes chain-and-turn wording with geriye", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "8 zincir çekip geriye dönüyoruz.",
+        "en",
+      ),
+    ).toBe("Ch 8 and turn.");
+  });
+
+  it("normalizes zincir üzerine before the second-chain instruction", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Zincir üzerine ikinci zincirden itibaren",
+        "en",
+      ),
+    ).toBe("Starting from the second chain");
+  });
+
   it("normalizes multi-stitch decrease explanations", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -247,6 +265,31 @@ describe("normalizeSourceNaturalLanguage", () => {
       "This will be the beginning of the round; place a stitch marker here.",
     ],
   ])("normalizes reusable beginning-of-round marker phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "Ekru renk ip (catania 105) ile başlıyoruz.",
+      "Start with ecru yarn (catania 105).",
+    ],
+    [
+      "Turuncu ipimize (catania 411) geçiyoruz.",
+      "Switch to orange yarn (catania 411).",
+    ],
+    [
+      "Renk geçişlerinde bir önceki ipi kesmeden, içeride beklemeye alıyoruz.",
+      "When changing colors, do not cut the previous yarn; leave it inside until needed again.",
+    ],
+    [
+      "Ekru renk ip ile;",
+      "With ecru yarn;",
+    ],
+    [
+      "Turuncu ip ile;",
+      "With orange yarn;",
+    ],
+  ])("normalizes reusable yarn-color phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 

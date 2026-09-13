@@ -6,6 +6,7 @@ import type {
 } from "../types.js";
 import {
   findHighRiskInstructionConcepts,
+  FRONT_PLACEMENT_SOURCE,
   stripRowTransitionIdiom,
 } from "../review_risk.js";
 
@@ -57,7 +58,7 @@ const SEMANTIC_ANCHORS: readonly SemanticAnchor[] = [
   },
   {
     id: "front",
-    source: /(?<!\p{L})ön(?!lü[kğ])\p{L}*/iu,
+    source: FRONT_PLACEMENT_SOURCE,
     en: ["front"],
     es: ["frontal", "delante"],
     meaning: "front placement",

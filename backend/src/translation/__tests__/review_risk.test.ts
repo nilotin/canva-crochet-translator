@@ -26,6 +26,22 @@ describe("findHighRiskInstructionConcepts", () => {
     ).toEqual(["üst", "iç"]);
   });
 
+  it("does not treat önceki as a front-placement concept", () => {
+    expect(
+      findHighRiskInstructionConcepts(
+        "Renk geçişlerinde bir önceki ipi kesmeden, içeride beklemeye alıyoruz.",
+      ),
+    ).toEqual(["iç"]);
+  });
+
+  it("still recognizes a genuine front-placement concept", () => {
+    expect(
+      findHighRiskInstructionConcepts(
+        "Parçayı ön tarafta sabitliyoruz.",
+      ),
+    ).toEqual(["ön"]);
+  });
+
   it("still counts sıra when it appears again away from the üst/alt idiom", () => {
     expect(
       findHighRiskInstructionConcepts(
