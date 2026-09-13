@@ -11,7 +11,7 @@ export const FRONT_NOTICE_TR =
   "Tarifimi satın aldığınız için çok teşekkür ederim. \nTarif kişisel kullanım içindir. Ördüğünüz oyuncağı satabilirsiniz fakat bu tarif kesinlikle paylaşılamaz, satılamaz ve izin alınmadan başka dillere tercüme edilemez. Ücretli tarif olup ücretsiz bir şekilde başka platformlarda dağıtılıp örülmesine kesinlikle rızam yoktur.\n@suen.baby.amigurumi";
 
 export const FRONT_NOTICE = {
-  en: "Thank you very much for purchasing my pattern. This pattern is for personal use only. You may sell the toy you make, but this pattern may not be shared, sold, or translated into other languages without permission under any circumstances. This is a paid pattern, and I absolutely do not consent to it being distributed free of charge or used on other platforms without permission. @suen.baby.amigurumi",
+  en: "Thank you very much for purchasing my pattern. This pattern is for personal use only. You may sell finished items made from this pattern, but the pattern itself may not be shared, resold, or translated into other languages without permission. As this is a paid pattern, I do not permit it to be distributed for free or shared on other platforms. @suen.baby.amigurumi",
   es: "Muchas gracias por comprar mi patrón. Este patrón es únicamente para uso personal. Puedes vender el muñeco que realices, pero este patrón no puede compartirse, venderse ni traducirse a otros idiomas sin permiso bajo ninguna circunstancia. Este es un patrón de pago y no doy mi consentimiento para que se distribuya gratuitamente ni se utilice en otras plataformas sin autorización. @suen.baby.amigurumi",
 } as const;
 
