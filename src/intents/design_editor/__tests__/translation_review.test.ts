@@ -89,6 +89,129 @@ const backendTranslations = (fetcher: jest.Mock) => {
 };
 
 describe("translation review", () => {
+
+  it("generic current-page Page 2 sends only the materials body to the provider", async () => {
+    const materials = "✦ Generic yarn\n✦ 2.20 mm tığ";
+    const glossary =
+      "✦ ydcv: ydc arttırma\n" +
+      "✦ zn: zincir\n" +
+      "✦ x: sık iğne";
+
+    const texts = [
+      "MALZEMELER",
+      "TERİMLER",
+      "AÇIKLAMALARI",
+      materials,
+      glossary,
+      INSTRUCTIONS_TR,
+    ];
+
+    const currentPage = pageInventory("materials-page", 1, texts);
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-4",
+            source: materials,
+            translated: "✦ Generic yarn\n✦ 2.20 mm hook",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage(
+      "en",
+      "generic-current-page",
+      {
+        queryCurrentPage: currentPageQuery(texts) as never,
+        getPageMetadata: (async () => ({
+          type: "absolute",
+          id: "materials-page",
+        })) as never,
+        readInventory: (async () => ({
+          pages: [
+            pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+            currentPage,
+          ],
+          skippedPages: [],
+        })) as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      },
+    );
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    const body = backendTranslations(fetcher);
+
+    expect(body.contentKind).toBe("materials");
+    expect(body.blocks).toHaveLength(1);
+    expect(body.blocks[0]).toMatchObject({
+      id: "local-block-4",
+      text: materials,
+    });
+
+    const payload = JSON.stringify(body.blocks);
+
+    expect(payload).not.toContain("MALZEMELER");
+    expect(payload).not.toContain("TERİMLER");
+    expect(payload).not.toContain("AÇIKLAMALARI");
+    expect(payload).not.toContain(INSTRUCTIONS_TR);
+    expect(payload).not.toContain("ydcv");
+
+    expect(review.blocks).toHaveLength(6);
+  });
+
+  it("generic current-page Page 2 fails closed when deterministic reference content cannot be resolved", async () => {
+    const materials = "✦ Generic yarn";
+    const unknownGlossary = "✦ xyz: bilinmeyen teknik";
+
+    const texts = [
+      "MALZEMELER",
+      "TERİMLER",
+      "AÇIKLAMALARI",
+      materials,
+      unknownGlossary,
+      INSTRUCTIONS_TR,
+    ];
+
+    const currentPage = pageInventory("materials-page", 1, texts);
+    const fetcher = jest.fn();
+
+    await expect(
+      translateCurrentPage(
+        "en",
+        "generic-current-page-fail-closed",
+        {
+          queryCurrentPage: currentPageQuery(texts) as never,
+          getPageMetadata: (async () => ({
+            type: "absolute",
+            id: "materials-page",
+          })) as never,
+          readInventory: (async () => ({
+            pages: [
+              pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+              currentPage,
+            ],
+            skippedPages: [],
+          })) as never,
+          fetch: fetcher as never,
+          ...translationAuth,
+        },
+      ),
+    ).rejects.toThrow(
+      "Protected reference page could not be resolved deterministically; refusing full-page LLM fallback.",
+    );
+
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+
   it("snapshots formatting regions with cumulative bounds", () => {
     const regions = snapshotFormattingRegions([
       {

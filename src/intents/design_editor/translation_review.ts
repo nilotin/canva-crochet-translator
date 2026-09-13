@@ -15,6 +15,7 @@ import { normalizePageReviewSeverity } from "./review_severity";
 import { formattingRegionSignature } from "./formatting_freshness";
 import {
   buildStaticTemplateTranslationResponse,
+  isProtectedPage2Candidate,
   recognizePage2Hybrid,
 } from "./static_template_translation";
 import {
@@ -454,6 +455,18 @@ export const translateCurrentPage = async (
           templateContext.documentContext,
         )
       : undefined;
+
+  // Reference pages must never fall through to a full-page provider call.
+  // Only the materials body is provider-eligible.
+  if (
+    templateContext &&
+    !page2Hybrid &&
+    isProtectedPage2Candidate(templateContext.page)
+  ) {
+    throw new Error(
+      "Protected reference page could not be resolved deterministically; refusing full-page LLM fallback.",
+    );
+  }
 
   let result: TranslationResponse;
   if (page2Hybrid) {
