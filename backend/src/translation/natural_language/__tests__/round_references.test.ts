@@ -67,6 +67,58 @@ describe("crochet round references", () => {
     ).toBe("6. sıranın FLO’sundan örüyoruz.");
   });
 
+  it("preserves every nested loop and stitch token in a long round instruction", () => {
+    const source =
+      "7. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan ipimizi sabitliyoruz. 56 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden 55x örüyoruz. Sıradaki sık iğneye cc, yeniden 56 zincir çekip aynı şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.";
+
+    const protectedSource = protectImmutablePattern(source);
+
+    expect(protectedSource.tokens.map(({ source }) => source)).toEqual(
+      expect.arrayContaining([
+        "7. sırada",
+        "Flo",
+        "Blo",
+        "56",
+        "55",
+        "x",
+        "cc",
+        "56",
+        "1",
+      ]),
+    );
+
+    expect(protectedSource.text).not.toMatch(/\bFlo\b|\bBlo\b|\bcc\b/u);
+  });
+
+  it("rejects ambiguous 'round N chain' phrasing as a malformed round reference", () => {
+    const source =
+      "7. sırada örüyoruz. Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.";
+
+    const translated =
+      "Work in Round 7. When we reach the end of the round 1 chain and cut the yarn.";
+
+    const validation = validateTranslation(source, translated, "en");
+
+    expect(
+      validation.errors.map(({ code }) => code),
+    ).toContain("ROUND_REFERENCE_MISMATCH");
+  });
+
+  it("accepts a natural target order for a nested round/loop attachment relation", () => {
+    const source =
+      "13) 7. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan ipimizi sabitliyoruz.";
+
+    const translated =
+      "13) Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 7.";
+
+    const validation = validateTranslation(source, translated, "en");
+
+    expect(
+      validation.errors.map(({ code }) => code),
+    ).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(validation.valid).toBe(true);
+  });
+
   it("does not consume a nested stitch/loop clause as a direct round-loop relation", () => {
     expect(
       extractRoundReferences(

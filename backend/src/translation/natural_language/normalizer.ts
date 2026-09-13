@@ -115,6 +115,11 @@ const normalizeEnglishCrochetStructures = (
       (_match, count: string) => `Ch ${count} and turn.`,
     )
     .replace(
+      /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+(\d+)\s*x\s+örüyoruz\b/giu,
+      (_match, stitches: string) =>
+        `Starting from the second chain, work ${stitches}x along the chain`,
+    )
+    .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren(?=\s+\d+\s*x\b)/giu,
       "Starting from the second chain,",
     )
@@ -281,9 +286,22 @@ const normalizeEnglishCrochetStructures = (
       "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
+      /\byeniden\s+(\d+)\s+zincir\s+çekip\b/giu,
+      (_match, chains: string) => `then ch ${chains} again and`,
+    )
+    .replace(
+      /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (_match, chains: string) =>
+        `At the end of the round, ch ${chains} and cut the yarn`,
+    )
+    .replace(
       /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc\b/giu,
       (_match, count: string) =>
         `skip ${count}x, cc into the next stitch`,
+    )
+    .replace(
+      /\bsıradaki\s+sık\s+iğneye\s+cc\b/giu,
+      "cc into the next single crochet",
     )
     .replace(
       /[,，]\s*(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,

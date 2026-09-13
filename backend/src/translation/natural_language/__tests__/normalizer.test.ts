@@ -297,6 +297,27 @@ describe("normalizeSourceNaturalLanguage", () => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
   });
 
+  it.each([
+    [
+      "zincir üzerine ikinci zincirden 37x örüyoruz",
+      "Starting from the second chain, work 37x along the chain",
+    ],
+    [
+      "Sıradaki sık iğneye cc",
+      "cc into the next single crochet",
+    ],
+    [
+      "yeniden 18 zincir çekip aynı şekilde devam ediyoruz",
+      "then ch 18 again and aynı şekilde devam ediyoruz",
+    ],
+    [
+      "Sıra sonuna geldiğimizde 2 zincir çekip ipimizi kesiyoruz.",
+      "At the end of the round, ch 2 and cut the yarn.",
+    ],
+  ])("normalizes reusable continuation phrasing: %s", (source, expected) => {
+    expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
   it("normalizes chain-and-turn wording with geriye", () => {
     expect(
       normalizeSourceNaturalLanguage(

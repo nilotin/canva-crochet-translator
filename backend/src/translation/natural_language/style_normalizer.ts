@@ -150,6 +150,31 @@ const normalizeEnglishCrochetInstructionLine = (
     }
   }
 
+  const nestedRoundLoopAttachment =
+    /^(\s*(?:\d+\)\s*)?)(\d+)\.\s*sıra(?:da|nın)\s+(FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s+ipimizi\s+sabitliyoruz[.]?/iu.exec(
+      source,
+    );
+
+  if (nestedRoundLoopAttachment) {
+    const prefix = nestedRoundLoopAttachment[1] ?? "";
+    const round = nestedRoundLoopAttachment[2] ?? "";
+    const workedLoop = nestedRoundLoopAttachment[3]?.toUpperCase() ?? "";
+    const attachmentLoop =
+      nestedRoundLoopAttachment[4]?.toUpperCase() ?? "";
+
+    const translatedRemainder = translated.replace(
+      /^.*?[.](?:\s+|$)/u,
+      "",
+    );
+
+    const normalizedOpening =
+      `${prefix}Attach the yarn to the ${attachmentLoop} of the single crochet stitches worked in the ${workedLoop} of Round ${round}.`;
+
+    return translatedRemainder
+      ? `${normalizedOpening} ${translatedRemainder}`
+      : normalizedOpening;
+  }
+
   const finishingHairStrand =
     /^(\s*(?:[✦◆]\s*)?)(\d+)\s+zincir\s+çekip\s+geriye\s+dönüyoruz\s*[,，]\s*(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\s+(\d+)\s*x\s*[,，]\s*(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc(?:\.\.\.|…)?\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz[.]\s*sıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+dikiş\s+için\s+ipimizi\s+uzun\s+kesiyoruz[.]?\s*$/iu.exec(
       source,

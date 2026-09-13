@@ -3,6 +3,7 @@ import { extractSourceMeasurementSpans } from "./measurements.js";
 import { normalizeSourceNaturalLanguage } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
+  containsReservedPlaceholder,
   isPatternOnlyProtectedText,
   protectImmutablePattern,
   restoreImmutablePattern,
@@ -106,8 +107,19 @@ const translateSegment = async (
   // Keep a measurement in its sentence context so its atomic placeholder can
   // move with target-language prose instead of freezing it between prose spans.
   const hasMeasurement = protectedSource.tokens.some(({ kind }) => kind === "measurement");
-  const roundTokens = protectedSource.tokens.filter((token) => token.kind === "round_reference");
-  if (contentKind === "pattern" && mixed.classification === "mixed" && !hasMeasurement && !roundTokens.length) {
+  const roundTokens = protectedSource.tokens.filter(
+    (token) => token.kind === "round_reference",
+  );
+  const hasNonRoundImmutable = protectedSource.tokens.some(
+    (token) => token.kind !== "round_reference",
+  );
+
+  if (
+    contentKind === "pattern" &&
+    mixed.classification === "mixed" &&
+    !hasMeasurement &&
+    (roundTokens.length === 0 || hasNonRoundImmutable)
+  ) {
     if (!mixed.valid) {
       structuralErrors = mixed.errors.map((message) => ({
         code: "INTERNAL_MIXED_LEXER_ERROR" as const,
@@ -257,16 +269,33 @@ const translateSegment = async (
             protectedSource,
             targetLanguage,
           );
-    restored = restoration
-      ? restoreLeadingInstruction(instruction, restoration.text)
-      : undefined;
+    restored =
+      restoration?.valid === true
+        ? restoreLeadingInstruction(instruction, restoration.text)
+        : undefined;
     const unexpectedIdErrors = [...idDiagnostics.entries()]
       .filter(([id]) => id !== block.id)
       .flatMap(([, diagnostics]) => diagnostics);
+
+    const reservedPlaceholderLeak =
+      protectedSource.tokens.length === 0 &&
+      modelTranslation !== undefined &&
+      containsReservedPlaceholder(modelTranslation)
+        ? [
+            {
+              code: "RESERVED_PLACEHOLDER_LEAK" as const,
+              message:
+                "Internal translation placeholder syntax was found in the output.",
+            },
+          ]
+        : [];
+
     structuralErrors = [
       ...(idDiagnostics.get(block.id) ?? []),
       ...unexpectedIdErrors,
-      ...(restoration?.errors ?? []),
+      ...(reservedPlaceholderLeak.length > 0
+        ? reservedPlaceholderLeak
+        : (restoration?.errors ?? [])),
     ];
   }
   const normalizedRestored =
@@ -278,20 +307,30 @@ const translateSegment = async (
           contentKind,
         )
       : restored;
-  const validation = validateTranslation(
-    block.text,
-    normalizedRestored,
-    targetLanguage,
-    {
-    notationCaseInsensitive: true,
-    contentKind,
-    },
-  );
+  const validation =
+    structuralErrors.length === 0
+      ? validateTranslation(
+          block.text,
+          normalizedRestored,
+          targetLanguage,
+          {
+            notationCaseInsensitive: true,
+            contentKind,
+          },
+        )
+      : {
+          valid: false,
+          errors: [],
+          warnings: [],
+        };
   const errors = annotateSegment(segmentIndex, [
     ...structuralErrors,
     ...validation.errors,
   ]);
-  const translated = normalizedRestored ?? "";
+  const translatedCandidate = normalizedRestored ?? "";
+  const translated = containsReservedPlaceholder(translatedCandidate)
+    ? ""
+    : translatedCandidate;
   return {
     translated,
     errors,
@@ -302,6 +341,27 @@ const translateSegment = async (
         : undefined,
   };
 };
+
+const PERSISTENT_FRAGMENT_ERROR_CODES = new Set<ValidationCode>([
+  "DUPLICATE_RETURNED_BLOCK_ID",
+  "MISSING_RETURNED_BLOCK_ID",
+  "UNEXPECTED_RETURNED_BLOCK_ID",
+  "MISSING_PROTECTED_NOTATION",
+  "DUPLICATE_PROTECTED_NOTATION",
+  "UNEXPECTED_PROTECTED_NOTATION",
+  "MUTATED_PROTECTED_NOTATION",
+  "REORDERED_PROTECTED_NOTATION",
+  "RESERVED_PLACEHOLDER_LEAK",
+  "INTERNAL_MIXED_LEXER_ERROR",
+  "UNSAFE_SEGMENTATION_BOUNDARY",
+]);
+
+const persistentFragmentErrors = (
+  diagnostics: readonly ValidationDiagnostic<ValidationCode>[],
+): ValidationDiagnostic<ValidationCode>[] =>
+  diagnostics.filter(({ code }) =>
+    PERSISTENT_FRAGMENT_ERROR_CODES.has(code),
+  );
 
 const translateFormattingUnits = async (
   block: TranslationBlock,
@@ -435,7 +495,10 @@ const translateFormattingUnits = async (
       },
   );
 
-  const errors = uniqueDiagnostics([...unitErrors, ...fullValidation.errors]);
+  const errors = uniqueDiagnostics([
+    ...persistentFragmentErrors(unitErrors),
+    ...fullValidation.errors,
+  ]);
 
   const warnings = uniqueDiagnostics([
     ...unitWarnings,
@@ -525,7 +588,7 @@ export const translateBlocks = async (
       },
     );
     const errors = uniqueDiagnostics([
-      ...segmentErrors,
+      ...persistentFragmentErrors(segmentErrors),
       ...fullValidation.errors,
     ]);
     const warnings = uniqueDiagnostics([

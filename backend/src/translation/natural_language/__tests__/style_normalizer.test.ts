@@ -74,6 +74,26 @@ describe("normalizeTranslationStyle", () => {
     ).toBe("Create sc with 6mr.");
   });
 
+  it.each([
+    [
+      "13) 7. sırada Flo’dan ördüğümüz sık iğnelerin, Blo’sundan ipimizi sabitliyoruz. Sonra devam ediyoruz.",
+      "13) in Round 7 FLO of the single crochets we worked, BLO we secure our yarn from. Then continue.",
+      "13) Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 7. Then continue.",
+    ],
+    [
+      "4) 12. sırada BLO’dan ördüğümüz sık iğnelerinin FLO’sundan ipimizi sabitliyoruz.",
+      "4) in Round 12 BLO stitches worked FLO attach yarn.",
+      "4) Attach the yarn to the FLO of the single crochet stitches worked in the BLO of Round 12.",
+    ],
+  ])(
+    "normalizes a nested round/loop attachment relation",
+    (source, translated, expected) => {
+      expect(
+        normalizeTranslationStyle(source, translated, "en"),
+      ).toBe(expected);
+    },
+  );
+
   it("does not rewrite longer FLO/BLO instructions", () => {
     expect(
       normalizeTranslationStyle(

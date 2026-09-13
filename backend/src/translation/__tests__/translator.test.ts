@@ -78,7 +78,7 @@ describe("translateBlocks provider boundary", () => {
     );
 
     expect(result).toMatchObject({ valid: false });
-    expect(result?.translated).toContain("__XQZZZZQX__");
+    expect(result?.translated).toBe("");
     expect(result?.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "RESERVED_PLACEHOLDER_LEAK" }),
@@ -107,6 +107,49 @@ describe("translateBlocks provider boundary", () => {
       );
     },
   );
+
+  it("never exposes a corrupted immutable restoration to final output", async () => {
+    const provider = new StubProvider({
+      translations: [
+        {
+          id: "corrupted-immutable",
+          translated: "Using a crochet hook, work as follows.",
+        },
+      ],
+    });
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "corrupted-immutable",
+          text: "2.20 mm tığ ile örüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.valid).toBe(false);
+    expect(result?.translated).toBe("");
+    expect(result?.translated).not.toMatch(/__XQ[A-Z]{4}QX__/u);
+    expect(result?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "MISSING_PROTECTED_NOTATION",
+        }),
+      ]),
+    );
+
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "RESERVED_PLACEHOLDER_LEAK",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "LOST_PATTERN_NOTATION",
+    );
+  });
 
   it("keeps prose-only segments on the full-sentence provider path", async () => {
     const provider = new InspectingProvider();
@@ -185,6 +228,53 @@ describe("translateBlocks provider boundary", () => {
       "stitches apart",
       "rounds above the eye",
     ]);
+  });
+
+  it("keeps round, loop, stitch, and numeric tokens out of provider prose in long mixed instructions", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "7. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan ipimizi sabitliyoruz. 56 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden 55x örüyoruz. Sıradaki sık iğneye cc, yeniden 56 zincir çekip aynı şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "nested-round-mixed", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(
+      provider.protectedTexts.some((text) =>
+        /__XQ[A-Z]{4}QX__|\b(?:Flo|FLO|Blo|BLO|cc)\b|\b(?:56|55|7|1)\b/u.test(text),
+      ),
+    ).toBe(false);
+
+    expect(result?.translated).not.toMatch(/__XQ[A-Z]{4}QX__/u);
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 7.",
+    );
+    expect(result?.translated).toContain(
+      "Starting from the second chain, work 55sc along the chain.",
+    );
+    expect(result?.translated).toContain(
+      "SL.ST into the next single crochet",
+    );
+    expect(result?.translated).toContain(
+      "then ch 56 again",
+    );
+    expect(result?.translated).toContain(
+      "At the end of the round, ch 1 and cut the yarn.",
+    );
+    expect(result?.translated).not.toContain("round 1 chain");
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "MISSING_PROTECTED_NOTATION",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "RESERVED_PLACEHOLDER_LEAK",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "ROUND_REFERENCE_MISMATCH",
+    );
+    expect(result?.valid).toBe(true);
   });
 
   it("keeps FLO/BLO source variants out of provider prose spans", async () => {
@@ -900,6 +990,45 @@ describe("translateBlocks provider boundary", () => {
     expect(result?.translated).not.toMatch(/\bsl\s+st\b/iu);
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
+  });
+
+  it("does not retain fragment-level semantic errors after the reconstructed block validates", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "13) 7. sırada Flo’dan ördüğümüz sık iğnelerin, Blo’sundan ipimizi sabitliyoruz. 56 zincir çekip geriye dönüyoruz, zincir üzerine ikinci zincirden 55x örüyoruz.";
+
+    const split = source.indexOf("56 zincir");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-nested-round",
+          text: source,
+          formattingRegions: [
+            {
+              id: "fmt-0",
+              start: 0,
+              end: split,
+            },
+            {
+              id: "fmt-1",
+              start: split,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 7.",
+    );
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "ROUND_REFERENCE_MISMATCH",
+    );
+    expect(result?.translated).not.toMatch(/__XQ[A-Z]{4}QX__/u);
   });
 
   it("returns projected formatting regions for mixed notation and prose", async () => {
