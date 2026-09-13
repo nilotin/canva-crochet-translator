@@ -2089,6 +2089,29 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  it("normalizes chain-and-continue phrasing through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "Siyah ipimizi görselde görüldüğü gibi sabitliyoruz. " +
+      "2 zincir çekip devam ediyoruz. " +
+      "(1dc, 1dcv)*10 = 30dc";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-chain-and-continue", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Ch 2 and continue.");
+    expect(result?.translated).toContain("(1dc, 1dc-inc)*10 = 30dc");
+    expect(result?.translated).not.toContain("2 Chain and continue");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
   it("normalizes embedded skip and next-stitch prose through the full pipeline", async () => {
     const provider = new InspectingProvider();
     const source =
