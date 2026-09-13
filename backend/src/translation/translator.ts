@@ -1,7 +1,7 @@
 import { extractRoundReferences, renderRoundReference } from "./natural_language/round_references.js";
 import { extractSourceMeasurementSpans } from "./measurements.js";
 import { extractSourceAtomicNaturalLanguageSpans } from "./natural_language/atomic_spans.js";
-import { normalizeSourceNaturalLanguage } from "./natural_language/normalizer.js";
+import { normalizeSourceNaturalLanguageDetailed } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
   containsReservedPlaceholder,
@@ -83,11 +83,12 @@ const translateSegment = async (
       ? extractLeadingInstruction(block.text)
       : undefined;
   const sourceBody = instruction?.body ?? block.text;
-  const normalized = normalizeSourceNaturalLanguage(
+  const normalization = normalizeSourceNaturalLanguageDetailed(
     sourceBody,
     targetLanguage,
     contentKind,
   );
+  const normalized = normalization.text;
   const protectedSource = protectImmutablePattern(
     normalized,
     0,
@@ -95,7 +96,8 @@ const translateSegment = async (
   );
   const protectedBlock = { ...block, text: protectedSource.text };
   const mixed = lexMixedSegment(normalized, targetLanguage, block.id);
-  const patternOnly = isPatternOnlyProtectedText(protectedSource) || (
+  const patternOnly = normalization.fullyResolved ||
+    isPatternOnlyProtectedText(protectedSource) || (
     protectedSource.tokens.some(({ kind }) => kind === "round_reference") &&
     mixed.classification === "mixed" && mixed.valid && mixed.spans.length === 0
   );
@@ -117,6 +119,7 @@ const translateSegment = async (
 
   if (
     contentKind === "pattern" &&
+    !normalization.fullyResolved &&
     mixed.classification === "mixed" &&
     !hasMeasurement &&
     (roundTokens.length === 0 || hasNonRoundImmutable)

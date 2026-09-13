@@ -6,6 +6,15 @@ const targetPhrase = (
   spanish: string,
 ) => (targetLanguage === "en" ? english : spanish);
 
+
+const fullyResolvedChainSkipContinueAndFinishPattern =
+  /^\s*\d+\s+zincir\s*[,，]?\s*\d+\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+\d+\s*x\s*[,，]?\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\s*\.\s*sıra\s+sonuna\s+geldiğimizde\s+\d+\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?\s*$/iu;
+
+export type SourceNaturalLanguageNormalization = {
+  text: string;
+  fullyResolved: boolean;
+};
+
 const englishOrdinal = (raw: string): string => {
   const value = Number.parseInt(raw, 10);
   const mod100 = value % 100;
@@ -527,6 +536,15 @@ const normalizeEnglishCrochetStructures = (
         count: string,
         stitch: string,
       ) => `${prefix}Work ${count}${stitch}.`,
+    )
+    .replace(
+      // Canva may place the repeated action ("*N") and the following
+      // round-end finishing clause in separate formatting regions. When
+      // this translation unit therefore starts with the source comma,
+      // promote that boundary to a sentence break instead of producing
+      // ", At the end of the round...".
+      /^\s*[,，]\s*(?=sıra\s+sonuna\s+geldiğimizde\b)/iu,
+      ". ",
     )
     .replace(
       /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
@@ -1186,3 +1204,26 @@ export const normalizeSourceNaturalLanguage = (
         `${count} filas por encima del ojo`,
       ),
     );
+
+
+export const normalizeSourceNaturalLanguageDetailed = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials" = "pattern",
+): SourceNaturalLanguageNormalization => {
+  const normalized = normalizeSourceNaturalLanguage(
+    source,
+    targetLanguage,
+    contentKind,
+  );
+
+  const fullyResolved =
+    contentKind === "pattern" &&
+    targetLanguage === "en" &&
+    fullyResolvedChainSkipContinueAndFinishPattern.test(source);
+
+  return {
+    text: normalized,
+    fullyResolved,
+  };
+};

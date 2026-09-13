@@ -1233,4 +1233,17 @@ describe("normalizeSourceNaturalLanguage", () => {
     ).toBe("Work this round in BLO");
   });
 
+
+  it("promotes a leading comma to a sentence boundary when a formatting unit starts with the round-end finishing clause", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        ", sıra sonuna geldiğimizde \n1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      ". At the end of the round, ch 1 and cut the yarn.",
+    );
+  });
+
+
 });

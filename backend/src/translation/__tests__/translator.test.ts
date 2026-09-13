@@ -766,7 +766,9 @@ describe("translateBlocks provider boundary", () => {
     );
 
     expect(provider.requests).toHaveLength(1);
-    expect(provider.protectedTexts).toEqual(["ch", "skip", "sts"]);
+    // Skip count is 1 here, so the singular "st" is expected (not the
+    // pluralized "sts") -- see the singular/plural fix in normalizer.ts.
+    expect(provider.protectedTexts).toEqual(["ch", "skip", "st"]);
     expect(provider.protectedTexts.join(" ")).not.toContain("24)");
     expect(provider.requests[0]?.userPrompt).toContain("proseContext");
   });
@@ -906,7 +908,7 @@ describe("translateBlocks provider boundary", () => {
       expect(result?.errors).toEqual([]);
       expect(seen).toEqual(
         language === "en"
-          ? ["ch", "skip", "sts", "ch", "skip", "sts"]
+          ? ["ch", "skip", "st", "ch", "skip", "st"]
           : ["zincir", "atla", "zincir", "atla"],
       );
       expect(seen.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
@@ -2795,6 +2797,158 @@ describe("crochet instruction phrasing", () => {
     expect(codes).not.toContain("LOST_PATTERN_NOTATION");
     expect(result?.errors).toEqual([]);
     expect(result?.valid).toBe(true);
+  });
+
+  // Page 25 line 53: same round-first loop-attachment family as Page 23,
+  // but in the opposite direction (worked loop = BLO, attachment/current
+  // loop = FLO) and followed by a repeated parenthesized action plus the
+  // round-end finishing clause. Exercises the existing DuplicateOpeningProvider
+  // trap against this direction, plus the new sentence-boundary fix, in one
+  // full-pipeline pass.
+  it("preserves the Round 27 BLO-worked/FLO-attachment relation and produces a clean sentence boundary (Page 25 live regression)", async () => {
+    const provider = new DuplicateOpeningProvider();
+    const source =
+      "Görselde görüldüğü gibi 27. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan turuncu ipimizi sabitliyoruz. " +
+      "(1 zincir, sıradaki sık iğneye cc)*60, sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "live-round-27-loop-attachment", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the orange yarn to the FLO of the single crochet stitches worked in the BLO of Round 27 as shown in the image.",
+    );
+    expect(result?.translated).toContain(
+      "(ch 1, SL.ST into the next single crochet)*60.",
+    );
+    expect(result?.translated).toContain(
+      "At the end of the round, ch 1 and cut the yarn",
+    );
+
+    expect(result?.translated.match(/Round 27/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bFLO\b/gu) ?? []).toHaveLength(1);
+    expect(result?.translated.match(/\bBLO\b/gu) ?? []).toHaveLength(1);
+    expect(
+      result?.translated.match(/as shown in the image/gu) ?? [],
+    ).toHaveLength(1);
+
+    expect(result?.translated).not.toContain("we secure");
+    expect(result?.translated).not.toContain("fasten off");
+    // No awkward comma-then-capital sentence boundary before the finishing
+    // clause.
+    expect(result?.translated).not.toContain(", At the end of the round");
+
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("NUMBER_MISMATCH");
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(codes).not.toContain("LOST_PATTERN_NOTATION");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  // Page 25 line 52 (optional full-pipeline regression): the singular
+  // skip-count fix and the new chain/skip/work/continue instruction family,
+  // through the full pipeline with a real (non-echo) provider.
+  it("produces natural singular skip phrasing and no mechanical \"we continue\" through the full pipeline (Page 25 line 52)", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "2 zincir, 1x atla, sıradaki sık iğneye 1x, bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "live-round-end-skip-work-continue", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).not.toContain("1 sts");
+    expect(result?.translated).not.toContain(", we continue");
+    expect(result?.translated).not.toContain(", At the end of the round");
+    expect(result?.translated).toContain(
+      "Continue in this way to the end of the round.",
+    );
+    expect(result?.translated).toContain(
+      "At the end of the round, ch 1 and cut the yarn",
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("preserves real Canva formatting regions for a round-first loop attachment with repeated slip stitches and round-end finishing", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "53) Görselde görüldüğü gibi 27. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan turuncu ipimizi sabitliyoruz. " +
+      "(1 zincir, sıradaki sık iğneye cc)*60, sıra sonuna geldiğimizde \n" +
+      "1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "real-page-25-line-53-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: 4 },
+            { id: "fmt-1", start: 4, end: 146 },
+            { id: "fmt-2", start: 146, end: 149 },
+            { id: "fmt-3", start: 149, end: 210 },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "53) Attach the orange yarn to the FLO of the single crochet stitches worked in the BLO of Round 27 as shown in the image. " +
+        "(ch 1, SL.ST into the next single crochet)*60. At the end of the round, ch 1 and cut the yarn.",
+    );
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+
+    expect(result?.targetFormattingRegions).toBeDefined();
+    expect(result?.targetFormattingRegions).toHaveLength(4);
+    expect(result?.targetFormattingRegions?.map(({ id }) => id)).toEqual([
+      "fmt-0",
+      "fmt-1",
+      "fmt-2",
+      "fmt-3",
+    ]);
+
+    expect(result?.targetFormattingRegions?.[0]).toEqual({
+      id: "fmt-0",
+      start: 0,
+      end: 4,
+    });
+
+    expect(
+      result?.targetFormattingRegions?.every(
+        ({ start, end }) =>
+          Number.isInteger(start) &&
+          Number.isInteger(end) &&
+          start >= 0 &&
+          end >= start &&
+          end <= (result?.translated.length ?? 0),
+      ),
+    ).toBe(true);
+
+    for (
+      let index = 1;
+      index < (result?.targetFormattingRegions?.length ?? 0);
+      index += 1
+    ) {
+      expect(result?.targetFormattingRegions?.[index]?.start).toBe(
+        result?.targetFormattingRegions?.[index - 1]?.end,
+      );
+    }
+
+    expect(
+      result?.targetFormattingRegions?.at(-1)?.end,
+    ).toBe(result?.translated.length);
   });
 
   it("normalizes an image-referenced round-first loop attachment through the full pipeline", async () => {
