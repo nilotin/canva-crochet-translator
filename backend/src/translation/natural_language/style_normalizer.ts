@@ -535,7 +535,7 @@ const normalizeEnglishCrochetInstructionLine = (
     );
   if (roundCount) {
     const rounds = Number(roundCount[2]) === 1 ? "round" : "rounds";
-    return `${roundCount[1]}${roundCount[2]} ${rounds}, ${roundCount[3]} sc${roundCount[4]}`;
+    return `${roundCount[1]}${roundCount[3]}sc for ${roundCount[2]} ${rounds}${roundCount[4]}`;
   }
 
   const magicRing =

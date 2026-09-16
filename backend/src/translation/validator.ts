@@ -68,6 +68,34 @@ const comparableSourceNumbersWithWrittenCrochetCounts = (
   });
 };
 
+// Mirrors the exact anchoring of style_normalizer.ts's bare "N sıra Mx"
+// round-count rule (e.g. "39-47) 9 sıra 29x"), which deliberately
+// canonicalizes that one sentence family to "Msc for N round(s)" --
+// swapping the round-count and stitch-count numbers' relative order.
+// Matching only what that rule itself would rewrite (identical regex,
+// applied per line) means this can only ever recognize the exact swap
+// that rule produces; it cannot validate a reordering for any other
+// sentence family. Composed with the written-crochet-count helper above
+// so both exceptions apply together when a block mixes this family with
+// e.g. a written "bir zincir" on another line.
+const BARE_ROUND_COUNT_LINE_PATTERN =
+  /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)x([.]?\s*)$/iu;
+
+const comparableSourceNumbersWithBareRoundCountSwap = (
+  source: string,
+): string[] =>
+  comparableSourceNumbersWithWrittenCrochetCounts(
+    source
+      .split("\n")
+      .map((line) => {
+        const match = BARE_ROUND_COUNT_LINE_PATTERN.exec(line);
+        return match
+          ? `${match[1]}${match[3]} sıra ${match[2]}x${match[4]}`
+          : line;
+      })
+      .join("\n"),
+  );
+
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -284,6 +312,11 @@ export const validateTranslation = (
     (options.contentKind !== "materials" &&
       sameSequence(
         comparableSourceNumbersWithWrittenCrochetCounts(source),
+        translatedNumbers,
+      )) ||
+    (options.contentKind !== "materials" &&
+      sameSequence(
+        comparableSourceNumbersWithBareRoundCountSwap(source),
         translatedNumbers,
       ));
 

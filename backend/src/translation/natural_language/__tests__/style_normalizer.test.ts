@@ -267,8 +267,9 @@ describe("normalizeTranslationStyle", () => {
   });
 
   it.each([
-    ["12 sıra 66x", "12 round 66sc", "12 rounds, 66 sc"],
-    ["3 sıra 78x", "3 round 78sc", "3 rounds, 78 sc"],
+    ["12 sıra 66x", "12 round 66sc", "66sc for 12 rounds"],
+    ["3 sıra 78x", "3 round 78sc", "78sc for 3 rounds"],
+    ["1 sıra 29x", "1 round 29sc", "29sc for 1 round"],
     [
       "Sihirli halka içine 6x",
       "Into the magic ring 6sc",
@@ -697,10 +698,27 @@ describe("normalizeTranslationStyle", () => {
   });
 
   it.each([
-    ["12-23) 12 sıra 66x", "12-23) 12 rounds, 66 sc"],
-    ["28-30) 3 sıra 78x", "28-30) 3 rounds, 78 sc"],
+    ["12-23) 12 sıra 66x", "12-23) 66sc for 12 rounds"],
+    ["28-30) 3 sıra 78x", "28-30) 78sc for 3 rounds"],
   ])("keeps the approved round-count style unchanged", (source, approved) => {
     expect(normalizeTranslationStyle(source, approved, "en")).toBe(approved);
+  });
+
+  // LIVE REGRESSION: reproduces the reported bug exactly. The bare
+  // "N sıra Mx" family (no marker, or a range marker like "39-47)") was
+  // being canonicalized as "N rounds, Msc", with a stray space before
+  // "sc" that broke the project's mandatory compact notation. The
+  // canonical wording is now "Msc for N round(s)", and this rule ignores
+  // whatever the provider returned (ill-formed here on purpose) because
+  // it fully derives its output from the source.
+  it("normalizes the bare round-count family to the compact 'Msc for N rounds' form", () => {
+    expect(
+      normalizeTranslationStyle(
+        "39-47) 9 sıra 29x",
+        "39-47) 9 rounds, 29 sc",
+        "en",
+      ),
+    ).toBe("39-47) 29sc for 9 rounds");
   });
 
 });

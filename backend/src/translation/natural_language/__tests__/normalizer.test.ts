@@ -212,8 +212,9 @@ describe("normalizeSourceNaturalLanguage", () => {
       "Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
       "6x into the magic ring. This will be the beginning of the round; place a stitch marker here.",
     ],
-    ["12 sıra 66x", "12 rounds, 66x"],
-    ["3 sıra 78x", "3 rounds, 78x"],
+    ["12 sıra 66x", "66x for 12 rounds"],
+    ["3 sıra 78x", "78x for 3 rounds"],
+    ["1 sıra 29x", "29x for 1 round"],
     ["Sihirli halka içine 6x", "6x into the magic ring"],
     ["2 zincir 2x atla", "ch 2, skip 2 sts"],
     // Singular skip count must not produce the plural "1 sts" -- see the
@@ -491,6 +492,21 @@ describe("normalizeSourceNaturalLanguage", () => {
     ],
   ])("normalizes standalone stitch-count work instructions: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+  });
+
+  // LIVE REGRESSION: "Nx örüyoruz" was previously hardcoded to always end
+  // with a period, even when the source clause continues past a comma
+  // (e.g. into a chain-and-cut instruction). That produced a stray
+  // sentence-ending period before the continuation: "Work 24x., ch 1 and
+  // cut the yarn." The period must only survive when the source clause
+  // actually is sentence-final.
+  it("does not add a stray period before a comma-joined continuation clause", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "24x örüyoruz, 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe("Work 24x, ch 1 and cut the yarn.");
   });
 
   it.each([

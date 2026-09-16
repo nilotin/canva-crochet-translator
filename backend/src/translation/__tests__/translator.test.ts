@@ -845,7 +845,7 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it.each([
-    ["en", "12-23) 12 rounds, 66 sc"],
+    ["en", "12-23) 66sc for 12 rounds"],
     ["es", "12-23) 12 vueltas 66pb"],
   ] as const)(
     "reconstructs the Segment 13 numeric range safely in %s",
@@ -2781,6 +2781,53 @@ describe("crochet instruction phrasing", () => {
     expect(result?.valid).toBe(true);
   });
 
+  // LIVE REGRESSION: reproduces the reported "39-47) 9 rounds, 29 sc" bug
+  // end-to-end. The bare "N sıra Mx" round-count family is now
+  // canonicalized (both pre-provider in normalizer.ts and post-provider
+  // in style_normalizer.ts) as compact "Msc for N round(s)" rather than
+  // "N rounds, Msc" with a stray space. This deliberately reorders the
+  // two source numbers, so validator.ts's NUMBER_MISMATCH check carries a
+  // matching, narrowly-scoped exception (comparableSourceNumbersWithBareRoundCountSwap)
+  // -- this test also proves the result stays valid:true, not just that
+  // the text is correct.
+  it("canonicalizes the bare round-count family to compact 'Msc for N rounds' end-to-end (live regression)", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "live-round-count-swap", text: "39-47) 9 sıra 29x" }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("39-47) 29sc for 9 rounds");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  // LIVE REGRESSION: reproduces the reported "48) Work 24sc., ch 1 and cut
+  // the yarn." bug end-to-end. The standalone "Nx örüyoruz" rule
+  // previously always appended a period, even when the source clause
+  // continues past a comma into a chain-and-cut instruction, producing a
+  // stray period before the continuation.
+  it("does not insert a stray period before a comma-joined chain-and-cut continuation end-to-end (live regression)", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "live-chain-cut-punctuation",
+          text: "48) 24x örüyoruz, 1 zincir çekip ipimizi kesiyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("48) Work 24sc, ch 1 and cut the yarn.");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
   // Page 24 sibling of the live regression above: the referenced-loop
   // relation appears mid-instruction as a stitch-count action ("work N in
   // the referenced loop, then continue with M") rather than yarn
@@ -3152,9 +3199,6 @@ describe("crochet instruction phrasing", () => {
   });
 
   it.each([
-    ["12 sıra 66x", "12 rounds, 66 sc"],
-    ["3 sıra 78x", "3 rounds, 78 sc"],
-    ["28-30) 3 sıra 78x", "28-30) 3 rounds, 78 sc"],
     ["Sihirli halka içine 6x", "6sc into the magic ring"],
     ["2 zincir 2x atla", "ch 2, skip 2 sts"],
     ["9 zincir, 10x atla", "ch 9, skip 10 sts"],
@@ -3182,6 +3226,47 @@ describe("crochet instruction phrasing", () => {
       source.match(/\d+(?:[.,]\d+)?/gu),
     );
   });
+
+  // The bare round-count family (e.g. "12 sıra 66x") is deliberately
+  // canonicalized as "66sc for 12 rounds", which reorders the source's
+  // numeric sequence. validator.ts carries a narrow, source-aware exception
+  // for exactly this swap, so these cases are asserted separately from the
+  // generic pipeline block above: they check the exact translated text,
+  // that validation still passes with no NUMBER_MISMATCH, and that the same
+  // numeric values survive translation as a set (order is expected to
+  // differ). Every other case keeps the strict source-order assertion above.
+  it.each([
+    ["12 sıra 66x", "66sc for 12 rounds"],
+    ["3 sıra 78x", "78sc for 3 rounds"],
+    ["28-30) 3 sıra 78x", "28-30) 78sc for 3 rounds"],
+  ])(
+    "normalizes bare round-count %s through the full pipeline with an intentional numeric reorder",
+    async (source, expected) => {
+      const provider = new InspectingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "crochet-phrasing", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result).toMatchObject({
+        translated: expected,
+        valid: true,
+        errors: [],
+      });
+      expect(result?.translated).not.toContain("__XQ");
+      expect(result?.errors.map(({ code }) => code)).not.toContain(
+        "NUMBER_MISMATCH",
+      );
+
+      const sourceNumbers = source.match(/\d+(?:[.,]\d+)?/gu) ?? [];
+      const translatedNumbers =
+        result?.translated.match(/\d+(?:[.,]\d+)?/gu) ?? [];
+      expect(translatedNumbers).toHaveLength(sourceNumbers.length);
+      expect(new Set(translatedNumbers)).toEqual(new Set(sourceNumbers));
+    },
+  );
 
   it.each([
     [

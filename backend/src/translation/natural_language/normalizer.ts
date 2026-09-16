@@ -134,7 +134,15 @@ const normalizeEnglishCrochetStructures = (
       ) =>
         `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches}sc. Ch 1 and cut the yarn`,
     )
-    .replace(/\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu, "$1 rounds, $2x")
+    .replace(
+      /\b(\d+)\s+sıra\s+(\d+)\s*x\b(?=[.]?\s*(?:$|[\r\n]))/giu,
+      (_match, rounds: string, stitches: string) =>
+        `${stitches}x for ${rounds} ${rounds === "1" ? "round" : "rounds"}`,
+    )
+    .replace(
+      /\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu,
+      "$1 rounds, $2x",
+    )
     .replace(
       /\b(\d+)\.\s*sıranın\s+sonunda\s+(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
       (_match, round: string, chains: string) =>
@@ -529,13 +537,14 @@ const normalizeEnglishCrochetStructures = (
       (_match, chains: string) => `then ch ${chains} again and`,
     )
     .replace(
-      /(^|(?:[.!?;]\s+)|(?:[\r\n]+\s*))(\d+)\s*(x|dc|tr)\s+örüyoruz\s*[.]?/giu,
+      /(^|(?:[.!?;]\s+)|(?:[\r\n]+\s*))(\d+)\s*(x|dc|tr)\s+örüyoruz\s*([.])?/giu,
       (
         _match,
         prefix: string,
         count: string,
         stitch: string,
-      ) => `${prefix}Work ${count}${stitch}.`,
+        terminalPeriod: string | undefined,
+      ) => `${prefix}Work ${count}${stitch}${terminalPeriod ? "." : ""}`,
     )
     .replace(
       // Canva may place the repeated action ("*N") and the following
