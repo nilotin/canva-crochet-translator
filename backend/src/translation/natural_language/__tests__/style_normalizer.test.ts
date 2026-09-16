@@ -567,6 +567,18 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+  it("normalizes the second-leg repeated-round instruction without the optional \"da\" particle", () => {
+    expect(
+      normalizeTranslationStyle(
+        "✦ İkinci bacakta ilk 47 sırayı aynı şekilde örüyoruz.",
+        "✦ On the second leg, work the first 47 round in the same way.",
+        "en",
+      ),
+    ).toBe(
+      "✦ On the second leg, work the first 47 rounds in the same way.",
+    );
+  });
+
   it("normalizes continuing into the body without cutting the yarn", () => {
     expect(
       normalizeTranslationStyle(

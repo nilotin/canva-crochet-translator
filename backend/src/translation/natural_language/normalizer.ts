@@ -471,7 +471,7 @@ const normalizeEnglishCrochetStructures = (
       "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater",
     )
     .replace(
-      /(?<!\p{L})[iİ]kinci\s+bacakta\s+da\s+ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz(?!\p{L})/giu,
+      /(?<!\p{L})[iİ]kinci\s+bacakta\s+(?:da\s+)?ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz(?!\p{L})/giu,
       (_match, rounds: string) =>
         `On the second leg, work the first ${rounds} ${rounds === "1" ? "round" : "rounds"} in the same way`,
     )

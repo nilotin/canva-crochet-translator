@@ -420,7 +420,7 @@ const normalizeEnglishCrochetInstructionLine = (
   }
 
   const secondLegSameRounds =
-    /^(\s*✦\s*)?[iİ]kinci\s+bacakta\s+da\s+ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz([.]?\s*)$/iu.exec(
+    /^(\s*✦\s*)?[iİ]kinci\s+bacakta\s+(?:da\s+)?ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz([.]?\s*)$/iu.exec(
       source,
     );
 

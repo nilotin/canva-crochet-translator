@@ -128,6 +128,30 @@ class HookBoundaryProvider extends InspectingProvider {
   }
 }
 
+// Second-leg "same rounds" instruction without the optional "da" particle
+// ("İkinci bacakta ilk N sırayı..." rather than "İkinci bacakta da ilk N
+// sırayı..."). A real (imperfect) LLM call can still emit a
+// singular/plural agreement mistake ("47 round" instead of "47 rounds")
+// even on the already-normalized English sentence handed to the
+// provider. Every other block is echoed back unchanged, like
+// InspectingProvider.
+class SecondLegSingularRoundProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => ({
+        id,
+        translated: /work the first 47 rounds in the same way/iu.test(text)
+          ? text.replace("47 rounds", "47 round")
+          : text,
+      })),
+    };
+  }
+}
+
 describe("translateBlocks provider boundary", () => {
   it("rejects a reserved placeholder introduced by mixed prose output", async () => {
     const provider = new StubProvider({
@@ -2725,6 +2749,36 @@ describe("crochet instruction phrasing", () => {
         expect(block.text).not.toMatch(/sabitliyoruz/iu);
       }
     }
+  });
+
+  // LIVE REGRESSION: reproduces the actual reported Canva bug for the
+  // second-leg "same rounds" instruction when the source omits the
+  // optional "da" particle: "İkinci bacakta ilk 47 sırayı aynı şekilde
+  // örüyoruz." (real PDF text) instead of the already-supported
+  // "İkinci bacakta da ilk N sırayı..." form. Before the fix, neither the
+  // pre-provider normalizer nor the post-provider style-normalizer
+  // regex matched the "no da" form, so a plausible LLM number-agreement
+  // mistake ("47 round" instead of "47 rounds") survived untouched to
+  // the final response. SecondLegSingularRoundProvider stands in for
+  // that real, imperfect LLM call. This test fails before the fix and
+  // passes after it, proving the complete pipeline -- not just the
+  // normalizer or style-normalizer helper in isolation -- repairs the
+  // exact production failure.
+  it("repairs the second-leg repeated-round instruction end-to-end when the source omits the optional \"da\" particle (live regression)", async () => {
+    const provider = new SecondLegSingularRoundProvider();
+    const source = "✦ İkinci bacakta ilk 47 sırayı aynı şekilde örüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "live-second-leg-no-da", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "✦ On the second leg, work the first 47 rounds in the same way.",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
   });
 
   // Page 24 sibling of the live regression above: the referenced-loop

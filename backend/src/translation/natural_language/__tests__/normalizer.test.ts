@@ -965,6 +965,14 @@ describe("normalizeSourceNaturalLanguage", () => {
       "On the second leg, work the first 51 rounds in the same way.",
     ],
     [
+      "İkinci bacakta ilk 47 sırayı aynı şekilde örüyoruz.",
+      "On the second leg, work the first 47 rounds in the same way.",
+    ],
+    [
+      "İkinci bacakta ilk 1 sırayı aynı şekilde örüyoruz.",
+      "On the second leg, work the first 1 round in the same way.",
+    ],
+    [
       "12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
       "Work 12sc, then continue with the body without cutting the yarn.",
     ],
