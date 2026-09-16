@@ -1,4 +1,5 @@
 import type { TargetLanguage } from "../types.js";
+import { normalizeBareRoundCountSourceLines } from "./bare_round_count.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -53,7 +54,7 @@ const normalizeEnglishCrochetStructures = (
 ): string => {
   if (targetLanguage !== "en") return source;
 
-  return source
+  return normalizeBareRoundCountSourceLines(source, "x")
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
     .replace(/\bağız\s*(?:[:;–—-])/giu, "Mouth:")
@@ -133,11 +134,6 @@ const normalizeEnglishCrochetStructures = (
         stitches: string,
       ) =>
         `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches}sc. Ch 1 and cut the yarn`,
-    )
-    .replace(
-      /\b(\d+)\s+sıra\s+(\d+)\s*x\b(?=[.]?\s*(?:$|[\r\n]))/giu,
-      (_match, rounds: string, stitches: string) =>
-        `${stitches}x for ${rounds} ${rounds === "1" ? "round" : "rounds"}`,
     )
     .replace(
       /\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu,

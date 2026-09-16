@@ -1048,6 +1048,17 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  it("normalizes bare round-count lines anywhere in a multiline block", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
+        "en",
+      ),
+    ).toBe(
+      "2-11) 64x for 10 rounds\n12) 60x\n19-33) 48x for 15 rounds",
+    );
+  });
+
   it.each([
     ["FLO ‘dan (5x, 1v)*6 = 42x", "In FLO, (5x, 1v)*6 = 42x"],
     ["BLO'dan (5x, 1v)*6 = 42x", "In BLO, (5x, 1v)*6 = 42x"],

@@ -68,4 +68,24 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
     expect(spans).toHaveLength(1);
     expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(source);
   });
+
+  it("protects bare round-count lines at the beginning, middle, and end of a block", () => {
+    const source =
+      "2-11) 10 sıra 64x\n12) 60x\n13-15) 3 sıra 56x.\n16) 52x\n1 sıra 29x";
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+
+    expect(spans.map(({ start, end }) => source.slice(start, end))).toEqual([
+      "2-11) 10 sıra 64x",
+      "13-15) 3 sıra 56x.",
+      "1 sıra 29x",
+    ]);
+  });
+
+  it("does not classify an arm-joining continuation as a bare round-count line", () => {
+    const source =
+      "15-29) 15 sıra 42x, İpimizi kesmeden kol birleştirme ile devam ediyoruz.";
+
+    expect(extractSourceAtomicNaturalLanguageSpans(source)).toEqual([]);
+  });
 });

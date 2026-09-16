@@ -152,6 +152,26 @@ class SecondLegSingularRoundProvider extends InspectingProvider {
   }
 }
 
+class IsolatedSiraProvider extends InspectingProvider {
+  exposedIsolatedSira = false;
+
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => {
+        if (text.trim().toLocaleLowerCase("tr-TR") === "sıra") {
+          this.exposedIsolatedSira = true;
+          return { id, translated: "round" };
+        }
+        return { id, translated: text };
+      }),
+    };
+  }
+}
+
 describe("translateBlocks provider boundary", () => {
   it("rejects a reserved placeholder introduced by mixed prose output", async () => {
     const provider = new StubProvider({
@@ -2802,6 +2822,57 @@ describe("crochet instruction phrasing", () => {
     expect(result?.translated).toBe("39-47) 29sc for 9 rounds");
     expect(result?.errors).toEqual([]);
     expect(result?.valid).toBe(true);
+  });
+
+  it("protects bare round-count lines across a real Canva formatting boundary", async () => {
+    const provider = new IsolatedSiraProvider();
+    const source =
+      "2-11) 10 sıra 64x\n" +
+      "12) (14x,1e)*4 = 60x\n" +
+      "13) 60x\n" +
+      "14) (13x, 1e)*4 = 56x\n" +
+      "15) 56x\n" +
+      "16) (12x, 1e)*4 = 52x\n" +
+      "17) 52x\n" +
+      "18) (11x,1e)*4 = 48x\n" +
+      "19-33) 15 sıra 48x";
+    const formattingBoundary = source.indexOf("64x");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "real-multiline-round-count-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: formattingBoundary },
+            {
+              id: "fmt-1",
+              start: formattingBoundary,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.exposedIsolatedSira).toBe(false);
+    expect(result?.translated).toBe(
+      "2-11) 64sc for 10 rounds\n" +
+        "12) (14sc,1dec)*4 = 60sc\n" +
+        "13) 60sc\n" +
+        "14) (13sc, 1dec)*4 = 56sc\n" +
+        "15) 56sc\n" +
+        "16) (12sc, 1dec)*4 = 52sc\n" +
+        "17) 52sc\n" +
+        "18) (11sc,1dec)*4 = 48sc\n" +
+        "19-33) 48sc for 15 rounds",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
   });
 
   // LIVE REGRESSION: reproduces the reported "48) Work 24sc., ch 1 and cut

@@ -1,4 +1,8 @@
 import type { TargetLanguage } from "../types.js";
+import {
+  parseBareRoundCountSourceLine,
+  renderEnglishBareRoundCountLine,
+} from "./bare_round_count.js";
 
 const MAGIC_RING_SOURCE = /^(\s*\d+\.\s*)?(\d+)x ile sh oluşturuyoruz\.\s*$/u;
 
@@ -529,13 +533,9 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${bullet}With ${color} yarn:`;
   }
 
-  const roundCount =
-    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)x([.]?\s*)$/iu.exec(
-      source,
-    );
+  const roundCount = parseBareRoundCountSourceLine(source);
   if (roundCount) {
-    const rounds = Number(roundCount[2]) === 1 ? "round" : "rounds";
-    return `${roundCount[1]}${roundCount[3]}sc for ${roundCount[2]} ${rounds}${roundCount[4]}`;
+    return renderEnglishBareRoundCountLine(roundCount, "sc");
   }
 
   const magicRing =

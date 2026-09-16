@@ -1,3 +1,8 @@
+import {
+  parseBareRoundCountSourceLine,
+  splitLogicalLines,
+} from "./bare_round_count.js";
+
 export type SourceAtomicSpan = {
   start: number;
   end: number;
@@ -14,7 +19,10 @@ const ATOMIC_NATURAL_LANGUAGE_PATTERNS = [
 export const extractSourceAtomicNaturalLanguageSpans = (
   source: string,
 ): SourceAtomicSpan[] => {
-  const spans: SourceAtomicSpan[] = [];
+  const spans: SourceAtomicSpan[] = splitLogicalLines(source).flatMap(
+    ({ text, start, end }) =>
+      parseBareRoundCountSourceLine(text) ? [{ start, end }] : [],
+  );
 
   for (const pattern of ATOMIC_NATURAL_LANGUAGE_PATTERNS) {
     pattern.lastIndex = 0;

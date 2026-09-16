@@ -14,6 +14,11 @@ import { validateSemanticAnchors } from "./natural_language/semantic_anchors.js"
 import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
+import {
+  parseBareRoundCountSourceLine,
+  parseBareRoundCountTargetLine,
+  splitLogicalLines,
+} from "./natural_language/bare_round_count.js";
 import type {
   BlockValidation,
   TargetLanguage,
@@ -68,33 +73,40 @@ const comparableSourceNumbersWithWrittenCrochetCounts = (
   });
 };
 
-// Mirrors the exact anchoring of style_normalizer.ts's bare "N sıra Mx"
-// round-count rule (e.g. "39-47) 9 sıra 29x"), which deliberately
-// canonicalizes that one sentence family to "Msc for N round(s)" --
-// swapping the round-count and stitch-count numbers' relative order.
-// Matching only what that rule itself would rewrite (identical regex,
-// applied per line) means this can only ever recognize the exact swap
-// that rule produces; it cannot validate a reordering for any other
-// sentence family. Composed with the written-crochet-count helper above
-// so both exceptions apply together when a block mixes this family with
-// e.g. a written "bir zincir" on another line.
-const BARE_ROUND_COUNT_LINE_PATTERN =
-  /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)x([.]?\s*)$/iu;
-
-const comparableSourceNumbersWithBareRoundCountSwap = (
+const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
   source: string,
-): string[] =>
-  comparableSourceNumbersWithWrittenCrochetCounts(
-    source
-      .split("\n")
-      .map((line) => {
-        const match = BARE_ROUND_COUNT_LINE_PATTERN.exec(line);
-        return match
-          ? `${match[1]}${match[3]} sıra ${match[2]}x${match[4]}`
-          : line;
-      })
-      .join("\n"),
-  );
+  translated: string,
+): string[] | undefined => {
+  const sourceLines = splitLogicalLines(source);
+  const translatedLines = splitLogicalLines(translated);
+  if (sourceLines.length !== translatedLines.length) return undefined;
+
+  const comparableSource = sourceLines
+    .map((sourceLine, index) => {
+      const sourceMatch = parseBareRoundCountSourceLine(sourceLine.text);
+      const targetMatch = parseBareRoundCountTargetLine(
+        translatedLines[index]?.text ?? "",
+      );
+
+      const expectedRoundWord =
+        Number(sourceMatch?.rounds) === 1 ? "round" : "rounds";
+      const verifiedPair =
+        sourceMatch !== undefined &&
+        targetMatch !== undefined &&
+        sourceMatch.range === targetMatch.range &&
+        sourceMatch.rounds === targetMatch.rounds &&
+        sourceMatch.stitches === targetMatch.stitches &&
+        targetMatch.roundWord === expectedRoundWord;
+
+      const text = verifiedPair
+        ? `${sourceMatch.prefix}${sourceMatch.stitches} sıra ${sourceMatch.rounds}x${sourceMatch.suffix}`
+        : sourceLine.text;
+      return text + sourceLine.separator;
+    })
+    .join("");
+
+  return comparableSourceNumbersWithWrittenCrochetCounts(comparableSource);
+};
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -316,7 +328,10 @@ export const validateTranslation = (
       )) ||
     (options.contentKind !== "materials" &&
       sameSequence(
-        comparableSourceNumbersWithBareRoundCountSwap(source),
+        comparableSourceNumbersWithVerifiedBareRoundCountSwaps(
+          source,
+          translated,
+        ) ?? [],
         translatedNumbers,
       ));
 

@@ -721,4 +721,16 @@ describe("normalizeTranslationStyle", () => {
     ).toBe("39-47) 29sc for 9 rounds");
   });
 
+  it("normalizes multiple bare round-count lines in a composed block", () => {
+    expect(
+      normalizeTranslationStyle(
+        "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
+        "2-11) 10 round 64sc\n12) 60sc\n19-33) 15 round 48sc",
+        "en",
+      ),
+    ).toBe(
+      "2-11) 64sc for 10 rounds\n12) 60sc\n19-33) 48sc for 15 rounds",
+    );
+  });
+
 });

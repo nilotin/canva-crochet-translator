@@ -286,6 +286,49 @@ describe("validateTranslation", () => {
     expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
   });
 
+  it("accepts multiple verified bare round-count swaps inside a composed block", () => {
+    const result = validateTranslation(
+      "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
+      "2-11) 64sc for 10 rounds\n12) 60sc\n19-33) 48sc for 15 rounds",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it.each([
+    [
+      "changed stitch count",
+      "2-11) 63sc for 10 rounds\n12) 60sc\n19-33) 48sc for 15 rounds",
+    ],
+    [
+      "changed round count",
+      "2-11) 64sc for 9 rounds\n12) 60sc\n19-33) 48sc for 15 rounds",
+    ],
+    [
+      "arbitrary reorder elsewhere",
+      "2-11) 64sc for 10 rounds\n60) 12sc\n19-33) 48sc for 15 rounds",
+    ],
+    [
+      "noncanonical sentence with reordered values",
+      "2-11) Work rounds 64 through 10.\n12) 60sc\n19-33) 48sc for 15 rounds",
+    ],
+    [
+      "incorrect pluralization",
+      "2-11) 64sc for 10 round\n12) 60sc\n19-33) 48sc for 15 rounds",
+    ],
+  ])("rejects %s around local bare round-count swaps", (_label, translated) => {
+    const result = validateTranslation(
+      "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
+      translated,
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
   it("accepts a written Turkish stitch count rendered numerically", () => {
     const result = validateTranslation(
       "7) M(aynı anda üç ilmeği birlikte kesmek), 11x",
