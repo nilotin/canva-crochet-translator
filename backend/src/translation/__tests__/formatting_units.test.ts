@@ -90,4 +90,86 @@ describe("formatting translation units", () => {
       }),
     ).toBeUndefined();
   });
+
+  it("makes a protected span crossing a style boundary one left-owned atomic unit", () => {
+    const source = "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x";
+    const firstStitch = source.indexOf("64x");
+    const firstLineEnd = source.indexOf("\n");
+
+    const units = buildFormattingTranslationUnits(
+      {
+        id: "atomic-round-count",
+        text: source,
+        formattingRegions: [
+          { id: "fmt-0", start: 0, end: firstStitch },
+          { id: "fmt-1", start: firstStitch, end: source.length },
+        ],
+      },
+      [
+        { start: 0, end: firstLineEnd },
+        {
+          start: source.lastIndexOf("19-33)"),
+          end: source.length,
+        },
+      ],
+    );
+
+    expect(units).toEqual([
+      {
+        id: "fmt-0",
+        text: "2-11) 10 sıra 64x",
+        start: 0,
+        end: firstLineEnd,
+        atomic: true,
+        collapsesFormatting: true,
+      },
+      {
+        id: "fmt-1",
+        text: "\n12) 60x\n",
+        start: firstLineEnd,
+        end: source.lastIndexOf("19-33)"),
+      },
+      {
+        id: "fmt-1",
+        text: "19-33) 15 sıra 48x",
+        start: source.lastIndexOf("19-33)"),
+        end: source.length,
+        atomic: true,
+      },
+    ]);
+  });
+
+  it("records formatting regions fully absorbed by an atomic span", () => {
+    const source = "2-11) 10 sıra 64x\nTail";
+    const units = buildFormattingTranslationUnits(
+      {
+        id: "absorbed-style",
+        text: source,
+        formattingRegions: [
+          { id: "fmt-0", start: 0, end: 6 },
+          { id: "fmt-1", start: 6, end: 14 },
+          { id: "fmt-2", start: 14, end: source.length },
+        ],
+      },
+      [{ start: 0, end: 17 }],
+    );
+
+    expect(units).toEqual([
+      {
+        id: "fmt-0",
+        text: "2-11) 10 sıra 64x",
+        start: 0,
+        end: 17,
+        atomic: true,
+        collapsesFormatting: true,
+        absorbedRegionIds: ["fmt-1"],
+      },
+      {
+        id: "fmt-2",
+        text: "\nTail",
+        start: 17,
+        end: source.length,
+      },
+    ]);
+  });
 });

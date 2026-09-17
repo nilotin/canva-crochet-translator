@@ -32,7 +32,10 @@ export const extractSourceAtomicNaturalLanguageSpans = (
 
       spans.push({
         start: match.index,
-        end: match.index + match[0].length,
+        end:
+          match.index +
+          match[0].length +
+          (source[match.index + match[0].length] === "." ? 1 : 0),
       });
     }
   }

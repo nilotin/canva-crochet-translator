@@ -56,6 +56,7 @@ const reviewBody = {
       warnings: [],
       sourceFormattingSignature: "formatting-v1-abc",
       targetFormattingRegions: [{ id: "fmt-0", start: 0, end: 3 }],
+      formattingProjection: "atomic_collapse" as const,
     },
   ],
 };
@@ -94,6 +95,7 @@ describe("page-state controller", () => {
               editedTranslation: "edited 6sc",
               sourceFormattingSignature: "formatting-v1-abc",
               targetFormattingRegions: [{ id: "fmt-0", start: 0, end: 3 }],
+              formattingProjection: "atomic_collapse",
             },
           ],
         },

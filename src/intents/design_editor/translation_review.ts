@@ -49,6 +49,7 @@ export type ReviewBlock = {
     start: number;
     end: number;
   }[];
+  formattingProjection?: "atomic_collapse";
 };
 
 export type PageReview = {
@@ -69,6 +70,7 @@ export type TranslationResponse = {
       start: number;
       end: number;
     }[];
+    formattingProjection?: "atomic_collapse";
   }[];
 };
 
@@ -231,6 +233,7 @@ const hasCompleteFormattingProjection = (
     | readonly { id: string; start: number; end: number }[]
     | undefined,
   targetLength: number,
+  formattingProjection?: "atomic_collapse",
 ): boolean => {
   if (!requiresFormattingProjection(snapshots)) return true;
   if (!targetRegions || targetRegions.length !== snapshots.length) return false;
@@ -242,7 +245,9 @@ const hasCompleteFormattingProjection = (
       !Number.isInteger(region.start) ||
       !Number.isInteger(region.end) ||
       region.start !== end ||
-      region.end <= region.start ||
+      region.end < region.start ||
+      (region.end === region.start &&
+        formattingProjection !== "atomic_collapse") ||
       region.end > targetLength
     ) {
       return false;
@@ -285,6 +290,7 @@ export const buildPageReview = (
       snapshots,
       item.targetFormattingRegions,
       item.translated.length,
+      item.formattingProjection,
     );
 
     const formattingErrors = formattingProjectionMissing
@@ -316,6 +322,7 @@ export const buildPageReview = (
       warnings: item.warnings,
       sourceFormattingSignature: formattingRegionSignature(snapshots),
       targetFormattingRegions: item.targetFormattingRegions,
+      formattingProjection: item.formattingProjection,
     } satisfies ReviewBlock;
   });
 
@@ -624,6 +631,7 @@ export const planProjectedFormatting = (
         snapshots,
         targetRegions,
         block.translated.length,
+        block.formattingProjection,
       )
     ) {
       conflict("INVALID_TEMPLATE");
@@ -659,6 +667,7 @@ export const planProjectedFormatting = (
         snapshots,
         targetRegions,
         block.editedTranslation.length,
+        block.formattingProjection,
       )) ||
     targetRegions.some(
       ({ id, start, end }) =>

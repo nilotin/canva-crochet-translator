@@ -139,4 +139,5 @@ export type TranslationResult = {
   errors: ValidationDiagnostic<ValidationCode>[];
   warnings: ValidationDiagnostic<WarningCode>[];
   targetFormattingRegions?: TargetFormattingRegion[];
+  formattingProjection?: "atomic_collapse";
 };

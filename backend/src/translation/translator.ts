@@ -373,43 +373,72 @@ const translateFormattingUnits = async (
   provider: TranslationProvider,
   contentKind: TranslationContentKind = "pattern",
 ): Promise<TranslationResult | undefined> => {
-  // Never split a measurement before protection, including across style units.
-  // Use the existing whole-block fallback when a supplied boundary bisects it.
-  const protectedSpans = [
+  // Measurements and round references retain the existing whole-block
+  // fallback when bisected. Natural-language atomic spans can instead become
+  // indivisible, left-owned formatting units without losing their semantics.
+  const wholeBlockFallbackSpans = [
     ...extractSourceMeasurementSpans(block.text),
     ...(contentKind === "pattern"
-      ? [
-          ...extractRoundReferences(block.text),
-          ...extractSourceAtomicNaturalLanguageSpans(block.text),
-        ]
+      ? extractRoundReferences(block.text)
       : []),
   ];
-  if (block.formattingRegions?.some(({ start, end }) => protectedSpans.some(
+  if (block.formattingRegions?.some(({ start, end }) => wholeBlockFallbackSpans.some(
     (span) => (start > span.start && start < span.end) ||
       (end > span.start && end < span.end),
   ))) return undefined;
-  const units = buildFormattingTranslationUnits(block);
+  const atomicSpans =
+    contentKind === "pattern"
+      ? extractSourceAtomicNaturalLanguageSpans(block.text)
+      : [];
+  const units = buildFormattingTranslationUnits(block, atomicSpans);
 
-  if (!units || units.length <= 1) return undefined;
+  if (!units || (block.formattingRegions?.length ?? 0) <= 1) return undefined;
 
   const translatedUnits: string[] = [];
   const unitErrors: ValidationDiagnostic<ValidationCode>[] = [];
   const unitWarnings: ValidationDiagnostic<WarningCode>[] = [];
-  const targetFormattingRegions: NonNullable<
-    TranslationResult["targetFormattingRegions"]
-  > = [];
+  const projectedById = new Map<
+    string,
+    NonNullable<TranslationResult["targetFormattingRegions"]>[number]
+  >();
+  let usesAtomicCollapse = false;
 
   let targetCursor = 0;
+
+  const recordProjectedUnit = (
+    unit: (typeof units)[number],
+    start: number,
+    end: number,
+  ) => {
+    const existing = projectedById.get(unit.id);
+    if (existing) {
+      if (existing.end !== start) return false;
+      existing.end = end;
+    } else {
+      projectedById.set(unit.id, { id: unit.id, start, end });
+    }
+
+    for (const id of unit.absorbedRegionIds ?? []) {
+      if (projectedById.has(id)) return false;
+      projectedById.set(id, { id, start: end, end });
+    }
+
+    if (unit.collapsesFormatting) usesAtomicCollapse = true;
+    return true;
+  };
+
+  let formattingProjectionValid = true;
 
   for (const [unitIndex, unit] of units.entries()) {
     if (unit.text.trim().length === 0) {
       translatedUnits.push(unit.text);
 
-      targetFormattingRegions.push({
-        id: unit.id,
-        start: targetCursor,
-        end: targetCursor + unit.text.length,
-      });
+      formattingProjectionValid =
+        recordProjectedUnit(
+          unit,
+          targetCursor,
+          targetCursor + unit.text.length,
+        ) && formattingProjectionValid;
 
       targetCursor += unit.text.length;
       continue;
@@ -435,17 +464,20 @@ const translateFormattingUnits = async (
 
       translatedUnits.push(translatedUnit);
 
-      targetFormattingRegions.push({
-        id: unit.id,
-        start: targetCursor,
-        end: targetCursor + translatedUnit.length,
-      });
+      formattingProjectionValid =
+        recordProjectedUnit(
+          unit,
+          targetCursor,
+          targetCursor + translatedUnit.length,
+        ) && formattingProjectionValid;
 
       targetCursor += translatedUnit.length;
       continue;
     }
 
-    const segments = segmentTranslationBlock(coreText);
+    const segments = unit.atomic
+      ? [{ index: 0, prefix: "", text: coreText, suffix: "" }]
+      : segmentTranslationBlock(coreText);
     const translatedSegments: string[] = [];
 
     for (const segment of segments) {
@@ -483,16 +515,28 @@ const translateFormattingUnits = async (
 
     translatedUnits.push(translatedUnit);
 
-    targetFormattingRegions.push({
-      id: unit.id,
-      start: targetCursor,
-      end: targetCursor + translatedUnit.length,
-    });
+    formattingProjectionValid =
+      recordProjectedUnit(
+        unit,
+        targetCursor,
+        targetCursor + translatedUnit.length,
+      ) && formattingProjectionValid;
 
     targetCursor += translatedUnit.length;
   }
 
   const translated = translatedUnits.join("");
+  const orderedSourceRegions = [...(block.formattingRegions ?? [])].sort(
+    (left, right) => left.start - right.start,
+  );
+  const targetFormattingRegions = formattingProjectionValid
+    ? orderedSourceRegions.map(({ id }) => projectedById.get(id))
+    : [];
+  const hasCompleteProjection =
+    targetFormattingRegions.length === orderedSourceRegions.length &&
+    targetFormattingRegions.every(
+      (region): region is NonNullable<typeof region> => region !== undefined,
+    );
 
   const fullValidation = validateTranslation(
     block.text,
@@ -521,7 +565,10 @@ const translateFormattingUnits = async (
     valid: errors.length === 0,
     errors,
     warnings,
-    targetFormattingRegions,
+    ...(hasCompleteProjection ? { targetFormattingRegions } : {}),
+    ...(hasCompleteProjection && usesAtomicCollapse
+      ? { formattingProjection: "atomic_collapse" as const }
+      : {}),
   };
 };
 

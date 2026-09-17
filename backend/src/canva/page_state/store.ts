@@ -32,6 +32,7 @@ export const reviewBlockSchema = z
       )
       .max(1_000)
       .optional(),
+    formattingProjection: z.literal("atomic_collapse").optional(),
   })
   .strict();
 

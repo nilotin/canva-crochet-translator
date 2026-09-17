@@ -12,10 +12,10 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
       "(1 zincir, sıradaki sık iğneye cc)*32, 1 zincir çekip ipimizi kesiyoruz.";
 
     expect(extractSourceAtomicNaturalLanguageSpans(source)).toEqual([
-      { start: 2, end: 105 },
+      { start: 2, end: 106 },
     ]);
-    expect(source.slice(2, 105)).toBe(
-      "Görselde görüldüğü gibi 5. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan yeşil ipimizi sabitliyoruz",
+    expect(source.slice(2, 106)).toBe(
+      "Görselde görüldüğü gibi 5. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan yeşil ipimizi sabitliyoruz.",
     );
   });
 
@@ -27,7 +27,7 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
     expect(spans).toHaveLength(1);
     expect(spans[0]?.start).toBe(0);
     expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(
-      "12. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz",
+      "12. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan siyah ipimizi sabitliyoruz.",
     );
   });
 
@@ -38,7 +38,7 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
     const spans = extractSourceAtomicNaturalLanguageSpans(source);
     expect(spans).toHaveLength(1);
     expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(
-      "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan ipimizi sabitliyoruz",
+      "18. sırada BLO’dan ördüğümüz sık iğnelerin FLO’sundan ipimizi sabitliyoruz.",
     );
   });
 

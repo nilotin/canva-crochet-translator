@@ -2873,6 +2873,65 @@ describe("crochet instruction phrasing", () => {
     expect(result?.errors.map(({ code }) => code)).not.toContain(
       "NUMBER_MISMATCH",
     );
+    const translatedFirstLineEnd = result?.translated.indexOf("\n") ?? -1;
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-0", start: 0, end: translatedFirstLineEnd },
+      {
+        id: "fmt-1",
+        start: translatedFirstLineEnd,
+        end: result?.translated.length,
+      },
+    ]);
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+  });
+
+  it("emits a zero-width mapping for a style fully absorbed by an atomic span", async () => {
+    const provider = new IsolatedSiraProvider();
+    const source = "Header\n2-11) 10 sıra 64x\nFooter";
+    const atomicStart = source.indexOf("2-11)");
+    const stitchStart = source.indexOf("64x");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "absorbed-atomic-style",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: atomicStart },
+            { id: "fmt-1", start: atomicStart, end: atomicStart + 6 },
+            { id: "fmt-2", start: atomicStart + 6, end: stitchStart },
+            { id: "fmt-3", start: stitchStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.exposedIsolatedSira).toBe(false);
+    expect(result?.translated).toBe("Header\n2-11) 64sc for 10 rounds\nFooter");
+    const translatedAtomicStart = result?.translated.indexOf("2-11)") ?? -1;
+    const translatedAtomicEnd = result?.translated.indexOf("\nFooter") ?? -1;
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-0", start: 0, end: translatedAtomicStart },
+      {
+        id: "fmt-1",
+        start: translatedAtomicStart,
+        end: translatedAtomicEnd,
+      },
+      {
+        id: "fmt-2",
+        start: translatedAtomicEnd,
+        end: translatedAtomicEnd,
+      },
+      {
+        id: "fmt-3",
+        start: translatedAtomicEnd,
+        end: result?.translated.length,
+      },
+    ]);
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+    expect(result?.valid).toBe(true);
   });
 
   // LIVE REGRESSION: reproduces the reported "48) Work 24sc., ch 1 and cut

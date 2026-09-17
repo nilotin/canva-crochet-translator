@@ -1,6 +1,7 @@
 import {
   ApplyReviewError,
   applyPageReview,
+  buildPageReview,
   currentPageMatchesReview,
   readCurrentPageBlocks,
   snapshotFormattingRegions,
@@ -1225,6 +1226,174 @@ describe("translation review", () => {
       ]),
     );
   });
+
+  it("accepts and applies a proven atomic-collapse projection with absorbed zero-width styles", async () => {
+    const source = "2-11) 10 sıra 64x";
+    const translated = "2-11) 64sc for 10 rounds";
+    const content = mutableRange(source, [
+      {
+        text: "2-11) ",
+        formatting: { color: "#ff0000", fontWeight: "bold" },
+      },
+      { text: "10 sıra ", formatting: { color: "#00ff00" } },
+      { text: "64x", formatting: { color: "#0000ff" } },
+    ]);
+    const sync = jest.fn(async () => undefined);
+    const query = jest.fn(async (_options, callback) =>
+      callback({ contents: [content], sync }),
+    );
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-1",
+            source,
+            translated,
+            valid: true,
+            errors: [],
+            warnings: [],
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: translated.length },
+              {
+                id: "fmt-1",
+                start: translated.length,
+                end: translated.length,
+              },
+              {
+                id: "fmt-2",
+                start: translated.length,
+                end: translated.length,
+              },
+            ],
+            formattingProjection: "atomic_collapse",
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage("en", "atomic-format-context", {
+      queryCurrentPage: query as never,
+      fetch: fetcher as never,
+      ...translationAuth,
+    });
+
+    expect(review.reviewStatus).toBe("ready");
+    expect(review.blocks[0]?.errors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "FORMATTING_MAPPING_REQUIRED" }),
+      ]),
+    );
+
+    await applyPageReview(
+      review,
+      { contextId: "atomic-format-context", language: "en" },
+      {
+        verifyTarget: async () => ({
+          isTranslationTarget: true,
+          language: "en",
+          sourceTitle: "Source",
+          contextId: "atomic-format-context",
+        }),
+        queryCurrentPage: query as never,
+      },
+    );
+
+    expect(content.formatText).toHaveBeenCalledTimes(1);
+    expect(content.formatText).toHaveBeenCalledWith(
+      { index: 0, length: translated.length },
+      expect.objectContaining({ color: "#ff0000", fontWeight: "bold" }),
+    );
+    expect(content.formatText).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ color: "#00ff00" }),
+    );
+    expect(content.formatText).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ color: "#0000ff" }),
+    );
+  });
+
+  it.each([
+    [
+      "an unproven zero-width range",
+      [
+        { id: "fmt-0", start: 0, end: 3 },
+        { id: "fmt-1", start: 3, end: 3 },
+      ],
+      undefined,
+    ],
+    [
+      "a missing formatting ID",
+      [{ id: "fmt-0", start: 0, end: 6 }],
+      "atomic_collapse",
+    ],
+    [
+      "out-of-order or overlapping ranges",
+      [
+        { id: "fmt-0", start: 0, end: 4 },
+        { id: "fmt-1", start: 3, end: 6 },
+      ],
+      "atomic_collapse",
+    ],
+    [
+      "a gap in target coverage",
+      [
+        { id: "fmt-0", start: 0, end: 2 },
+        { id: "fmt-1", start: 3, end: 6 },
+      ],
+      "atomic_collapse",
+    ],
+  ] as const)(
+    "blocks %s in a formatting projection",
+    (_label, targetFormattingRegions, formattingProjection) => {
+      const source = "abcdef";
+      const snapshots = new Map([
+        [
+          "block",
+          [
+            {
+              index: 0,
+              length: 3,
+              text: "abc",
+              formatting: { color: "#ff0000" },
+            },
+            {
+              index: 3,
+              length: 3,
+              text: "def",
+              formatting: { color: "#0000ff" },
+            },
+          ],
+        ],
+      ]);
+      const review = buildPageReview(
+        [{ localId: "block", sourceText: source, order: 0 }],
+        snapshots,
+        {
+          translations: [
+            {
+              id: "block",
+              source,
+              translated: source,
+              valid: true,
+              errors: [],
+              warnings: [],
+              targetFormattingRegions: [...targetFormattingRegions],
+              ...(formattingProjection ? { formattingProjection } : {}),
+            },
+          ],
+        },
+      );
+
+      expect(review.blocks[0]?.validation).toBe("BLOCK");
+      expect(review.blocks[0]?.errors).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "FORMATTING_MAPPING_REQUIRED" }),
+        ]),
+      );
+    },
+  );
 
   it("preserves projected inline formatting on translated notation", async () => {
     const content = mutableRange("6x, v, 4x", [

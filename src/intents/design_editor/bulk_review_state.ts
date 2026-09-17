@@ -50,7 +50,10 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // rendering, natural-language normalization, validation, placeholder
 // integrity, and formatting projection changed. Reviews produced by v10
 // must be translated again instead of being restored or reused.
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v11";
+// v12: atomic natural-language spans can now collapse bisecting source
+// formatting regions into a deterministic owner range. Persisted v11 reviews
+// do not carry the proof tag required for zero-width absorbed regions.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v12";
 
 export type PersistedBulkPageReview = {
   pageId: string;
