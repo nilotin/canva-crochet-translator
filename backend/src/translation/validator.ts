@@ -8,6 +8,7 @@ import {
   NATURAL_LANGUAGE_GLOSSARY,
   type CrochetNotationEntry,
 } from "./glossary.js";
+import { findAmbiguousRepetitionNotation } from "./notation/ambiguous_repetition.js";
 import { tokenizeSourceNotation } from "./notation/tokenizer.js";
 import { validateTargetLanguageFluency } from "./natural_language/fluency.js";
 import { validateSemanticAnchors } from "./natural_language/semantic_anchors.js";
@@ -450,6 +451,15 @@ export const validateTranslation = (
   }
 
   errors.push(...validateRoundReferences(source, translated, targetLanguage));
+
+  for (const ambiguity of findAmbiguousRepetitionNotation(source)) {
+    warnings.push(
+      warning(
+        "AMBIGUOUS_REPETITION_NOTATION",
+        `Ambiguous repetition notation detected in the source: ${source.slice(ambiguity.start, ambiguity.end)}. Please review this instruction.`,
+      ),
+    );
+  }
 
   const repetitionPattern = /\bx\s+\d+\b/giu;
   const sourceRepetitions = normalizedMatches(source, repetitionPattern);

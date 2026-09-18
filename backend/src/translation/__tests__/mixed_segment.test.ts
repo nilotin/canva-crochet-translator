@@ -132,6 +132,37 @@ describe("mixed pattern segment lexer", () => {
     },
   );
 
+  it("preserves compressed repetition notation literally during reconstruction", () => {
+    const source = "11) FLO’ dan (9x, 1v)*66x";
+    const lexed = lexMixedSegment(source, "en", "segment");
+
+    expect(lexed.valid).toBe(true);
+    expect(
+      lexed.tokens.map(({ kind, sourceText, start, end }) => ({
+        kind,
+        sourceText,
+        start,
+        end,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        { kind: "notation", sourceText: "*", start: 21, end: 22 },
+        { kind: "number", sourceText: "66", start: 22, end: 24 },
+        { kind: "notation", sourceText: "x", start: 24, end: 25 },
+      ]),
+    );
+
+    const prose = new Map(
+      lexed.spans.map(({ id, text }) => [
+        id,
+        text === "’ dan" ? "from" : text,
+      ]),
+    );
+    expect(reconstructMixedSegment(lexed.tokens, prose)).toBe(
+      "11) FLO from (9sc, 1inc)*66sc",
+    );
+  });
+
   it.each([
     ["Blo’dan 32x", "from", "BLO from 32sc"],
     ["Flo’dan 24x", "from", "FLO from 24sc"],

@@ -3,6 +3,10 @@ import {
   normalizeBareRoundCountSourceLines,
   normalizeRoundCountYarnCutSourceSpans,
 } from "./bare_round_count.js";
+import {
+  translateTurkishYarnColor,
+  TURKISH_YARN_COLOR_PATTERN,
+} from "./yarn_colors.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -915,11 +919,16 @@ const normalizeToolMaterialIntro = (
     },
   );
 
+  const brandedColorHookPattern = new RegExp(
+    `(?<!\\p{L})(\\d+(?:[.,]\\d+)?)\\s+(?:numara|no)\\s+tığ\\s*[,，]\\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\\s+renk)?\\s*\\(\\s*([^)]+?)\\s*\\)\\s*ip\\s+ile\\s+örüyoruz(?!\\p{L})`,
+    "giu",
+  );
+
   normalized = normalized.replace(
-    /(?<!\p{L})(\d+(?:[.,]\d+)?)\s+(?:numara|no)\s+tığ\s*[,，]\s*(mor)\s+renk\s*\(\s*([^)]+?)\s*\)\s+ip\s+ile\s+örüyoruz(?!\p{L})/giu,
+    brandedColorHookPattern,
     (_match, size: string, color: string, brand: string) => {
       const translatedColor =
-        color.toLocaleLowerCase("tr-TR") === "mor" ? "purple" : color;
+        translateTurkishYarnColor(color, targetLanguage) ?? color.trim();
 
       return targetLanguage === "en"
         ? `Using a ${size} mm crochet hook and ${translatedColor} yarn (${brand.trim()}), work as follows`

@@ -5,6 +5,10 @@ import {
   renderEnglishBareRoundCountLine,
   scanRoundCountYarnCutSourceSpans,
 } from "./bare_round_count.js";
+import {
+  translateTurkishYarnColor,
+  TURKISH_YARN_COLOR_PATTERN,
+} from "./yarn_colors.js";
 
 const MAGIC_RING_SOURCE = /^(\s*\d+\.\s*)?(\d+)x ile sh oluşturuyoruz\.\s*$/u;
 
@@ -493,17 +497,20 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${hairStrandContinuation[1]}${hairStrandContinuation[2]}sc. Without cutting the yarn, continue with the hair strands${hairStrandContinuation[3]}`;
   }
 
-  const hookWithBrandedColorYarn =
-    /^(\s*✦\s*)?(\d+(?:[.,]\d+)?)\s+(?:numara|no)\s+tığ\s*[,，]\s*mor\s+renk\s*\(\s*([^)]+?)\s*\)\s+ip\s+ile\s+örüyoruz[.]?\s*$/iu.exec(
-      source,
-    );
+  const hookWithBrandedColorYarn = new RegExp(
+    `^(\\s*✦\\s*)?(\\d+(?:[.,]\\d+)?)\\s+(?:numara|no)\\s+tığ\\s*[,，]\\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\\s+renk)?\\s*\\(\\s*([^)]+?)\\s*\\)\\s+ip\\s+ile\\s+örüyoruz[.]?\\s*$`,
+    "iu",
+  ).exec(source);
 
   if (hookWithBrandedColorYarn) {
     const bullet = hookWithBrandedColorYarn[1] ? "✦ " : "";
     const size = hookWithBrandedColorYarn[2];
-    const brand = hookWithBrandedColorYarn[3]?.trim();
+    const color =
+      translateTurkishYarnColor(hookWithBrandedColorYarn[3] ?? "", "en") ??
+      hookWithBrandedColorYarn[3]?.trim();
+    const brand = hookWithBrandedColorYarn[4]?.trim();
 
-    return `${bullet}Using a ${size} mm crochet hook and purple yarn (${brand}), work as follows.`;
+    return `${bullet}Using a ${size} mm crochet hook and ${color} yarn (${brand}), work as follows.`;
   }
 
   const hookAndStartingYarn =

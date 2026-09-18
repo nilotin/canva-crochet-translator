@@ -26,6 +26,60 @@ const REAL_BLOCK_3_TARGET =
   "10-15) 18sc for 6 rounds — cut the yarn. ";
 
 describe("validateTranslation", () => {
+  it("warns about ambiguous compressed repetition notation without changing validity or numbers", () => {
+    const result = validateTranslation(
+      "11) FLO’ dan (9x, 1v)*66x",
+      "11) In FLO, (9sc, 1inc)*66sc",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toContainEqual({
+      code: "AMBIGUOUS_REPETITION_NOTATION",
+      message:
+        "Ambiguous repetition notation detected in the source: *66x. Please review this instruction.",
+    });
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it.each([
+    ["(9x, 1v)*6 = 66x", "(9sc, 1inc)*6 = 66sc"],
+    ["66x", "66sc"],
+    ["*6", "*6"],
+    ["(9x, 1v)*6", "(9sc, 1inc)*6"],
+    ["Alan * 66 x uzunluğundadır.", "The area is * 66 stitches long."],
+  ])("does not flag unambiguous repetition or prose: %s", (source, target) => {
+    const result = validateTranslation(source, target, "en");
+    expect(result.warnings.map(({ code }) => code)).not.toContain(
+      "AMBIGUOUS_REPETITION_NOTATION",
+    );
+  });
+
+  it("still blocks integrity changes when ambiguous source notation is present", () => {
+    const changedNumber = validateTranslation(
+      "11) FLO’ dan (9x, 1v)*66x",
+      "11) In FLO, (9sc, 1inc)*65sc",
+      "en",
+    );
+    const lostNotation = validateTranslation(
+      "11) FLO’ dan (9x, 1v)*66x",
+      "11) In FLO, (9sc, 1inc)*66",
+      "en",
+    );
+
+    expect(changedNumber.valid).toBe(false);
+    expect(errorCodes(changedNumber)).toContain("NUMBER_MISMATCH");
+    expect(lostNotation.valid).toBe(false);
+    expect(errorCodes(lostNotation)).toContain("LOST_PATTERN_NOTATION");
+    expect(changedNumber.warnings.map(({ code }) => code)).toContain(
+      "AMBIGUOUS_REPETITION_NOTATION",
+    );
+    expect(lostNotation.warnings.map(({ code }) => code)).toContain(
+      "AMBIGUOUS_REPETITION_NOTATION",
+    );
+  });
+
   it.each([
     "__XQZZZZQX__",
     "__XQRENAMEDQX__",

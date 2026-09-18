@@ -230,6 +230,22 @@ describe("atomic measurements", () => {
     );
   });
 
+  it("accepts the canonical branded-yarn hook intro with exact precision", () => {
+    const source =
+      "✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.";
+    const translated =
+      "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.";
+    const result = validateTranslation(source, translated, "en");
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).not.toContainEqual(
+      expect.objectContaining({ code: "MEASUREMENT_INTEGRITY_MISMATCH" }),
+    );
+    expect(translated).toContain("2.20 mm crochet hook");
+    expect(translated).toContain("light gray");
+    expect(translated).toContain("Gazzal Giza 2456");
+  });
+
   it("keeps measurement source coverage exact in the mixed lexer", () => {
     const lexed = lexMixedSegment("55cm ip", "en", "mixed");
     expect(lexed.valid).toBe(true);

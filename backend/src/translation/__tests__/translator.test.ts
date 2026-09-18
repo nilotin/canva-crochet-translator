@@ -2015,6 +2015,92 @@ describe("crochet instruction phrasing", () => {
     expect(result?.errors).toEqual([]);
   });
 
+  it("canonicalizes the hook intro and warns about literal ambiguous notation in the formatted full block", async () => {
+    const provider = new InspectingProvider();
+    const sourceParts = [
+      "✦ ",
+      "2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.\n",
+      "1) ",
+      "Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.\n",
+      "2)",
+      " 6v = 12x\n",
+      "3) ",
+      "(1x, 1v)",
+      "*6 ",
+      "= 18x\n",
+      "4) ",
+      "(2x, 1v)",
+      "*6 ",
+      "= 24x\n",
+      "5) ",
+      "FLO’dan (3x, 1v)",
+      "*6",
+      " = 30x\n",
+      "6) ",
+      "(4x, 1v)",
+      "*6 ",
+      "= 36x\n",
+      "7) ",
+      "(5x, 1v)",
+      "*6 ",
+      "= 42x\n",
+      "8) ",
+      "FLO’dan (6x, 1v)",
+      "*6 ",
+      "= 48x\n",
+      "9) ",
+      "(7x, 1v)",
+      "*6 ",
+      "= 54x\n",
+      "10) ",
+      "(8x, 1v)",
+      "*6 ",
+      "= 60x\n",
+      "11) ",
+      "FLO’ dan (9x, 1v)",
+      "*66x ",
+      "\n",
+      "12) ",
+      "66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+    ];
+    const source = sourceParts.join("");
+    let cursor = 0;
+    const formattingRegions = sourceParts.map((text, index) => {
+      const start = cursor;
+      cursor += text.length;
+      return { id: `fmt-${index}`, start, end: cursor };
+    });
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-hook-and-ambiguous-repetition",
+          text: source,
+          formattingRegions,
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const expectedIntro =
+      "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.";
+    expect(result?.translated.split("\n")[0]).toBe(expectedIntro);
+    expect(result?.translated).toContain(
+      "11) In FLO, (9sc, 1inc)*66sc \n12) 66sc.",
+    );
+    expect(result?.translated).not.toContain("(9sc, 1inc)*6 = 66sc");
+    expect(result?.errors).toEqual([]);
+    expect(result?.warnings.map(({ code }) => code)).toEqual([
+      "AMBIGUOUS_REPETITION_NOTATION",
+    ]);
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "MEASUREMENT_INTEGRITY_MISMATCH",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.targetFormattingRegions).toHaveLength(sourceParts.length);
+  });
+
   it("normalizes Page 9 arm-joining terminology through the full pipeline", async () => {
     const provider: TranslationProvider = {
       name: "page9-arm-joining-stub",

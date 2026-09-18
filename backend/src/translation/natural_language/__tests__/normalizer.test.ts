@@ -169,6 +169,28 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  it("normalizes a multiword branded yarn color through the hook-intro family", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.",
+    );
+  });
+
+  it("supports optional color wording in the same hook-intro family", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "2.20 no tığ, açık gri renk (Yarn Model 2456) ip ile örüyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "Using a 2.20 mm crochet hook and light gray yarn (Yarn Model 2456), work as follows.",
+    );
+  });
+
   it("normalizes a simple hook intro", () => {
     expect(
       normalizeSourceNaturalLanguage(
