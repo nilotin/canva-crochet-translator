@@ -250,13 +250,17 @@ describe("Crochet Translator", () => {
       blocks: [
         {
           id: "local-block-1",
-          source: "55 zn çekiyoruz.",
-          translated: "Ch 55.",
-          editedTranslation: "Ch 55.",
+          source: "11) FLO’ dan (9x, 1v)*66x",
+          translated: "11) In FLO, (9sc, 1inc)*66sc",
+          editedTranslation: "11) In FLO, (9sc, 1inc)*66sc",
           validation: "WARNING" as const,
           errors: [],
           warnings: [
-            { code: "MANUAL_REVIEW_RECOMMENDED", message: "Check wording." },
+            {
+              code: "AMBIGUOUS_REPETITION_NOTATION",
+              message:
+                "Ambiguous repetition notation detected in the source: *66x. Please review this instruction.",
+            },
           ],
         },
       ],
@@ -289,8 +293,16 @@ describe("Crochet Translator", () => {
     expect(reviewPage).not.toHaveBeenCalled();
     fireEvent.click(reviewButton);
     const input = await result.findByRole("textbox", { name: "Translation" });
-    expect(input).toHaveProperty("value", "Ch 55.");
+    expect(input).toHaveProperty(
+      "value",
+      "11) In FLO, (9sc, 1inc)*66sc",
+    );
     expect(result.getByText("Manual review recommended")).toBeTruthy();
+    expect(
+      result.getByText(
+        "Ambiguous repetition notation detected in the source: *66x. Please review this instruction.",
+      ),
+    ).toBeTruthy();
     const applyButton = result.getByRole("button", {
       name: "Apply reviewed translation",
     });
@@ -299,7 +311,9 @@ describe("Crochet Translator", () => {
       result.getByRole("checkbox", { name: "I reviewed the warnings" }),
     );
     expect(applyButton.getAttribute("aria-disabled")).not.toBe("true");
-    fireEvent.change(input, { target: { value: "Ch 55, then turn." } });
+    fireEvent.change(input, {
+      target: { value: "11) In FLO, (9sc, 1inc)*66sc." },
+    });
     expect(result.getByText("Edited")).toBeTruthy();
     expect(reviewPage).toHaveBeenCalledTimes(1);
     expect(

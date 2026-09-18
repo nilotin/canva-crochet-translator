@@ -53,7 +53,10 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // v12: atomic natural-language spans can now collapse bisecting source
 // formatting regions into a deterministic owner range. Persisted v11 reviews
 // do not carry the proof tag required for zero-width absorbed regions.
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v12";
+// v13: ambiguous compressed repetition notation is preserved literally but is
+// now a review warning instead of an integrity block. Persisted v12 reviews may
+// contain the previous blocking classification and must be translated again.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v13";
 
 export type PersistedBulkPageReview = {
   pageId: string;

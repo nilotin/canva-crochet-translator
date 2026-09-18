@@ -22,7 +22,7 @@ const review: PersistedBulkPageReview = {
 
 describe("bulk review state", () => {
   it("uses translation pipeline revision v11", () => {
-    expect(TRANSLATION_PIPELINE_REVISION).toBe("translation-pipeline-v12");
+    expect(TRANSLATION_PIPELINE_REVISION).toBe("translation-pipeline-v13");
   });
 
   it("uses the stable Canva page id as its page identity", () => {
