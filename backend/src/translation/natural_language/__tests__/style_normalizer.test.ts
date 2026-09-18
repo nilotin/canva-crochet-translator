@@ -733,4 +733,24 @@ describe("normalizeTranslationStyle", () => {
     );
   });
 
+  it("repairs poor provider wording for the round-count yarn-cut family", () => {
+    expect(
+      normalizeTranslationStyle(
+        "10-15) 6 sıra 18x --- ipimizi kesiyoruz.",
+        "10-15) 6 rounds, 18sc --- We cut our yarn.",
+        "en",
+      ),
+    ).toBe("10-15) 18sc for 6 rounds — cut the yarn.");
+  });
+
+  it("uses singular round wording and compact stitch notation", () => {
+    expect(
+      normalizeTranslationStyle(
+        "1) 1 sıra 18x - ipimizi kesiyoruz.",
+        "1) 18 sc for 1 rounds - We cut our yarn.",
+        "en",
+      ),
+    ).toBe("1) 18sc for 1 round — cut the yarn.");
+  });
+
 });

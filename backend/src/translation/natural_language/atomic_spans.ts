@@ -1,5 +1,6 @@
 import {
   parseBareRoundCountSourceLine,
+  scanRoundCountYarnCutSourceSpans,
   splitLogicalLines,
 } from "./bare_round_count.js";
 
@@ -22,6 +23,13 @@ export const extractSourceAtomicNaturalLanguageSpans = (
   const spans: SourceAtomicSpan[] = splitLogicalLines(source).flatMap(
     ({ text, start, end }) =>
       parseBareRoundCountSourceLine(text) ? [{ start, end }] : [],
+  );
+
+  spans.push(
+    ...scanRoundCountYarnCutSourceSpans(source).map(({ start, end }) => ({
+      start,
+      end,
+    })),
   );
 
   for (const pattern of ATOMIC_NATURAL_LANGUAGE_PATTERNS) {

@@ -1059,6 +1059,49 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  it("normalizes the round-count yarn-cut family before provider translation", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "10-15) 6 sıra 18x --- ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe("10-15) 18x for 6 rounds — cut the yarn.");
+  });
+
+  it.each(["-", "---", "–", "—", ",", ";"])(
+    "canonicalizes the recognized yarn-cut separator %s",
+    (separator) => {
+      expect(
+        normalizeSourceNaturalLanguage(
+          `1) 1 sıra 18x ${separator} ipimizi kesiyoruz.`,
+          "en",
+        ),
+      ).toBe("1) 18x for 1 round — cut the yarn.");
+    },
+  );
+
+  it("normalizes an embedded round-count yarn-cut span without requiring a newline", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Önce doldurun. 10-15) 6 sıra 18x; ipimizi kesiyoruz. Sonra dikin.",
+        "en",
+      ),
+    ).toBe(
+      "Önce doldurun. 10-15) 18x for 6 rounds — cut the yarn. Sonra dikin.",
+    );
+  });
+
+  it("does not absorb extra yarn-cut continuation text", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "10-15) 6 sıra 18x - ipimizi kesiyoruz ve dikiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "10-15) 6 rounds, 18x - ipimizi kesiyoruz ve dikiyoruz.",
+    );
+  });
+
   it.each([
     ["FLO ‘dan (5x, 1v)*6 = 42x", "In FLO, (5x, 1v)*6 = 42x"],
     ["BLO'dan (5x, 1v)*6 = 42x", "In BLO, (5x, 1v)*6 = 42x"],

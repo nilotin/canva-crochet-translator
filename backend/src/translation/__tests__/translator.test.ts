@@ -172,6 +172,41 @@ class IsolatedSiraProvider extends InspectingProvider {
   }
 }
 
+class RealBlock3Provider extends InspectingProvider {
+  exposedIsolatedSira = false;
+  exposedTurkishYarnCut = false;
+
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => {
+        if (text.trim().toLocaleLowerCase("tr-TR") === "sıra") {
+          this.exposedIsolatedSira = true;
+        }
+        if (/ipimizi\s+kesiyoruz/iu.test(text)) {
+          this.exposedTurkishYarnCut = true;
+        }
+        if (
+          /bu\s+sıradan\s+sonra\s+kol\s+ve\s+gövdeye\s+teli\s+takabilirsiniz[.]/iu.test(
+            text,
+          )
+        ) {
+          return {
+            id,
+            translated:
+              `${text.trimStart().startsWith("✦") ? "✦ " : ""}` +
+              "After this round, you can attach the wire to the arm and body.",
+          };
+        }
+        return { id, translated: text };
+      }),
+    };
+  }
+}
+
 describe("translateBlocks provider boundary", () => {
   it("rejects a reserved placeholder introduced by mixed prose output", async () => {
     const provider = new StubProvider({
@@ -2822,6 +2857,67 @@ describe("crochet instruction phrasing", () => {
     expect(result?.translated).toBe("39-47) 29sc for 9 rounds");
     expect(result?.errors).toEqual([]);
     expect(result?.valid).toBe(true);
+  });
+
+  it("validates the persisted 9-line/8-line Block 3 through atomic formatting reconstruction", async () => {
+    const provider = new RealBlock3Provider();
+    const source =
+      "✦ Bu sıradan sonra kol ve \n" +
+      "gövdeye teli takabilirsiniz.\n" +
+      "4) (7x, 1e)*6 = 48x\n" +
+      "5) 3x, 1e, (6x, 1e)*5, 3x = 42x\n" +
+      "6) (5x, 1e)*6 = 36x\n" +
+      "7) 2x, 1e, (4x, 1e)*5, 2x = 30x\n" +
+      "8) (3x, 1e)*6 = 24x\n" +
+      "9) 1x, 1e, (2x, 1e)*5, 1x = 18x\n" +
+      "10-15) 6 sıra 18x --- ipimizi kesiyoruz. ";
+    const expected =
+      "✦ After this round, you can attach the wire to the arm and body.\n" +
+      "4) (7sc, 1dec)*6 = 48sc\n" +
+      "5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc\n" +
+      "6) (5sc, 1dec)*6 = 36sc\n" +
+      "7) 2sc, 1dec, (4sc, 1dec)*5, 2sc = 30sc\n" +
+      "8) (3sc, 1dec)*6 = 24sc\n" +
+      "9) 1sc, 1dec, (2sc, 1dec)*5, 1sc = 18sc\n" +
+      "10-15) 18sc for 6 rounds — cut the yarn. ";
+    const introEnd = source.indexOf("4)");
+    const formattingBoundary = source.lastIndexOf("18x");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "persisted-page-9-block-3",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: introEnd },
+            { id: "fmt-1", start: introEnd, end: formattingBoundary },
+            {
+              id: "fmt-2",
+              start: formattingBoundary,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(source.split("\n")).toHaveLength(9);
+    expect(result?.translated.split("\n")).toHaveLength(8);
+    expect(provider.exposedIsolatedSira).toBe(false);
+    expect(provider.exposedTurkishYarnCut).toBe(false);
+    expect(result?.translated).toBe(expected);
+    expect(result?.valid).toBe(true);
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+    expect(result?.targetFormattingRegions?.at(-1)).toEqual({
+      id: "fmt-2",
+      start: expected.length,
+      end: expected.length,
+    });
   });
 
   it("protects bare round-count lines across a real Canva formatting boundary", async () => {

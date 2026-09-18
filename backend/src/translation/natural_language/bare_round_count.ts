@@ -15,6 +15,28 @@ export type BareRoundCountTargetLine = {
   suffix: string;
 };
 
+export type NumericTokenSpan = {
+  start: number;
+  end: number;
+};
+
+export type RoundCountYarnCutSourceSpan = {
+  start: number;
+  end: number;
+  text: string;
+  prefix: string;
+  range: string | undefined;
+  rounds: string;
+  stitches: string;
+  suffix: string;
+  roundsSpan: NumericTokenSpan;
+  stitchesSpan: NumericTokenSpan;
+};
+
+export type RoundCountYarnCutTargetSpan = RoundCountYarnCutSourceSpan & {
+  roundWord: "round" | "rounds";
+};
+
 export type LogicalLine = {
   text: string;
   start: number;
@@ -27,6 +49,12 @@ const SOURCE_LINE_PATTERN =
 
 const TARGET_LINE_PATTERN =
   /^([\t ]*(?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds)([.]?[\t ]*)$/iu;
+
+const ROUND_COUNT_YARN_CUT_SOURCE_PATTERN =
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x[\t ]*(?:-+|–|—|,|;)[\t ]*[iİ]pimizi[\t ]+kesiyoruz(?:\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))|([\t ]*)(?=$|[\r\n]))/dgimu;
+
+const ROUND_COUNT_YARN_CUT_TARGET_PATTERN =
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc for (\d+) (round|rounds) — cut the yarn\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgmu;
 
 export const parseBareRoundCountSourceLine = (
   source: string,
@@ -67,6 +95,82 @@ export const renderEnglishBareRoundCountLine = (
 ): string => {
   const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
   return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${roundWord}${source.suffix}`;
+};
+
+const captureSpan = (
+  match: RegExpMatchArray,
+  captureIndex: number,
+): NumericTokenSpan | undefined => {
+  const indices = match.indices?.[captureIndex];
+  return indices ? { start: indices[0], end: indices[1] } : undefined;
+};
+
+export const scanRoundCountYarnCutSourceSpans = (
+  source: string,
+): RoundCountYarnCutSourceSpan[] =>
+  [...source.matchAll(ROUND_COUNT_YARN_CUT_SOURCE_PATTERN)].flatMap((match) => {
+    const roundsSpan = captureSpan(match, 3);
+    const stitchesSpan = captureSpan(match, 4);
+    if (match.index === undefined || !roundsSpan || !stitchesSpan) return [];
+
+    return [{
+      start: match.index,
+      end: match.index + match[0].length,
+      text: match[0],
+      prefix: match[1] ?? "",
+      range: match[2],
+      rounds: match[3] ?? "",
+      stitches: match[4] ?? "",
+      suffix: match[5] ?? match[6] ?? match[7] ?? "",
+      roundsSpan,
+      stitchesSpan,
+    }];
+  });
+
+export const scanRoundCountYarnCutTargetSpans = (
+  target: string,
+): RoundCountYarnCutTargetSpan[] =>
+  [...target.matchAll(ROUND_COUNT_YARN_CUT_TARGET_PATTERN)].flatMap((match) => {
+    const stitchesSpan = captureSpan(match, 3);
+    const roundsSpan = captureSpan(match, 4);
+    if (match.index === undefined || !roundsSpan || !stitchesSpan) return [];
+
+    return [{
+      start: match.index,
+      end: match.index + match[0].length,
+      text: match[0],
+      prefix: match[1] ?? "",
+      range: match[2],
+      stitches: match[3] ?? "",
+      rounds: match[4] ?? "",
+      roundWord: (match[5] ?? "round") as "round" | "rounds",
+      suffix: match[6] ?? match[7] ?? "",
+      roundsSpan,
+      stitchesSpan,
+    }];
+  });
+
+export const renderEnglishRoundCountYarnCutSpan = (
+  source: RoundCountYarnCutSourceSpan,
+  stitchNotation: "x" | "sc",
+): string => {
+  const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
+  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${roundWord} — cut the yarn.${source.suffix}`;
+};
+
+export const normalizeRoundCountYarnCutSourceSpans = (
+  source: string,
+  stitchNotation: "x" | "sc",
+): string => {
+  const spans = scanRoundCountYarnCutSourceSpans(source);
+  let normalized = source;
+  for (const span of [...spans].reverse()) {
+    normalized =
+      normalized.slice(0, span.start) +
+      renderEnglishRoundCountYarnCutSpan(span, stitchNotation) +
+      normalized.slice(span.end);
+  }
+  return normalized;
 };
 
 export const splitLogicalLines = (source: string): LogicalLine[] => {

@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { extractSourceAtomicNaturalLanguageSpans } from "../atomic_spans.js";
+import {
+  scanRoundCountYarnCutSourceSpans,
+  scanRoundCountYarnCutTargetSpans,
+} from "../bare_round_count.js";
+
+const REAL_BLOCK_3_SOURCE =
+  "✦ Bu sıradan sonra kol ve \n" +
+  "gövdeye teli takabilirsiniz.\n" +
+  "4) (7x, 1e)*6 = 48x\n" +
+  "5) 3x, 1e, (6x, 1e)*5, 3x = 42x\n" +
+  "6) (5x, 1e)*6 = 36x\n" +
+  "7) 2x, 1e, (4x, 1e)*5, 2x = 30x\n" +
+  "8) (3x, 1e)*6 = 24x\n" +
+  "9) 1x, 1e, (2x, 1e)*5, 1x = 18x\n" +
+  "10-15) 6 sıra 18x --- ipimizi kesiyoruz. ";
+
+const REAL_BLOCK_3_TARGET =
+  "✦ After this round, you can attach the wire to the arm and body.\n" +
+  "4) (7sc, 1dec)*6 = 48sc\n" +
+  "5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc\n" +
+  "6) (5sc, 1dec)*6 = 36sc\n" +
+  "7) 2sc, 1dec, (4sc, 1dec)*5, 2sc = 30sc\n" +
+  "8) (3sc, 1dec)*6 = 24sc\n" +
+  "9) 1sc, 1dec, (2sc, 1dec)*5, 1sc = 18sc\n" +
+  "10-15) 18sc for 6 rounds — cut the yarn. ";
 
 describe("extractSourceAtomicNaturalLanguageSpans", () => {
   it("protects the round-first referenced-loop attachment relation as a single atomic span, matching the live Canva source", () => {
@@ -87,5 +112,46 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
       "15-29) 15 sıra 42x, İpimizi kesmeden kol birleştirme ile devam ediyoruz.";
 
     expect(extractSourceAtomicNaturalLanguageSpans(source)).toEqual([]);
+  });
+
+  it("locates the complete yarn-cut span at the persisted Block 3 offsets", () => {
+    const semanticSpans = scanRoundCountYarnCutSourceSpans(
+      REAL_BLOCK_3_SOURCE,
+    );
+
+    expect(semanticSpans).toHaveLength(1);
+    expect(semanticSpans[0]).toMatchObject({
+      start: 212,
+      end: 253,
+      prefix: "10-15) ",
+      range: "10-15",
+      rounds: "6",
+      stitches: "18",
+      roundsSpan: { start: 219, end: 220 },
+      stitchesSpan: { start: 226, end: 228 },
+    });
+    expect(
+      REAL_BLOCK_3_SOURCE.slice(
+        semanticSpans[0]?.start,
+        semanticSpans[0]?.end,
+      ),
+    ).toBe("10-15) 6 sıra 18x --- ipimizi kesiyoruz. ");
+    expect(extractSourceAtomicNaturalLanguageSpans(REAL_BLOCK_3_SOURCE)).toContainEqual(
+      { start: 212, end: 253 },
+    );
+
+    expect(scanRoundCountYarnCutTargetSpans(REAL_BLOCK_3_TARGET)).toMatchObject([
+      {
+        start: 257,
+        end: 298,
+        prefix: "10-15) ",
+        range: "10-15",
+        stitches: "18",
+        rounds: "6",
+        roundWord: "rounds",
+        stitchesSpan: { start: 264, end: 266 },
+        roundsSpan: { start: 273, end: 274 },
+      },
+    ]);
   });
 });

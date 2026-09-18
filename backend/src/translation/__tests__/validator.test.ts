@@ -4,6 +4,27 @@ import { validateReturnedBlockIds, validateTranslation } from "../validator.js";
 const errorCodes = (result: ReturnType<typeof validateTranslation>) =>
   result.errors.map(({ code }) => code);
 
+const REAL_BLOCK_3_SOURCE =
+  "✦ Bu sıradan sonra kol ve \n" +
+  "gövdeye teli takabilirsiniz.\n" +
+  "4) (7x, 1e)*6 = 48x\n" +
+  "5) 3x, 1e, (6x, 1e)*5, 3x = 42x\n" +
+  "6) (5x, 1e)*6 = 36x\n" +
+  "7) 2x, 1e, (4x, 1e)*5, 2x = 30x\n" +
+  "8) (3x, 1e)*6 = 24x\n" +
+  "9) 1x, 1e, (2x, 1e)*5, 1x = 18x\n" +
+  "10-15) 6 sıra 18x --- ipimizi kesiyoruz. ";
+
+const REAL_BLOCK_3_TARGET =
+  "✦ After this round, you can attach the wire to the arm and body.\n" +
+  "4) (7sc, 1dec)*6 = 48sc\n" +
+  "5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc\n" +
+  "6) (5sc, 1dec)*6 = 36sc\n" +
+  "7) 2sc, 1dec, (4sc, 1dec)*5, 2sc = 30sc\n" +
+  "8) (3sc, 1dec)*6 = 24sc\n" +
+  "9) 1sc, 1dec, (2sc, 1dec)*5, 1sc = 18sc\n" +
+  "10-15) 18sc for 6 rounds — cut the yarn. ";
+
 describe("validateTranslation", () => {
   it.each([
     "__XQZZZZQX__",
@@ -321,6 +342,83 @@ describe("validateTranslation", () => {
   ])("rejects %s around local bare round-count swaps", (_label, translated) => {
     const result = validateTranslation(
       "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
+      translated,
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("accepts the verified yarn-cut swap inside the persisted 9-line/8-line Block 3", () => {
+    expect(REAL_BLOCK_3_SOURCE.split("\n")).toHaveLength(9);
+    expect(REAL_BLOCK_3_TARGET.split("\n")).toHaveLength(8);
+
+    const result = validateTranslation(
+      REAL_BLOCK_3_SOURCE,
+      REAL_BLOCK_3_TARGET,
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("accepts an exact yarn-cut semantic span without surrounding newlines", () => {
+    const result = validateTranslation(
+      "10-15) 6 sıra 18x --- ipimizi kesiyoruz. 20x",
+      "10-15) 18sc for 6 rounds — cut the yarn. 20sc",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it.each([
+    ["changed stitch count", REAL_BLOCK_3_TARGET.replace("18sc for", "17sc for")],
+    ["changed round count", REAL_BLOCK_3_TARGET.replace("for 6 rounds", "for 5 rounds")],
+    ["changed range", REAL_BLOCK_3_TARGET.replace("10-15)", "10-14)")],
+    ["wrong plurality", REAL_BLOCK_3_TARGET.replace("6 rounds", "6 round")],
+    [
+      "noncanonical yarn-cut wording",
+      REAL_BLOCK_3_TARGET.replace(
+        "18sc for 6 rounds — cut the yarn.",
+        "Work 18sc for 6 rounds, then cut our yarn.",
+      ),
+    ],
+    [
+      "removed canonical span",
+      REAL_BLOCK_3_TARGET.replace(
+        "\n10-15) 18sc for 6 rounds — cut the yarn. ",
+        "",
+      ),
+    ],
+    [
+      "extra canonical span",
+      `${REAL_BLOCK_3_TARGET}\n20-21) 18sc for 2 rounds — cut the yarn.`,
+    ],
+    [
+      "reordered earlier-round values",
+      REAL_BLOCK_3_TARGET.replace(
+        "4) (7sc, 1dec)*6 = 48sc",
+        "4) (1dec, 7sc)*6 = 48sc",
+      ),
+    ],
+    [
+      "changed value before semantic span",
+      REAL_BLOCK_3_TARGET.replace("= 48sc", "= 47sc"),
+    ],
+    [
+      "arbitrary reorder elsewhere",
+      REAL_BLOCK_3_TARGET.replace(
+        "5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc",
+        "5) 1dec, 3sc, (6sc, 1dec)*5, 3sc = 42sc",
+      ),
+    ],
+  ])("rejects %s in the complete Block 3 context", (_label, translated) => {
+    const result = validateTranslation(
+      REAL_BLOCK_3_SOURCE,
       translated,
       "en",
     );

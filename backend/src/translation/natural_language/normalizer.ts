@@ -1,5 +1,8 @@
 import type { TargetLanguage } from "../types.js";
-import { normalizeBareRoundCountSourceLines } from "./bare_round_count.js";
+import {
+  normalizeBareRoundCountSourceLines,
+  normalizeRoundCountYarnCutSourceSpans,
+} from "./bare_round_count.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -54,7 +57,10 @@ const normalizeEnglishCrochetStructures = (
 ): string => {
   if (targetLanguage !== "en") return source;
 
-  return normalizeBareRoundCountSourceLines(source, "x")
+  return normalizeBareRoundCountSourceLines(
+    normalizeRoundCountYarnCutSourceSpans(source, "x"),
+    "x",
+  )
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
     .replace(/\bağız\s*(?:[:;–—-])/giu, "Mouth:")

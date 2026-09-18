@@ -1,7 +1,9 @@
 import type { TargetLanguage } from "../types.js";
 import {
+  normalizeRoundCountYarnCutSourceSpans,
   parseBareRoundCountSourceLine,
   renderEnglishBareRoundCountLine,
+  scanRoundCountYarnCutSourceSpans,
 } from "./bare_round_count.js";
 
 const MAGIC_RING_SOURCE = /^(\s*\d+\.\s*)?(\d+)x ile sh oluşturuyoruz\.\s*$/u;
@@ -155,6 +157,17 @@ const normalizeEnglishCrochetInstructionLine = (
   source: string,
   translated: string,
 ): string => {
+  const roundCountYarnCutSpans = scanRoundCountYarnCutSourceSpans(source);
+  const roundCountYarnCutSpan = roundCountYarnCutSpans[0];
+  if (
+    roundCountYarnCutSpans.length === 1 &&
+    roundCountYarnCutSpan &&
+    source.slice(0, roundCountYarnCutSpan.start).trim() === "" &&
+    source.slice(roundCountYarnCutSpan.end).trim() === ""
+  ) {
+    return normalizeRoundCountYarnCutSourceSpans(source, "sc");
+  }
+
   const sourceClauses = /^(.*?)(\s+[—–-]\s+)(.*)$/u.exec(source);
   if (sourceClauses && isStitchMarkerInstruction(sourceClauses[3] ?? "")) {
     const translatedClauses = /^(.*?)(\s+[—–-]\s+)(.*)$/u.exec(translated);

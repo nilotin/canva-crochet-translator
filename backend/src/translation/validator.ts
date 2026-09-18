@@ -17,6 +17,8 @@ import { containsReservedPlaceholder } from "./notation/immutable.js";
 import {
   parseBareRoundCountSourceLine,
   parseBareRoundCountTargetLine,
+  scanRoundCountYarnCutSourceSpans,
+  scanRoundCountYarnCutTargetSpans,
   splitLogicalLines,
 } from "./natural_language/bare_round_count.js";
 import type {
@@ -50,28 +52,38 @@ const TURKISH_WRITTEN_CROCHET_COUNTS: Record<string, string> = {
   beş: "5",
 };
 
-const comparableSourceNumbersWithWrittenCrochetCounts = (
+type ComparableSourceNumber = {
+  value: string;
+  start: number;
+  end: number;
+};
+
+const comparableSourceNumberTokens = (
   source: string,
-): string[] => {
+): ComparableSourceNumber[] => {
   const pattern =
     /\d+(?:[.,]\d+)?|(?<!\p{L})(bir|iki|üç|dört|beş)(?!\p{L})\s+(?=(?:zincir\p{L}*|ilme(?:k|ğ)\p{L}*)(?!\p{L}))/giu;
 
-  return [...source.matchAll(pattern)].map((match) => {
+  return [...source.matchAll(pattern)].flatMap((match) => {
+    if (match.index === undefined) return [];
     const written = match[1];
-
-    if (written) {
-      return (
-        TURKISH_WRITTEN_CROCHET_COUNTS[
+    const value = written
+      ? TURKISH_WRITTEN_CROCHET_COUNTS[
           written.toLocaleLowerCase("tr-TR")
         ] ?? written
-      );
-    }
+      : match[0].toLocaleLowerCase("tr-TR").replaceAll(/\s+/g, "");
 
-    return match[0]
-      .toLocaleLowerCase("tr-TR")
-      .replaceAll(/\s+/g, "");
+    return [{
+      value,
+      start: match.index,
+      end: match.index + match[0].length,
+    }];
   });
 };
+
+const comparableSourceNumbersWithWrittenCrochetCounts = (
+  source: string,
+): string[] => comparableSourceNumberTokens(source).map(({ value }) => value);
 
 const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
   source: string,
@@ -106,6 +118,64 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
     .join("");
 
   return comparableSourceNumbersWithWrittenCrochetCounts(comparableSource);
+};
+
+const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
+  source: string,
+  translated: string,
+): string[] | undefined => {
+  const sourceSpans = scanRoundCountYarnCutSourceSpans(source);
+  const targetSpans = scanRoundCountYarnCutTargetSpans(translated);
+  if (
+    sourceSpans.length === 0 ||
+    sourceSpans.length !== targetSpans.length
+  ) {
+    return undefined;
+  }
+
+  const sourceNumbers = comparableSourceNumberTokens(source);
+
+  for (const [index, sourceSpan] of sourceSpans.entries()) {
+    const targetSpan = targetSpans[index];
+    const expectedRoundWord =
+      Number(sourceSpan.rounds) === 1 ? "round" : "rounds";
+    if (
+      !targetSpan ||
+      sourceSpan.prefix !== targetSpan.prefix ||
+      sourceSpan.range !== targetSpan.range ||
+      sourceSpan.rounds !== targetSpan.rounds ||
+      sourceSpan.stitches !== targetSpan.stitches ||
+      targetSpan.roundWord !== expectedRoundWord
+    ) {
+      return undefined;
+    }
+
+    const roundsIndex = sourceNumbers.findIndex(
+      ({ start, end }) =>
+        start === sourceSpan.roundsSpan.start &&
+        end === sourceSpan.roundsSpan.end,
+    );
+    const stitchesIndex = sourceNumbers.findIndex(
+      ({ start, end }) =>
+        start === sourceSpan.stitchesSpan.start &&
+        end === sourceSpan.stitchesSpan.end,
+    );
+    if (
+      roundsIndex < 0 ||
+      stitchesIndex < 0 ||
+      roundsIndex === stitchesIndex
+    ) {
+      return undefined;
+    }
+
+    const rounds = sourceNumbers[roundsIndex];
+    const stitches = sourceNumbers[stitchesIndex];
+    if (!rounds || !stitches) return undefined;
+    sourceNumbers[roundsIndex] = { ...rounds, value: stitches.value };
+    sourceNumbers[stitchesIndex] = { ...stitches, value: rounds.value };
+  }
+
+  return sourceNumbers.map(({ value }) => value);
 };
 
 const escapeRegExp = (value: string) =>
@@ -329,6 +399,14 @@ export const validateTranslation = (
     (options.contentKind !== "materials" &&
       sameSequence(
         comparableSourceNumbersWithVerifiedBareRoundCountSwaps(
+          source,
+          translated,
+        ) ?? [],
+        translatedNumbers,
+      )) ||
+    (options.contentKind !== "materials" &&
+      sameSequence(
+        comparableSourceNumbersWithVerifiedYarnCutSwaps(
           source,
           translated,
         ) ?? [],
