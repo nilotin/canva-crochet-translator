@@ -18,6 +18,12 @@ const targetPhrase = (
 const fullyResolvedChainSkipContinueAndFinishPattern =
   /^\s*\d+\s+zincir\s*[,，]?\s*\d+\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+\d+\s*x\s*[,，]?\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\s*\.\s*sıra\s+sonuna\s+geldiğimizde\s+\d+\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?\s*$/iu;
 
+const fullyResolvedReferencedLoopStitchCountPattern =
+  /^\s*(?:(?:görselde\s+görüldüğü\s+gibi)\s+)?\d+\.\s*sıra(?:da|nın)\s+(?:FLO|BLO)\s*[’'ʼ]?\s*(?:dan|den)\s+ördüğümüz\s+sık\s+iğne(?:lerin|lerinin)\s*[,，]?\s*(?:FLO|BLO)\s*[’'ʼ]?\s*(?:sundan|sından|dan|den)\s*[,，]?\s*\d+\s*x\s+(?:örüp|örüyoruz|örerek)\s+devam\s+ediyoruz\s*[,，]?\s*\d+\s*x(?:\s*=\s*\d+\s*x)?\s*[.]?\s*$/iu;
+
+const fullyResolvedChainTurnSlipStitchContinuationPattern =
+  /^\s*\d+\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\s*[,，.]\s*(?:zincir\s+üzerine\s+)?(?:birinci|ikinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+\d+\s*(?:x|hdc|sc|dc|tr)\s*[,，]\s*\d+\s*x\s+atla\s*[,，]?\s*sıradaki\s+(?:sık\s+iğneye|ilmeğe)\s+cc\s*[,，]\s*tekrar\s+(?:sıradaki|sırdaki)\s+(?:sık\s+iğneye|ilmeğe)\s+cc(?:\s+yapıyoruz)?\s*[.]\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\s*[.]\s*sıra\s+sonuna\s+geldiğimizde\s+\d+\s+zincir\s+çekiyoruz\s*[.]?\s*$/iu;
+
 export type SourceNaturalLanguageNormalization = {
   text: string;
   fullyResolved: boolean;
@@ -209,12 +215,18 @@ const normalizeEnglishCrochetStructures = (
         `Starting from the ${englishOrdinal(chain)} chain, work ${stitches}x`,
     )
     .replace(
-      /(^|[^\p{L}\p{N}_])(birinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*x(?:\s+örüyoruz)?\b/giu,
+      // Optional "zincir üzerine" prefix (as the numeric-ordinal sibling
+      // above already allows) and, alongside the generic "Nx" multiplier
+      // notation, compact stitch-abbreviation notation ("18hdc", "18sc",
+      // "18dc", "18tr") directly -- preserved verbatim rather than forced
+      // through the "x" multiplier form.
+      /(^|[^\p{L}\p{N}_])(?:zincir\s+üzerine\s+)?(birinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*(x|hdc|sc|dc|tr)(?:\s+örüyoruz)?\b/giu,
       (
         _match,
         prefix: string,
         ordinalSource: string,
         stitches: string,
+        stitchAbbreviation: string,
       ) => {
         const ordinals: Record<string, string> = {
           birinci: "first",
@@ -231,7 +243,7 @@ const normalizeEnglishCrochetStructures = (
         const ordinal =
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Starting from the ${ordinal} chain, work ${stitches}x`;
+        return `${prefix}Starting from the ${ordinal} chain, work ${stitches}${stitchAbbreviation}`;
       },
     )
     .replace(
@@ -571,9 +583,27 @@ const normalizeEnglishCrochetStructures = (
       (_match, chains: string) => `ch ${chains} and cut the yarn`,
     )
     .replace(
-      /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+sık\s+iğneye\s+cc\b/giu,
+      // "sıradaki sık iğneye cc" (single crochet, specifically) and its
+      // generic-stitch sibling "sıradaki ilmeğe cc" both resolve to the same
+      // English wording here -- neither names the stitch type in this
+      // particular construction, so there is nothing to disambiguate.
+      /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+(?:sık\s+iğneye|ilmeğe)\s+cc\b/giu,
       (_match, count: string) =>
         `skip ${count}x, cc into the next stitch`,
+    )
+    .replace(
+      // Standalone "tekrar sıradaki X'e cc yapıyoruz" (again, SL.ST into the
+      // next X) -- factored as its own reusable atomic clause rather than
+      // only existing embedded inside larger composite templates, so it
+      // also applies to constructions those templates don't cover. Must run
+      // before the bare "sıradaki X'e cc" fallbacks below, which would
+      // otherwise consume the inner clause first and leave a dangling
+      // "tekrar ... yapıyoruz".
+      /\btekrar\s+(?:sıradaki|sırdaki)\s+(sık\s+iğneye|ilmeğe)\s+cc(?:\s+yapıyoruz)?\b/giu,
+      (_match, stitchWord: string) =>
+        `then cc into the following ${
+          /ilmeğe/iu.test(stitchWord) ? "stitch" : "single crochet"
+        }`,
     )
     .replace(
       /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*\)/giu,
@@ -583,6 +613,22 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bsıradaki\s+sık\s+iğneye\s+cc\b/giu,
       "cc into the next single crochet",
+    )
+    .replace(/\bsıradaki\s+ilmeğe\s+cc\b/giu, "cc into the next stitch")
+    .replace(
+      // Standalone "bu şekilde sıra sonuna kadar devam ediyoruz" -- reuses
+      // the same wording already used for this meaning inside the larger
+      // composite continuation templates elsewhere in this file, so a
+      // stand-alone occurrence of the clause renders identically.
+      /\bbu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\b/giu,
+      "Continue in this way to the end of the round",
+    )
+    .replace(
+      // No-yarn-cut sibling of the "sıra sonuna geldiğimizde N zincir çekip
+      // ipimizi kesiyoruz" family above, for a mid-pattern round transition
+      // that just chains N without finishing the piece.
+      /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekiyoruz\b/giu,
+      (_match, chains: string) => `At the end of the round, ch ${chains}`,
     )
     .replace(
       /(^|[,;]\s+|[.!?]\s+)([^.!?;,]+?)\s+yerden\s+(\d+)\s*(cc|x|dc|tr)\s+atlıyoruz\b/giu,
@@ -1240,7 +1286,11 @@ export const normalizeSourceNaturalLanguageDetailed = (
   const fullyResolved =
     contentKind === "pattern" &&
     targetLanguage === "en" &&
-    fullyResolvedChainSkipContinueAndFinishPattern.test(source);
+    (
+      fullyResolvedChainSkipContinueAndFinishPattern.test(source) ||
+      fullyResolvedReferencedLoopStitchCountPattern.test(source) ||
+      fullyResolvedChainTurnSlipStitchContinuationPattern.test(source)
+    );
 
   return {
     text: normalized,

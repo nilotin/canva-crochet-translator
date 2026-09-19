@@ -211,30 +211,40 @@ const normalizeEnglishCrochetInstructionLine = (
     const nextInstructionMarker =
       /^(\d+(?:-\d+)?\))\s*/u.exec(sourceRemainder)?.[1];
 
-    let translatedRemainder: string;
+    // When the deterministic source family consumes the ENTIRE source (no
+    // sourceRemainder), there is nothing legitimate left for `translated` to
+    // contribute. Scraping a "remainder" out of it anyway is how corruption
+    // from an unrelated/unnecessary provider round-trip on this segment
+    // (e.g. a duplicated or reordered round/loop mention) could leak past
+    // this deterministic override and into the validated output. Only
+    // attempt to recover a translated remainder when the source actually
+    // has more content after the matched clause.
+    let translatedRemainder: string | undefined;
 
-    if (nextInstructionMarker) {
-      const escapedMarker = nextInstructionMarker.replace(
-        /[.*+?^${}()|[\]\\]/gu,
-        "\\$&",
-      );
-      const translatedMarker = new RegExp(
-        `(?:^|\\s)(${escapedMarker})(?=\\s)`,
-        "u",
-      ).exec(translated);
+    if (sourceRemainder) {
+      if (nextInstructionMarker) {
+        const escapedMarker = nextInstructionMarker.replace(
+          /[.*+?^${}()|[\]\\]/gu,
+          "\\$&",
+        );
+        const translatedMarker = new RegExp(
+          `(?:^|\\s)(${escapedMarker})(?=\\s)`,
+          "u",
+        ).exec(translated);
 
-      translatedRemainder = translatedMarker
-        ? translated.slice(
-            (translatedMarker.index ?? 0) +
-              translatedMarker[0].length -
-              (translatedMarker[1]?.length ?? 0),
-          )
-        : translated.replace(/^.*?[.](?:\s+|$)/u, "");
-    } else {
-      translatedRemainder = translated.replace(
-        /^.*?[.](?:\s+|$)/u,
-        "",
-      );
+        translatedRemainder = translatedMarker
+          ? translated.slice(
+              (translatedMarker.index ?? 0) +
+                translatedMarker[0].length -
+                (translatedMarker[1]?.length ?? 0),
+            )
+          : translated.replace(/^.*?[.](?:\s+|$)/u, "");
+      } else {
+        translatedRemainder = translated.replace(
+          /^.*?[.](?:\s+|$)/u,
+          "",
+        );
+      }
     }
 
     const yarnPhrase = yarnColor ? `the ${yarnColor} yarn` : "the yarn";

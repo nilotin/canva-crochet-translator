@@ -71,6 +71,85 @@ const uniqueDiagnostics = <TCode extends string>(
   });
 };
 
+// Some source constructions are already deterministically resolved by
+// `extractSourceAtomicNaturalLanguageSpans` (the same registry that keeps
+// these clauses from being bisected by formatting-region segmentation). If
+// one such span covers the *entire* segment, the segment needs no further
+// translation at all -- routing it through `lexMixedSegment`/provider
+// translation anyway would fragment already-resolved target-language text
+// into context-free prose spans and hand them back to the provider for a
+// pointless (and potentially corrupting) re-translation. Partial coverage
+// must not trigger this: unrelated prose sharing a segment with an atomic
+// span still needs the provider.
+const isFullyCoveredByAtomicSpan = (
+  text: string,
+  spans: readonly { start: number; end: number }[],
+): boolean => {
+  const leading = text.length - text.trimStart().length;
+  const trimmedEnd = text.trimEnd().length;
+  if (trimmedEnd <= leading) return false;
+  return spans.some(({ start, end }) => start <= leading && end >= trimmedEnd);
+};
+
+// Two placeholder probes used only to test whether `normalizeTranslationStyle`
+// derives its output for a given (source, targetLanguage, contentKind)
+// entirely from `source` -- i.e. deterministically -- or whether it lets
+// its `translated` argument leak through unmodified or partially modified.
+// These must never collide with real content, hence the NUL-delimited,
+// unmistakably synthetic markers.
+const DETERMINISTIC_RESOLUTION_PROBE_A =
+  "\u0000__DETERMINISTIC_RESOLUTION_PROBE_A__\u0000";
+const DETERMINISTIC_RESOLUTION_PROBE_B =
+  "\u0000__DETERMINISTIC_RESOLUTION_PROBE_B__\u0000";
+
+// "Atomic structural coverage" (a span the atomic-span registry says must
+// not be bisected by formatting-region segmentation) and "deterministic
+// target-language resolution" (the span's target-language text is already
+// fully and correctly produced, with nothing left for a provider to
+// translate) are different properties. A source construction can be
+// structurally atomic in every target language, while a deterministic
+// renderer for it may only exist for some target languages -- e.g. the
+// nested Round/FLO/BLO attachment family and the bare round-count family
+// are both structurally atomic regardless of target language, but
+// `normalizeTranslationStyle` currently only carries a deterministic
+// renderer for them when translating into English; for other target
+// languages it is a passthrough, so the source text would otherwise never
+// get translated at all.
+//
+// Detect the distinction generically -- with no per-language or
+// per-fixture special-casing -- by probing whether
+// `normalizeTranslationStyle`'s output for this exact
+// (source, targetLanguage, contentKind) combination is independent of
+// whatever "translated" text it is given. A genuine deterministic renderer
+// derives its output entirely from `source` and never lets an arbitrary
+// placeholder "translated" value leak into the result; a passthrough (or a
+// renderer that only partially covers the source, leaving a "remainder"
+// stitched in from `translated`) will let at least one of the two distinct
+// probes leak through, so the two probe runs will disagree.
+const isDeterministicallyResolvedForTargetLanguage = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  contentKind: TranslationContentKind,
+): boolean => {
+  const resolvedA = normalizeTranslationStyle(
+    source,
+    DETERMINISTIC_RESOLUTION_PROBE_A,
+    targetLanguage,
+    contentKind,
+  );
+  const resolvedB = normalizeTranslationStyle(
+    source,
+    DETERMINISTIC_RESOLUTION_PROBE_B,
+    targetLanguage,
+    contentKind,
+  );
+  return (
+    resolvedA === resolvedB &&
+    !resolvedA.includes(DETERMINISTIC_RESOLUTION_PROBE_A) &&
+    !resolvedA.includes(DETERMINISTIC_RESOLUTION_PROBE_B)
+  );
+};
+
 const translateSegment = async (
   block: TranslationBlock,
   segmentIndex: number,
@@ -88,6 +167,28 @@ const translateSegment = async (
     targetLanguage,
     contentKind,
   );
+  // Checked against the raw source (before normalization may have already
+  // rewritten a recognized clause into target-language text) so the atomic
+  // span registry -- which only understands source-language morphology --
+  // still recognizes it.
+  // Atomic structural coverage alone must never imply it is safe to skip the
+  // provider -- only the conjunction with confirmed deterministic
+  // target-language resolution (checked below) does.
+  const hasAtomicStructuralCoverage =
+    contentKind === "pattern" &&
+    isFullyCoveredByAtomicSpan(
+      sourceBody,
+      extractSourceAtomicNaturalLanguageSpans(sourceBody),
+    );
+  const isFullyAtomicSource =
+    hasAtomicStructuralCoverage &&
+    isDeterministicallyResolvedForTargetLanguage(
+      sourceBody,
+      targetLanguage,
+      contentKind,
+    );
+  const skipsProviderTranslation =
+    normalization.fullyResolved || isFullyAtomicSource;
   const normalized = normalization.text;
   const protectedSource = protectImmutablePattern(
     normalized,
@@ -96,7 +197,7 @@ const translateSegment = async (
   );
   const protectedBlock = { ...block, text: protectedSource.text };
   const mixed = lexMixedSegment(normalized, targetLanguage, block.id);
-  const patternOnly = normalization.fullyResolved ||
+  const patternOnly = skipsProviderTranslation ||
     isPatternOnlyProtectedText(protectedSource) || (
     protectedSource.tokens.some(({ kind }) => kind === "round_reference") &&
     mixed.classification === "mixed" && mixed.valid && mixed.spans.length === 0
@@ -119,7 +220,7 @@ const translateSegment = async (
 
   if (
     contentKind === "pattern" &&
-    !normalization.fullyResolved &&
+    !skipsProviderTranslation &&
     mixed.classification === "mixed" &&
     !hasMeasurement &&
     (roundTokens.length === 0 || hasNonRoundImmutable)

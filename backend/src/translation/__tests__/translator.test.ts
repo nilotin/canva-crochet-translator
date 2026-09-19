@@ -5,6 +5,7 @@ import type {
   TranslationProviderResult,
 } from "../providers/provider.js";
 import { translateBlocks } from "../translator.js";
+import { validateTranslation } from "../validator.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -123,6 +124,32 @@ class HookBoundaryProvider extends InspectingProvider {
               : text === "sıra örüyoruz."
                 ? "rounds."
                 : text,
+      })),
+    };
+  }
+}
+
+// Phase 2 trap for the atomic-span provider-bypass fix: unlike every trap
+// above, this one does not gate its corruption on any Turkish trigger text
+// -- it corrupts (duplicates) whatever it is asked to translate,
+// unconditionally, whether that text is Turkish or already-English prose.
+// It exists specifically to catch a regression of the diagnosed bug: an
+// already-deterministically-resolved clause (e.g. the nested round/FLO/BLO
+// attachment family) being fragmented by `lexMixedSegment` and handed back
+// to the provider for a pointless, corruption-prone re-translation. If the
+// provider is ever invoked for a segment that should have been fully
+// bypassed, this trap guarantees the corruption is visible in the result
+// rather than silently surviving an echo.
+class UnconditionalCorruptingProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+    return {
+      translations: request.blocks.map(({ id, text }) => ({
+        id,
+        translated: `${text} ${text}`,
       })),
     };
   }
@@ -1154,6 +1181,71 @@ describe("translateBlocks provider boundary", () => {
         }),
       ]),
     );
+  });
+
+  it("keeps a deterministically resolved chain-turn/slip-stitch continuation atomic when real Canva formatting bisects it inside a mixed-prose block", async () => {
+    const provider = new InspectingProvider();
+
+    const freeProse =
+      "Peruğun ters tarafını çeviriyoruz. ";
+
+    const continuation =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const source = freeProse + continuation;
+
+    // Intentionally bisect the deterministic continuation just like a Canva
+    // style boundary can do in the live design.
+    const boundary = source.indexOf("tekrar sıradaki") + 8;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-page11-continuation-with-prose",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Ch 20 and turn.");
+    expect(result?.translated).toContain(
+      "Starting from the third chain, work 18hdc",
+    );
+    expect(result?.translated).toContain("skip 1sc");
+    expect(result?.translated).toContain("SL.ST into the next stitch");
+    expect(result?.translated).toContain(
+      "SL.ST into the following single crochet",
+    );
+    expect(result?.translated).toContain(
+      "Continue in this way to the end of the round.",
+    );
+    expect(result?.translated).toContain("At the end of the round, ch 3.");
+
+    expect(result?.translated).not.toContain("tekrar");
+    expect(result?.translated).not.toContain(
+      "into the single crochet in the previous round",
+    );
+
+    // Free prose may still require the provider, but the deterministic
+    // continuation itself must never be exposed to it.
+    expect(provider.requests.length).toBeGreaterThan(0);
+
+    const providerText = provider.protectedTexts.join(" ");
+    expect(providerText).not.toMatch(/20\s+zincir/iu);
+    expect(providerText).not.toMatch(/tekrar\s+sıradaki/iu);
+    expect(providerText).not.toMatch(/sıra\s+sonuna\s+geldiğimizde/iu);
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
   });
 
   it("uses atomic translation when formatting bisects a referenced-loop attachment", async () => {
@@ -4008,5 +4100,415 @@ describe("materials translation profile with Canva formatting regions", () => {
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
     expect(result?.targetFormattingRegions).toHaveLength(6);
+  });
+
+  // ==========================================================================
+  // Phase 2: atomic full-span provider bypass (Page 11 live regression,
+  // Rounds 8 and 11) -- see round_references.ts / atomic_spans.ts / translator.ts.
+  // ==========================================================================
+
+  it.each([
+    [
+      "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+    ],
+    [
+      "8. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 8.",
+    ],
+    [
+      // Mixed Flo/FLO/Blo/blo source casing, reversed loop direction.
+      "8. sırada BLO’dan ördüğümüz sık iğnelerin flo’dan ipimizi sabitliyoruz.",
+      "Attach the yarn to the FLO of the single crochet stitches worked in the BLO of Round 8.",
+    ],
+  ])(
+    "bypasses the provider entirely for a segment fully covered by the nested round/FLO-BLO atomic family and keeps the canonical deterministic output (Page 11 live regression): %s",
+    async (source, expected) => {
+      const provider = new UnconditionalCorruptingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "page11-round-flo-blo", text: source }],
+        "en",
+        { provider },
+      );
+
+      // The strongest possible proof the provider was skipped: even though
+      // this trap unconditionally corrupts (duplicates) anything it
+      // receives, the output is exactly the canonical deterministic string
+      // -- not a duplicated/garbled one.
+      expect(result?.translated).toBe(expected);
+      expect(provider.requests).toHaveLength(0);
+
+      const codes = result?.errors.map(({ code }) => code) ?? [];
+      expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+      expect(result?.errors).toEqual([]);
+      expect(result?.valid).toBe(true);
+    },
+  );
+
+  it("still calls the provider (does not bypass) when a segment mixes the atomic round/FLO-BLO clause with unrelated non-atomic prose, and the reconstructed output is still correct (partial coverage must not blindly bypass unrelated prose)", async () => {
+    const provider = new InspectingProvider();
+    // The atomic span here covers only the leading clause (through "sık
+    // iğneye 4x"); "birazcık daha ekleyelim" is ordinary prose the atomic
+    // registry does not recognize, so the segment as a whole is not fully
+    // covered and must still go through the provider.
+    const source =
+      "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz. Sonra biraz daha örüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page11-partial-coverage", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+    );
+    const codes = result?.errors.map(({ code }) => code) ?? [];
+    expect(codes).not.toContain("ROUND_REFERENCE_MISMATCH");
+    expect(result?.valid).toBe(true);
+  });
+
+  it("still BLOCKs a wrong round number even when the atomic bypass applies to the source (the bypass renders the source's own round number, so a mismatched target is a provider-independent structural check)", () => {
+    // The bypass path only ever renders the round number *the source
+    // itself contains* -- there is no way for the deterministic renderer to
+    // produce a wrong number. The existing negative-case matrix in
+    // round_references.test.ts ("rejects a lost or malformed round-loop
+    // relation") already proves a mismatched round number, a reversed
+    // FLO/BLO relation, and a missing round number all still BLOCK; this is
+    // a direct pipeline-level sanity check against a StubProvider forcing a
+    // deliberately wrong result for a source segment this bypass does *not*
+    // fully cover (a bare loop clause with no round token), so the
+    // validator -- not the bypass -- is what's under test here.
+    const source = "6. sıranın FLO’sundan örüyoruz.";
+    const wrongRound = "Work into the FLO of Round 7.";
+    const reversedLoop = "Work into the BLO of Round 6.";
+    const missingRound = "Work into the FLO.";
+
+    expect(
+      validateTranslation(source, wrongRound, "en").errors,
+    ).toContainEqual(expect.objectContaining({ code: "ROUND_REFERENCE_MISMATCH" }));
+    expect(
+      validateTranslation(source, reversedLoop, "en").errors,
+    ).toContainEqual(expect.objectContaining({ code: "ROUND_REFERENCE_MISMATCH" }));
+    expect(
+      validateTranslation(source, missingRound, "en").errors,
+    ).toContainEqual(expect.objectContaining({ code: "ROUND_REFERENCE_MISMATCH" }));
+  });
+
+  it("bypasses the provider for a different, unrelated atomic round/FLO-BLO family (stitch-count variant, Round 33) -- proves the bypass is based on atomic full-span coverage, not fixture matching", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+    const source =
+      "33. sırada FLO’dan ördüğümüz sık iğnelerin BLO’sundan 20x örüp devam ediyoruz, 10x";
+
+    const [result] = await translateBlocks(
+      [{ id: "generic-atomic-round-33", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "In Round 33, work 20sc in the BLO of the single crochet stitches worked in the FLO, then continue with 10sc",
+    );
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  // ==========================================================================
+  // Phase 2 follow-up fix: atomic *structural* coverage alone must not imply
+  // it is safe to bypass the provider -- only the conjunction with confirmed
+  // *deterministic target-language resolution* does. A real Vitest run
+  // surfaced that the first version of this bypass regressed the
+  // pre-existing Spanish bare round-count translation (Segment 13: see the
+  // "reconstructs the Segment 13 numeric range safely" test above), because
+  // it treated the raw Turkish source being an atomic span as sufficient
+  // justification for skipping the provider even when no deterministic
+  // renderer for the requested target language exists for that source
+  // family. See `isDeterministicallyResolvedForTargetLanguage` in
+  // translator.ts.
+  // ==========================================================================
+
+  it("does NOT bypass the provider for the bare round-count atomic family when translating into Spanish, because no deterministic Spanish renderer exists for it -- atomic coverage alone must not imply bypass (Failure 1 regression guard)", async () => {
+    const provider: TranslationProvider = {
+      name: "bare-round-count-es",
+      model: "stub",
+      async checkReadiness() {
+        return { ok: true, provider: this.name, model: this.model };
+      },
+      async translate(request) {
+        return {
+          translations: request.blocks.map(({ id }) => ({
+            id,
+            translated: "vueltas",
+          })),
+        };
+      },
+    };
+
+    const [result] = await translateBlocks(
+      [{ id: "segment-13-es-regression", text: "12-23) 12 sıra 66x" }],
+      "es",
+      { provider },
+    );
+
+    // The deterministic Turkish "sıra" -> Spanish "vueltas" swap can only
+    // happen if the provider (or an equivalent deterministic resolution
+    // step) actually runs against this source; a wrongly-bypassed segment
+    // would leave the untranslated Turkish word "sıra" in the output.
+    expect(result?.translated).toBe("12-23) 12 vueltas 66pb");
+    expect(result?.translated).not.toContain("sıra");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("still bypasses the provider for the SAME bare round-count atomic family when translating into English, where a deterministic renderer does exist -- proves the fix is about resolution capability, not a blanket disabling of the bypass", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const [result] = await translateBlocks(
+      [{ id: "segment-13-en-unaffected", text: "12-23) 12 sıra 66x" }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("12-23) 66sc for 12 rounds");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("does NOT bypass the provider for the nested round/FLO-BLO atomic family when translating into Spanish either, for the same reason -- the deterministic renderer for this family is also English-only (proves atomic full-span coverage alone is insufficient whenever target-language resolution is incomplete, independent of which atomic family is involved)", async () => {
+    const provider = new InspectingProvider();
+    const source =
+      "11. sırada FLO\u2019dan ördüğümüz sık iğnelerin, BLO\u2019sundan ipimizi sabitliyoruz.";
+
+    await translateBlocks(
+      [{ id: "page11-es-regression", text: source }],
+      "es",
+      { provider },
+    );
+
+    // The point isn't what a stub echo provider produces (it cannot
+    // perform a real translation) -- it's that the raw, unresolved Turkish
+    // clause was actually handed to the provider at all, proving this
+    // segment was not silently bypassed the way the atomic full-span
+    // bypass alone would have done pre-fix.
+    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(provider.protectedTexts.join(" ")).toMatch(/sabitliyoruz/iu);
+  });
+
+  // ==========================================================================
+  // Phase 2: generic continuation normalization (Page 11 live regression --
+  // chain/skip/slip-stitch continuation). See normalizer.ts.
+  // ==========================================================================
+
+  it("keeps the saved live Block 14 'sırdaki' continuation deterministic while allowing unrelated wig prose to use the provider", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "14) Peruğun ters tarafını çeviriyoruz (sık iğnelerin düz tarafı içeride kalacak, ters tarafı dışarıya gelecek. " +
+      "Bu şekilde ters çevirdiğimizde peruk kafaya daha muntazam bir şekilde yerleşiyor). " +
+      "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz. " +
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sırdaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page11-live-block14-sirdaki", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+    );
+    expect(result?.translated).toContain("Ch 20 and turn.");
+    expect(result?.translated).toContain("work 18hdc");
+    expect(result?.translated).toContain("skip 1sc");
+    expect(result?.translated).toContain("SL.ST into the next stitch");
+    expect(result?.translated).toContain(
+      "then SL.ST into the following single crochet",
+    );
+    expect(result?.translated).toContain(
+      "Continue in this way to the end of the round.",
+    );
+    expect(result?.translated).toContain("At the end of the round, ch 3.");
+
+    expect(result?.translated).not.toContain("sırdaki");
+    expect(result?.translated).not.toContain(
+      "into the single crochet in the next round",
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+
+    const providerText = provider.protectedTexts.join(" ");
+    expect(providerText).not.toMatch(/tekrar\s+sırdaki/iu);
+    expect(providerText).not.toMatch(/20\s+zincir/iu);
+    expect(providerText).not.toMatch(/11\.\s*sıra/iu);
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("does not bypass the provider for the 'sırdaki' continuation family in Spanish", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sırdaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    await translateBlocks(
+      [{ id: "page11-sirdaki-es-regression", text: source }],
+      "es",
+      { provider },
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+  });
+
+  it("produces crochet-native English for the chain/skip/slip-stitch continuation family, preserving exact numbers and compact notation (Page 11 live regression)", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+    const source =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page11-continuation", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Ch 20 and turn.");
+    expect(result?.translated).toContain("work 18hdc");
+    expect(result?.translated).toContain("skip 1sc");
+    expect(result?.translated).toContain("SL.ST into the next stitch");
+    expect(result?.translated).toContain("SL.ST into the following single crochet");
+    expect(result?.translated).toContain(
+      "Continue in this way to the end of the round.",
+    );
+    expect(result?.translated).toContain("At the end of the round, ch 3.");
+
+    // Exact numbers preserved. "18" and "1" are immediately followed by a
+    // compact stitch abbreviation ("18hdc", "1sc") with no intervening
+    // space, so there is no word boundary between the digits and the
+    // following letters -- `\b18\b` and `\b1\b` can never match "18hdc" /
+    // "1sc" (both "8"/"h" and "1"/"s" are `\w` characters). Assert those two
+    // via the actual compact notation instead of a word-boundary regex.
+    // "20" and "3" are each followed by a non-word character (a space, a
+    // period) in this output, so the word-boundary form still applies to
+    // them.
+    expect(result?.translated).toMatch(/\b20\b/u);
+    expect(result?.translated).toContain("18hdc");
+    expect(result?.translated).toContain("1sc");
+    expect(result?.translated).toMatch(/\b3\b/u);
+
+    // Compact notation preserved (never "18 hdc" / "1 sc").
+    expect(result?.translated).not.toContain("18 hdc");
+    expect(result?.translated).not.toContain("1 sc");
+
+    // No mechanical "when we reach the end of the round N we chain".
+    expect(result?.translated).not.toContain("we chain");
+    expect(result?.translated).not.toContain("on the chain 18hdc");
+    expect(provider.requests).toHaveLength(0);
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it.each([
+    ["... 3 zincir çekiyoruz.", 3],
+    ["... 1 zincir çekiyoruz.", 1],
+  ])(
+    "renders the no-yarn-cut round-end sibling distinctly from the yarn-cut family: %s",
+    async (suffix, chains) => {
+      const provider = new InspectingProvider();
+      const source = `Sıra sonuna geldiğimizde ${chains} zincir çekiyoruz.`;
+
+      const [result] = await translateBlocks(
+        [{ id: "round-end-no-cut", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result?.translated).toBe(`At the end of the round, ch ${chains}.`);
+      expect(result?.translated).not.toContain("cut the yarn");
+      expect(result?.valid).toBe(true);
+    },
+  );
+
+  // ==========================================================================
+  // Phase 2: full Page 11 regression -- both diagnosed fixes together,
+  // across the whole real block (nested Round 11 FLO/BLO attachment as its
+  // own segment, plus the 20-chain continuation as a second segment).
+  // ==========================================================================
+
+  it("full Page 11 regression: nested Round 11 FLO/BLO attachment bypasses the provider while the chain/skip/slip-stitch continuation translates to crochet-native English, with no ROUND_REFERENCE_MISMATCH and every number/compact-notation token preserved", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const roundFloBloSource =
+      "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.";
+    const continuationSource =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const results = await translateBlocks(
+      [
+        { id: "page11-block-a-round-flo-blo", text: roundFloBloSource },
+        { id: "page11-block-b-continuation", text: continuationSource },
+      ],
+      "en",
+      { provider },
+    );
+
+    const [roundResult, continuationResult] = results;
+
+    // Block A: fully deterministic, atomic-covered -- provider never called
+    // for it, and its output is the exact canonical string even though the
+    // provider would have corrupted it had it been invoked.
+    expect(roundResult?.translated).toBe(
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+    );
+    expect(roundResult?.errors).toEqual([]);
+    expect(roundResult?.valid).toBe(true);
+    expect(
+      roundResult?.errors.map(({ code }) => code) ?? [],
+    ).not.toContain("ROUND_REFERENCE_MISMATCH");
+
+    // Block B: not atomic (real prose throughout), so the provider is
+    // called -- but it's now called with already crochet-native English
+    // fragments (from the newly-extended normalizer families) rather than
+    // raw, unguided Turkish, so the corrupting trap's duplication lands
+    // only in the free-form prose, never inside a protected number or
+    // notation placeholder.
+    expect(continuationResult?.valid).toBe(true);
+
+    expect(continuationResult?.translated).toMatch(/\bCh 20\b/u);
+    expect(continuationResult?.translated).toMatch(/\b18hdc\b/u);
+    expect(continuationResult?.translated).toMatch(/\b3\b/u);
+
+    // Every protected numeric value from the source survives, unmutated,
+    // in the reconstructed output (order aside, since the trap provider
+    // duplicates prose around them).
+    for (const value of ["20", "18", "1", "3"]) {
+      expect(continuationResult?.translated).toContain(value);
+    }
+
+    expect(provider.requests).toHaveLength(0);
+    for (const request of provider.requests) {
+      for (const block of request.blocks) {
+        // The atomic Round 11 clause must never reach the provider, even
+        // indirectly as a sub-fragment.
+        expect(block.text).not.toContain("Round 11");
+        expect(block.text).not.toMatch(/sabitliyoruz/iu);
+      }
+    }
   });
 });

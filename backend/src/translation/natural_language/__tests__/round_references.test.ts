@@ -119,6 +119,32 @@ describe("crochet round references", () => {
     expect(validation.valid).toBe(true);
   });
 
+  it.each([
+    [
+      "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+    ],
+    [
+      "8. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan ipimizi sabitliyoruz.",
+      "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 8.",
+    ],
+    [
+      // Mixed Flo/FLO/Blo/blo source casing.
+      "8. sırada BLO’dan ördüğümüz sık iğnelerin flo’dan ipimizi sabitliyoruz.",
+      "Attach the yarn to the FLO of the single crochet stitches worked in the BLO of Round 8.",
+    ],
+  ])(
+    "accepts the canonical nested round/FLO-BLO attachment output (Page 11 live regression): %s",
+    (source, translated) => {
+      const validation = validateTranslation(source, translated, "en");
+
+      expect(
+        validation.errors.map(({ code }) => code),
+      ).not.toContain("ROUND_REFERENCE_MISMATCH");
+      expect(validation.valid).toBe(true);
+    },
+  );
+
   it("does not consume a nested stitch/loop clause as a direct round-loop relation", () => {
     expect(
       extractRoundReferences(

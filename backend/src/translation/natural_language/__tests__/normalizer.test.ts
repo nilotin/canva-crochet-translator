@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { protectNotation } from "../../notation/protector.js";
-import { normalizeSourceNaturalLanguage } from "../normalizer.js";
+import {
+  normalizeSourceNaturalLanguage,
+  normalizeSourceNaturalLanguageDetailed,
+} from "../normalizer.js";
 
 describe("normalizeSourceNaturalLanguage", () => {
   it.each([
@@ -1345,5 +1348,152 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  // ==========================================================================
+  // Phase 2: generic continuation normalization (Page 11 live regression).
+  // ==========================================================================
+
+  it.each([
+    ["üçüncü zincirden itibaren 18hdc", "Starting from the third chain, work 18hdc"],
+    ["üçüncü zincirden itibaren 18sc", "Starting from the third chain, work 18sc"],
+    ["üçüncü zincirden itibaren 18dc", "Starting from the third chain, work 18dc"],
+    ["üçüncü zincirden itibaren 18tr", "Starting from the third chain, work 18tr"],
+    [
+      "zincir üzerine üçüncü zincirden itibaren 18hdc",
+      "Starting from the third chain, work 18hdc",
+    ],
+    // The generic "Nx" multiplier notation keeps working exactly as before.
+    ["üçüncü zincirden itibaren 12x", "Starting from the third chain, work 12x"],
+  ])(
+    "normalizes the ordinal chain-position family with compact stitch notation: %s",
+    (source, expected) => {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+    },
+  );
+
+  it("never inserts a space into compact stitch notation from the ordinal chain-position family", () => {
+    const result = normalizeSourceNaturalLanguage(
+      "üçüncü zincirden itibaren 18hdc",
+      "en",
+    );
+    expect(result).toContain("18hdc");
+    expect(result).not.toContain("18 hdc");
+  });
+
+  it.each([
+    ["1x atla sıradaki sık iğneye cc", "skip 1x, cc into the next stitch"],
+    ["1x atla sıradaki ilmeğe cc", "skip 1x, cc into the next stitch"],
+    ["4x atla sıradaki ilmeğe cc", "skip 4x, cc into the next stitch"],
+  ])(
+    "normalizes skip-and-next-stitch phrasing for both the single-crochet and generic-stitch loop word: %s",
+    (source, expected) => {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+    },
+  );
+
+  it.each([
+    [
+      "tekrar sıradaki sık iğneye cc yapıyoruz",
+      "then cc into the following single crochet",
+    ],
+    [
+      "tekrar sıradaki ilmeğe cc yapıyoruz",
+      "then cc into the following stitch",
+    ],
+    [
+      "tekrar sıradaki sık iğneye cc",
+      "then cc into the following single crochet",
+    ],
+  ])(
+    "normalizes the standalone repeated next-stitch slip-stitch family: %s",
+    (source, expected) => {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+    },
+  );
+
+  it("does not let the bare 'sıradaki X'e cc' fallback swallow the 'tekrar ... yapıyoruz' wrapper", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "tekrar sıradaki sık iğneye cc yapıyoruz",
+        "en",
+      ),
+    ).not.toContain("yapıyoruz");
+  });
+
+  it("normalizes the standalone 'continue to the end of the round' clause with the same wording used inside larger composite templates", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bu şekilde sıra sonuna kadar devam ediyoruz.",
+        "en",
+      ),
+    ).toBe("Continue in this way to the end of the round.");
+  });
+
+  it.each([
+    ["Sıra sonuna geldiğimizde 3 zincir çekiyoruz.", "At the end of the round, ch 3."],
+    ["Sıra sonuna geldiğimizde 1 zincir çekiyoruz.", "At the end of the round, ch 1."],
+  ])(
+    "normalizes the no-yarn-cut round-end sibling, distinct from the yarn-cut family: %s",
+    (source, expected) => {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+      expect(normalizeSourceNaturalLanguage(source, "en")).not.toContain(
+        "cut the yarn",
+      );
+    },
+  );
+
+  it("keeps the existing yarn-cut round-end family unchanged", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe("At the end of the round, ch 1 and cut the yarn.");
+  });
+
+  it("normalizes the live typo variant 'sırdaki' inside the repeated slip-stitch continuation family", () => {
+    const source =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sırdaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const result = normalizeSourceNaturalLanguageDetailed(
+      source,
+      "en",
+      "pattern",
+    );
+
+    expect(result.text).toContain("Ch 20 and turn.");
+    expect(result.text).toContain("Starting from the third chain, work 18hdc");
+    expect(result.text).toContain("skip 1x, cc into the next stitch");
+    expect(result.text).toContain(
+      "then cc into the following single crochet",
+    );
+    expect(result.text).toContain(
+      "Continue in this way to the end of the round.",
+    );
+    expect(result.text).toContain("At the end of the round, ch 3.");
+    expect(result.text).not.toContain("sırdaki");
+    expect(result.fullyResolved).toBe(true);
+  });
+
+  it("normalizes the full real Page 11 chain/skip/slip-stitch continuation family end to end", () => {
+    const source =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const result = normalizeSourceNaturalLanguage(source, "en");
+
+    expect(result).toContain("Ch 20 and turn.");
+    expect(result).toContain("Starting from the third chain, work 18hdc");
+    expect(result).toContain("skip 1x, cc into the next stitch");
+    expect(result).toContain("then cc into the following single crochet");
+    expect(result).toContain("Continue in this way to the end of the round.");
+    expect(result).toContain("At the end of the round, ch 3.");
+    expect(result).not.toContain("on the chain 18hdc");
+    expect(result).not.toContain("we chain");
+  });
 
 });

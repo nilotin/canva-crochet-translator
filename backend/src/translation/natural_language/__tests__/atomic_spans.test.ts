@@ -154,4 +154,48 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
       },
     ]);
   });
+
+  it("keeps the live 'sırdaki' typo variant atomic", () => {
+    const prefix = "FREE PROSE. ";
+    const continuation =
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+      "1x atla sıradaki ilmeğe cc, tekrar sırdaki sık iğneye cc yapıyoruz. " +
+      "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+      "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.";
+
+    const source = prefix + continuation;
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+
+    expect(spans).toHaveLength(1);
+    expect(spans[0]?.start).toBe(prefix.length);
+    expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(continuation);
+  });
+
+  it.each([
+    [
+      "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+        "1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. " +
+        "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+        "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.",
+    ],
+    [
+      "20 zincir çekip geriye dönüyoruz. Zincir üzerine üçüncü zincirden itibaren 18hdc, " +
+        "1x atla, sıradaki sık iğneye cc, tekrar sıradaki sık iğneye cc. " +
+        "Bu şekilde sıra sonuna kadar devam ediyoruz. " +
+        "Sıra sonuna geldiğimizde 3 zincir çekiyoruz.",
+    ],
+  ])(
+    "keeps the chain-turn/slip-stitch continuation family atomic across surrounding prose",
+    (continuation) => {
+      const prefix = "FREE PROSE. ";
+      const source = prefix + continuation;
+      const spans = extractSourceAtomicNaturalLanguageSpans(source);
+
+      expect(spans).toHaveLength(1);
+      expect(spans[0]?.start).toBe(prefix.length);
+      expect(source.slice(spans[0]?.start, spans[0]?.end)).toBe(continuation);
+    },
+  );
+
+
 });
