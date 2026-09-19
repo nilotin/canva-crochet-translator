@@ -1036,3 +1036,91 @@ describe("conditional FLO/BLO integrity", () => {
     expect(errorCodes(result)).not.toContain("PARENTHESES_MISMATCH");
   });
 });
+
+describe("round-count trailing-action numeric validation", () => {
+  it.each([
+    [
+      "buttonhole chain",
+      "12-20) 9 sıra 54x, 6 zincir (düğme iliği)",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+    ],
+    [
+      "chain and cut",
+      "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.",
+      "21-25) 54sc for 5 rounds, ch 1 and cut the yarn.",
+    ],
+  ])("accepts a verified %s round-count reorder", (_label, source, target) => {
+    const result = validateTranslation(source, target, "en");
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it.each([
+    [
+      "changed stitch count",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+      "12-20) 53sc for 9 rounds, ch 6 (buttonhole)",
+    ],
+    [
+      "changed round count",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+      "12-20) 54sc for 8 rounds, ch 6 (buttonhole)",
+    ],
+    [
+      "changed chain count",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+      "12-20) 54sc for 9 rounds, ch 7 (buttonhole)",
+    ],
+    [
+      "wrong plurality",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+      "12-20) 54sc for 9 round, ch 6 (buttonhole)",
+    ],
+  ])("rejects %s in buttonhole round-count instructions", (_label, validTarget, changedTarget) => {
+    const source =
+      "12-20) 9 sıra 54x, 6 zincir (düğme iliği)";
+
+    expect(validateTranslation(source, validTarget, "en").valid).toBe(true);
+
+    const result = validateTranslation(source, changedTarget, "en");
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+});
+
+describe("inflected chain-and-skip notation validation", () => {
+  it("accepts skipped x counts rendered as generic stitches", () => {
+    const result = validateTranslation(
+      "6 zincir çekip 12x atlıyoruz",
+      "ch 6, skip 12 sts",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("still rejects an incorrect skip count", () => {
+    const result = validateTranslation(
+      "6 zincir çekip 12x atlıyoruz",
+      "ch 6, skip 11 sts",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("does not exempt unrelated x notation", () => {
+    const result = validateTranslation(
+      "12x örüyoruz",
+      "Work 12 stitches",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
+  });
+});

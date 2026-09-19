@@ -1497,3 +1497,145 @@ describe("normalizeSourceNaturalLanguage", () => {
   });
 
 });
+
+describe("round-count instructions with deterministic trailing actions", () => {
+  it("normalizes a round count followed by a buttonhole chain", () => {
+    const source =
+      "12-20) 9 sıra 54x, 6 zincir (düğme iliği)";
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "12-20) 54x for 9 rounds, ch 6 (buttonhole)",
+    );
+  });
+
+  it("normalizes a round count followed by chain-and-cut", () => {
+    const source =
+      "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "21-25) 54x for 5 rounds, ch 1 and cut the yarn.",
+    );
+  });
+
+  it("keeps singular round grammar correct", () => {
+    const source =
+      "21) 1 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "21) 54x for 1 round, ch 1 and cut the yarn.",
+    );
+  });
+});
+
+describe("Page 13 yarn intro and inflected chain-skip families", () => {
+  it("uses the shared yarn-color vocabulary for lilac yarn introductions", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Lila renk ip (Catania 226) ile başlıyoruz.",
+        "en",
+        "pattern",
+      ),
+    ).toBe("Start with lilac yarn (Catania 226).");
+  });
+
+  it.each([
+    ["6 zincir çekip 12x atlıyoruz", "ch 6, skip 12 sts"],
+    ["2 zincir çekip 1x atlıyoruz", "ch 2, skip 1 st"],
+  ])(
+    "normalizes the inflected chain-and-skip family: %s",
+    (source, expected) => {
+      expect(
+        normalizeSourceNaturalLanguage(source, "en", "pattern"),
+      ).toBe(expected);
+    },
+  );
+});
+
+describe("Page 13 buttonhole and repeated round-end families", () => {
+  it("normalizes repeated round-end chain-and-turn wording", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Sıra sonlarında 1 zincir çekip dönüyoruz.",
+        "en",
+        "pattern",
+      ),
+    ).toBe("At the end of each round, ch 1 and turn.");
+  });
+
+  it.each([
+    ["6 zincir (düğme iliği)", "ch 6 (buttonhole)"],
+    ["1 zincir (düğme iliği)", "ch 1 (buttonhole)"],
+  ])(
+    "normalizes a standalone buttonhole chain annotation: %s",
+    (source, expected) => {
+      expect(
+        normalizeSourceNaturalLanguage(source, "en", "pattern"),
+      ).toBe(expected);
+    },
+  );
+
+  it("normalizes long-form buttonhole guidance without mechanical provider phrasing", () => {
+    const source =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre arttırıp ya da azaltabilirsiniz.)";
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "Skip 6 chains (to form a buttonhole; " +
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+  });
+
+  it("normalizes the complete Page 13 first-row buttonhole instruction", () => {
+    const source =
+      "1) 34 zincir çekip dönüyoruz. " +
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre arttırıp ya da azaltabilirsiniz.) " +
+      "Yedinci zincirden itibaren 28x örüyoruz.";
+
+    const translated =
+      normalizeSourceNaturalLanguage(source, "en", "pattern");
+
+    expect(translated).toContain("Ch 34 and turn.");
+    expect(translated).toContain(
+      "Skip 6 chains (to form a buttonhole;",
+    );
+    expect(translated).toContain(
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+    expect(translated).toContain(
+      "Starting from the seventh chain",
+    );
+    expect(translated).toContain("28x");
+    expect(translated).not.toContain("we are forming");
+    expect(translated).not.toContain("chains we make");
+  });
+});
+
+describe("long buttonhole spelling variants", () => {
+  it.each([
+    "artırıp",
+    "arttırıp",
+  ])("normalizes the %s spelling variant", (verb) => {
+    const source =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      `kullanacağınız düğme boyutuna göre ${verb} ya da azaltabilirsiniz.)`;
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "Skip 6 chains (to form a buttonhole; " +
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+  });
+});

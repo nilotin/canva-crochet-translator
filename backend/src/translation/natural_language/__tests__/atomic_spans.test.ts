@@ -199,3 +199,60 @@ describe("extractSourceAtomicNaturalLanguageSpans", () => {
 
 
 });
+
+describe("round-count trailing-action atomic spans", () => {
+  it.each([
+    "12-20) 9 sıra 54x, 6 zincir (düğme iliği)",
+    "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.",
+  ])("keeps the complete instruction atomic: %s", (instruction) => {
+    const prefix = "FREE PROSE. ";
+    const source = prefix + instruction;
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+
+    expect(spans).toEqual([
+      {
+        start: prefix.length,
+        end: prefix.length + instruction.length,
+      },
+    ]);
+  });
+});
+
+describe("Page 13 long buttonhole guidance atomic span", () => {
+  it("keeps the complete long-form buttonhole guidance atomic", () => {
+    const instruction =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre arttırıp ya da azaltabilirsiniz.)";
+
+    const prefix = "1) 34 zincir çekip dönüyoruz. ";
+    const suffix = " Yedinci zincirden itibaren 28x örüyoruz.";
+    const source = prefix + instruction + suffix;
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(source);
+
+    expect(spans).toContainEqual({
+      start: prefix.length,
+      end: prefix.length + instruction.length,
+    });
+  });
+});
+
+describe("Page 13 exact-live buttonhole spelling regression", () => {
+  it("keeps the live 'artırıp' spelling atomic", () => {
+    const instruction =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.)";
+
+    const spans = extractSourceAtomicNaturalLanguageSpans(instruction);
+
+    expect(spans).toEqual([
+      {
+        start: 0,
+        end: instruction.length,
+      },
+    ]);
+  });
+});

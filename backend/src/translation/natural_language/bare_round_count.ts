@@ -44,6 +44,30 @@ export type LogicalLine = {
   separator: string;
 };
 
+export type RoundCountTrailingActionKind =
+  | "buttonhole_chain"
+  | "chain_and_cut";
+
+export type RoundCountTrailingActionSourceSpan = {
+  start: number;
+  end: number;
+  text: string;
+  prefix: string;
+  range: string | undefined;
+  rounds: string;
+  stitches: string;
+  chains: string;
+  kind: RoundCountTrailingActionKind;
+  suffix: string;
+  roundsSpan: NumericTokenSpan;
+  stitchesSpan: NumericTokenSpan;
+};
+
+export type RoundCountTrailingActionTargetSpan =
+  RoundCountTrailingActionSourceSpan & {
+    roundWord: "round" | "rounds";
+  };
+
 const SOURCE_LINE_PATTERN =
   /^([\t ]*(?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x([.]?[\t ]*)$/iu;
 
@@ -55,6 +79,12 @@ const ROUND_COUNT_YARN_CUT_SOURCE_PATTERN =
 
 const ROUND_COUNT_YARN_CUT_TARGET_PATTERN =
   /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc for (\d+) (round|rounds) — cut the yarn\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgmu;
+
+const ROUND_COUNT_TRAILING_ACTION_SOURCE_PATTERN =
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x[\t ]*[,，][\t ]*(\d+)[\t ]+zincir(?:(?:[\t ]*\([\t ]*düğme[\t ]+iliği[\t ]*\))|(?:[\t ]+çekip[\t ]+ipimizi[\t ]+kesiyoruz\.?))(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgimu;
+
+const ROUND_COUNT_TRAILING_ACTION_TARGET_PATTERN =
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds)[\t ]*[,，][\t ]*ch[\t ]+(\d+)(?:(?:[\t ]*\([\t ]*buttonhole[\t ]*\))|(?:[\t ]+and[\t ]+cut[\t ]+the[\t ]+yarn\.?))(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgimu;
 
 export const parseBareRoundCountSourceLine = (
   source: string,
@@ -149,6 +179,105 @@ export const scanRoundCountYarnCutTargetSpans = (
       stitchesSpan,
     }];
   });
+
+const trailingActionKindFromSource = (
+  text: string,
+): RoundCountTrailingActionKind =>
+  /düğme\s+iliği/iu.test(text) ? "buttonhole_chain" : "chain_and_cut";
+
+const trailingActionKindFromTarget = (
+  text: string,
+): RoundCountTrailingActionKind =>
+  /buttonhole/iu.test(text) ? "buttonhole_chain" : "chain_and_cut";
+
+export const scanRoundCountTrailingActionSourceSpans = (
+  source: string,
+): RoundCountTrailingActionSourceSpan[] =>
+  [...source.matchAll(ROUND_COUNT_TRAILING_ACTION_SOURCE_PATTERN)].flatMap(
+    (match) => {
+      const roundsSpan = captureSpan(match, 3);
+      const stitchesSpan = captureSpan(match, 4);
+
+      if (match.index === undefined || !roundsSpan || !stitchesSpan) return [];
+
+      return [{
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0],
+        prefix: match[1] ?? "",
+        range: match[2],
+        rounds: match[3] ?? "",
+        stitches: match[4] ?? "",
+        chains: match[5] ?? "",
+        kind: trailingActionKindFromSource(match[0]),
+        suffix: match[6] ?? match[7] ?? "",
+        roundsSpan,
+        stitchesSpan,
+      }];
+    },
+  );
+
+export const scanRoundCountTrailingActionTargetSpans = (
+  target: string,
+): RoundCountTrailingActionTargetSpan[] =>
+  [...target.matchAll(ROUND_COUNT_TRAILING_ACTION_TARGET_PATTERN)].flatMap(
+    (match) => {
+      const stitchesSpan = captureSpan(match, 3);
+      const roundsSpan = captureSpan(match, 4);
+
+      if (match.index === undefined || !roundsSpan || !stitchesSpan) return [];
+
+      return [{
+        start: match.index,
+        end: match.index + match[0].length,
+        text: match[0],
+        prefix: match[1] ?? "",
+        range: match[2],
+        stitches: match[3] ?? "",
+        rounds: match[4] ?? "",
+        roundWord: (match[5] ?? "round") as "round" | "rounds",
+        chains: match[6] ?? "",
+        kind: trailingActionKindFromTarget(match[0]),
+        suffix: match[7] ?? match[8] ?? "",
+        roundsSpan,
+        stitchesSpan,
+      }];
+    },
+  );
+
+export const renderEnglishRoundCountTrailingActionSpan = (
+  source: RoundCountTrailingActionSourceSpan,
+  stitchNotation: "x" | "sc",
+): string => {
+  const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
+  const core =
+    `${source.prefix}${source.stitches}${stitchNotation} for ` +
+    `${source.rounds} ${roundWord}, ch ${source.chains}`;
+
+  const action =
+    source.kind === "buttonhole_chain"
+      ? " (buttonhole)"
+      : " and cut the yarn.";
+
+  return `${core}${action}${source.suffix}`;
+};
+
+export const normalizeRoundCountTrailingActionSourceSpans = (
+  source: string,
+  stitchNotation: "x" | "sc",
+): string => {
+  const spans = scanRoundCountTrailingActionSourceSpans(source);
+  let normalized = source;
+
+  for (const span of [...spans].reverse()) {
+    normalized =
+      normalized.slice(0, span.start) +
+      renderEnglishRoundCountTrailingActionSpan(span, stitchNotation) +
+      normalized.slice(span.end);
+  }
+
+  return normalized;
+};
 
 export const renderEnglishRoundCountYarnCutSpan = (
   source: RoundCountYarnCutSourceSpan,

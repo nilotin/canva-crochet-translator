@@ -18,6 +18,8 @@ import { containsReservedPlaceholder } from "./notation/immutable.js";
 import {
   parseBareRoundCountSourceLine,
   parseBareRoundCountTargetLine,
+  scanRoundCountTrailingActionSourceSpans,
+  scanRoundCountTrailingActionTargetSpans,
   scanRoundCountYarnCutSourceSpans,
   scanRoundCountYarnCutTargetSpans,
   splitLogicalLines,
@@ -119,6 +121,72 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
     .join("");
 
   return comparableSourceNumbersWithWrittenCrochetCounts(comparableSource);
+};
+
+const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
+  source: string,
+  translated: string,
+): string[] | undefined => {
+  const sourceSpans = scanRoundCountTrailingActionSourceSpans(source);
+  const targetSpans = scanRoundCountTrailingActionTargetSpans(translated);
+
+  if (
+    sourceSpans.length === 0 ||
+    sourceSpans.length !== targetSpans.length
+  ) {
+    return undefined;
+  }
+
+  const sourceNumbers = comparableSourceNumberTokens(source);
+
+  for (const [index, sourceSpan] of sourceSpans.entries()) {
+    const targetSpan = targetSpans[index];
+    const expectedRoundWord =
+      Number(sourceSpan.rounds) === 1 ? "round" : "rounds";
+
+    if (
+      !targetSpan ||
+      sourceSpan.prefix !== targetSpan.prefix ||
+      sourceSpan.range !== targetSpan.range ||
+      sourceSpan.rounds !== targetSpan.rounds ||
+      sourceSpan.stitches !== targetSpan.stitches ||
+      sourceSpan.chains !== targetSpan.chains ||
+      sourceSpan.kind !== targetSpan.kind ||
+      targetSpan.roundWord !== expectedRoundWord
+    ) {
+      return undefined;
+    }
+
+    const roundsIndex = sourceNumbers.findIndex(
+      ({ start, end }) =>
+        start === sourceSpan.roundsSpan.start &&
+        end === sourceSpan.roundsSpan.end,
+    );
+
+    const stitchesIndex = sourceNumbers.findIndex(
+      ({ start, end }) =>
+        start === sourceSpan.stitchesSpan.start &&
+        end === sourceSpan.stitchesSpan.end,
+    );
+
+    if (
+      roundsIndex < 0 ||
+      stitchesIndex < 0 ||
+      roundsIndex === stitchesIndex
+    ) {
+      return undefined;
+    }
+
+    const rounds = sourceNumbers[roundsIndex];
+    const stitches = sourceNumbers[stitchesIndex];
+
+    if (!rounds || !stitches) return undefined;
+
+    sourceNumbers[roundsIndex] = { ...rounds, value: stitches.value };
+    sourceNumbers[stitchesIndex] = { ...stitches, value: rounds.value };
+  }
+
+  return sourceNumbers.map(({ value }) => value);
 };
 
 const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
@@ -412,6 +480,14 @@ export const validateTranslation = (
           translated,
         ) ?? [],
         translatedNumbers,
+      )) ||
+    (options.contentKind !== "materials" &&
+      sameSequence(
+        comparableSourceNumbersWithVerifiedTrailingActionSwaps(
+          source,
+          translated,
+        ) ?? [],
+        translatedNumbers,
       ));
 
   if (!numericSequenceMatches) {
@@ -481,10 +557,20 @@ export const validateTranslation = (
       !(
         targetLanguage === "en" &&
         occurrence.entry.tr.abbreviation === "x" &&
-        /\d+\s+zincir\s*,?\s*\d+\s*$/iu.test(
-          source.slice(0, occurrence.start),
-        ) &&
-        /^\s+atla\b/iu.test(source.slice(occurrence.end))
+        (
+          (
+            /\d+\s+zincir\s*,?\s*\d+\s*$/iu.test(
+              source.slice(0, occurrence.start),
+            ) &&
+            /^\s+atla\b/iu.test(source.slice(occurrence.end))
+          ) ||
+          (
+            /\d+\s+zincir\s+çekip\s+\d+\s*$/iu.test(
+              source.slice(0, occurrence.start),
+            ) &&
+            /^\s+atlıyoruz\b/iu.test(source.slice(occurrence.end))
+          )
+        )
       ),
   );
   const occurrencesByConcept = new Map<

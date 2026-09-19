@@ -9,6 +9,7 @@ const YARN_COLORS: Record<string, Record<TargetLanguage, string>> = {
   yeşil: { en: "green", es: "verde" },
   sarı: { en: "yellow", es: "amarillo" },
   mor: { en: "purple", es: "morado" },
+  lila: { en: "lilac", es: "lila" },
   turuncu: { en: "orange", es: "naranja" },
   pembe: { en: "pink", es: "rosa" },
   kahverengi: { en: "brown", es: "marrón" },

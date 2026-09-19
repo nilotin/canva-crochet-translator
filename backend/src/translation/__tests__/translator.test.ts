@@ -4512,3 +4512,398 @@ describe("materials translation profile with Canva formatting regions", () => {
     }
   });
 });
+
+describe("Page 13 round-count trailing-action regressions", () => {
+  it.each([
+    [
+      "buttonhole chain",
+      "12-20) 9 sıra 54x, 6 zincir (düğme iliği)",
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+    ],
+    [
+      "chain and cut",
+      "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.",
+      "21-25) 54sc for 5 rounds, ch 1 and cut the yarn.",
+    ],
+  ])(
+    "bypasses the provider for a fully deterministic round-count + %s instruction",
+    async (_label, source, expected) => {
+      const provider = new UnconditionalCorruptingProvider();
+
+      const [result] = await translateBlocks(
+        [{ id: "page13-round-count-trailing-action", text: source }],
+        "en",
+        { provider },
+      );
+
+      expect(result?.translated).toBe(expected);
+      expect(provider.requests).toHaveLength(0);
+      expect(result?.errors).toEqual([]);
+      expect(result?.valid).toBe(true);
+    },
+  );
+
+  it("keeps round-count trailing actions atomic when Canva formatting bisects them inside mixed prose", async () => {
+    const provider = new InspectingProvider();
+
+    const freeProse = "Bu bölümde çalışmaya devam ediyoruz.\n";
+    const buttonhole =
+      "12-20) 9 sıra 54x, 6 zincir (düğme iliği)";
+    const chainAndCut =
+      "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const source =
+      freeProse +
+      buttonhole +
+      "\n" +
+      chainAndCut;
+
+    // Intentionally place Canva style boundaries inside both deterministic
+    // semantic spans. Atomic ownership must prevent either instruction from
+    // being fragmented and exposed to the provider.
+    const boundaryA = source.indexOf("54x, 6") + 2;
+    const boundaryB = source.indexOf("54x, 1") + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-page13-round-count-trailing-actions",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundaryA },
+            { id: "fmt-1", start: boundaryA, end: boundaryB },
+            { id: "fmt-2", start: boundaryB, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "12-20) 54sc for 9 rounds, ch 6 (buttonhole)",
+    );
+    expect(result?.translated).toContain(
+      "21-25) 54sc for 5 rounds, ch 1 and cut the yarn.",
+    );
+
+    // The unrelated prose still uses the provider.
+    expect(provider.requests.length).toBeGreaterThan(0);
+
+    const providerText = provider.protectedTexts.join(" ");
+
+    expect(providerText).not.toMatch(/9\s+sıra\s+54x/iu);
+    expect(providerText).not.toMatch(/5\s+sıra\s+54x/iu);
+    expect(providerText).not.toMatch(/düğme\s+iliği/iu);
+    expect(providerText).not.toMatch(/ipimizi\s+kesiyoruz/iu);
+
+    expect(result?.targetFormattingRegions).toBeDefined();
+    expect(result?.targetFormattingRegions).toHaveLength(3);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it.each([
+    "12-20) 9 sıra 54x, 6 zincir (düğme iliği)",
+    "21-25) 5 sıra 54x, 1 zincir çekip ipimizi kesiyoruz.",
+  ])(
+    "does not bypass the provider for the round-count trailing-action family in Spanish: %s",
+    async (source) => {
+      const provider = new InspectingProvider();
+
+      await translateBlocks(
+        [{ id: "page13-round-count-trailing-action-es", text: source }],
+        "es",
+        { provider },
+      );
+
+      expect(provider.requests.length).toBeGreaterThan(0);
+    },
+  );
+});
+
+describe("Page 13 yarn intro and armhole regressions", () => {
+  it("renders the lilac yarn introduction deterministically through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page13-lilac-yarn-intro",
+          text: "Lila renk ip (Catania 226) ile başlıyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Start with lilac yarn (Catania 226).",
+    );
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+
+  it("normalizes both armhole skip phrasings consistently in the same row", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "9) 9x, 6 zincir çekip 12x atlıyoruz (kol boşluğu oluşturuyoruz), " +
+      "18x, 6 zincir, 12x atla (kol boşluğu), 9x";
+
+    const [result] = await translateBlocks(
+      [{ id: "page13-armhole-row9", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "9sc, ch 6, skip 12 sts",
+    );
+    expect(result?.translated).toContain(
+      "18sc, ch 6, skip 12 sts",
+    );
+
+    expect(result?.translated).not.toContain("12sc");
+    expect(result?.translated).not.toContain("6 chain and skip");
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+});
+
+describe("Page 13 final buttonhole regressions", () => {
+  it("normalizes the complete first-row buttonhole guidance through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) 34 zincir çekip dönüyoruz. " +
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre arttırıp ya da azaltabilirsiniz.) " +
+      "Yedinci zincirden itibaren 28x örüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page13-buttonhole-row1", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("Ch 34 and turn.");
+    expect(result?.translated).toContain(
+      "Skip 6 chains (to form a buttonhole;",
+    );
+    expect(result?.translated).toContain(
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+    expect(result?.translated).toContain(
+      "Starting from the seventh chain",
+    );
+    expect(result?.translated).toContain("28sc");
+
+    expect(result?.translated).not.toContain("we are forming");
+    expect(result?.translated).not.toContain("chains we make");
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("normalizes standalone buttonhole chains through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page13-standalone-buttonhole",
+          text: "6 zincir (düğme iliği)",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("ch 6 (buttonhole)");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("uses canonical repeated-round turn wording through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page13-round-end-turn",
+          text: "Sıra sonlarında 1 zincir çekip dönüyoruz.",
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "At the end of each round, ch 1 and turn.",
+    );
+    expect(result?.translated).not.toContain(
+      "At the end of rounds",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 13 long buttonhole formatting regression", () => {
+  it("keeps long buttonhole guidance atomic when Canva formatting bisects it", async () => {
+    const provider = new InspectingProvider();
+
+    const prefix = "1) 34 zincir çekip dönüyoruz. ";
+    const guidance =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre arttırıp ya da azaltabilirsiniz.)";
+    const suffix = " Yedinci zincirden itibaren 28x örüyoruz.";
+
+    const source = prefix + guidance + suffix;
+
+    // Bisect the deterministic guidance inside the explanatory sentence.
+    const boundary =
+      source.indexOf("çektiğimiz zincir sayısını") + 10;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page13-buttonhole-formatting-regression",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Skip 6 chains (to form a buttonhole;",
+    );
+    expect(result?.translated).toContain(
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+    expect(result?.translated).toContain(
+      "Starting from the seventh chain",
+    );
+    expect(result?.translated).toContain("28sc");
+
+    expect(result?.translated).not.toContain(
+      "we are making a buttonhole",
+    );
+    expect(result?.translated).not.toContain(
+      "chains we make for the buttonhole",
+    );
+
+    // The guidance itself must not be exposed to the provider.
+    const providerText = provider.protectedTexts.join(" ");
+    expect(providerText).not.toMatch(/düğme\s+iliği\s+oluşturuyoruz/iu);
+    expect(providerText).not.toMatch(/çektiğimiz\s+zincir\s+sayısını/iu);
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 13 exact-live long buttonhole deterministic ownership", () => {
+  it("bypasses the provider completely for the exact live 'artırıp' guidance", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.)";
+
+    const [result] = await translateBlocks(
+      [{ id: "page13-live-buttonhole-guidance", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "Skip 6 chains (to form a buttonhole; " +
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("keeps the exact live guidance away from the provider across Canva formatting boundaries", async () => {
+    const provider = new InspectingProvider();
+
+    const prefix = "1) 34 zincir çekip geriye dönüyoruz. ";
+    const guidance =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.)";
+    const suffix = " yedinci zincirden itibaren 28x";
+
+    const source = prefix + guidance + suffix;
+
+    const boundary =
+      source.indexOf("çektiğimiz zincir sayısını") + 10;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page13-live-row1-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "Skip 6 chains (to form a buttonhole;",
+    );
+    expect(result?.translated).toContain(
+      "you can increase or decrease the number of chains depending on the size of the button you will use).",
+    );
+    expect(result?.translated).toContain("28sc");
+
+    const providerText = provider.protectedTexts.join(" ");
+
+    // Neither original Turkish nor already-normalized deterministic English
+    // is allowed back through the provider.
+    expect(providerText).not.toMatch(/düğme\s+iliği\s+oluşturuyoruz/iu);
+    expect(providerText).not.toMatch(/çektiğimiz\s+zincir\s+sayısını/iu);
+    expect(providerText).not.toContain("to form a buttonhole");
+    expect(providerText).not.toContain(
+      "you can increase or decrease the number of chains",
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("does not claim deterministic resolution for the same family in Spanish", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "6 zincir atlıyoruz (düğme iliği oluşturuyoruz. " +
+      "Düğme iliği için çektiğimiz zincir sayısını, " +
+      "kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.)";
+
+    await translateBlocks(
+      [{ id: "page13-buttonhole-guidance-es", text: source }],
+      "es",
+      { provider },
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+  });
+});

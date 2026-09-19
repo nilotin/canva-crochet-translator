@@ -1,7 +1,9 @@
 import type { TargetLanguage } from "../types.js";
 import {
   normalizeBareRoundCountSourceLines,
+  normalizeRoundCountTrailingActionSourceSpans,
   normalizeRoundCountYarnCutSourceSpans,
+  scanRoundCountTrailingActionSourceSpans,
 } from "./bare_round_count.js";
 import {
   translateTurkishYarnColor,
@@ -68,7 +70,10 @@ const normalizeEnglishCrochetStructures = (
   if (targetLanguage !== "en") return source;
 
   return normalizeBareRoundCountSourceLines(
-    normalizeRoundCountYarnCutSourceSpans(source, "x"),
+    normalizeRoundCountYarnCutSourceSpans(
+      normalizeRoundCountTrailingActionSourceSpans(source, "x"),
+      "x",
+    ),
     "x",
   )
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
@@ -164,6 +169,25 @@ const normalizeEnglishCrochetStructures = (
       /\b(\d+)\s*x\s*[-–—]\s*(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
       (_match, stitches: string, chains: string) =>
         `${stitches}x, ch ${chains} (buttonhole) and turn`,
+    )
+    .replace(
+      // Long-form buttonhole guidance. Resolve the structural skip action and
+      // its explanatory advice together so a provider cannot mechanically
+      // reconstruct the parenthetical sentence around the deterministic count.
+      /\b(\d+)\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)/giu,
+      (_match, chains: string) =>
+        `Skip ${chains} chains (to form a buttonhole; you can increase or decrease the number of chains depending on the size of the button you will use).`,
+    )
+    .replace(
+      // Standalone buttonhole chain annotation, e.g. "6 zincir (düğme iliği)".
+      /\b(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)/giu,
+      (_match, chains: string) => `ch ${chains} (buttonhole)`,
+    )
+    .replace(
+      // Repeated round-end turning instruction.
+      /\bsıra\s+sonlarında\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu,
+      (_match, chains: string) =>
+        `At the end of each round, ch ${chains} and turn.`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
@@ -373,6 +397,13 @@ const normalizeEnglishCrochetStructures = (
         `Ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}, work ${work}sc in the next single crochet. Continue in this way to the end of the round.`,
     )
     .replace(
+      // Inflected sibling used in prose-style pattern instructions:
+      // "N zincir çekip Mx atlıyoruz".
+      /\b(\d+)\s+zincir\s+çekip\s+(\d+)\s*x\s+atlıyoruz\b/giu,
+      (_match, chains: string, skip: string) =>
+        `ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}`,
+    )
+    .replace(
       // Narrower sibling of the family above for "N zincir, Mx atla" on its
       // own (no "sıradaki sık iğneye..." continuation). Uses the project's
       // existing "st/sts" wording for a plain skip count; singular vs.
@@ -406,32 +437,21 @@ const normalizeEnglishCrochetStructures = (
       "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
-      /(^|[^\p{L}\p{N}_])(siyah|beyaz|kırmızı|mavi|yeşil|sarı|mor|turuncu|pembe|kahverengi|gri|ekru)\s+(?:renk\s+)?ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b/giu,
+      new RegExp(
+        `(^|[^\\p{L}\\p{N}_])(${TURKISH_YARN_COLOR_PATTERN})\\s+(?:renk\\s+)?ip\\s*\\(\\s*([^)]+?)\\s*\\)\\s+ile\\s+başlıyoruz\\b`,
+        "giu",
+      ),
       (
         _match,
         prefix: string,
         colorSource: string,
         brand: string,
       ) => {
-        const colors: Record<string, string> = {
-          siyah: "black",
-          beyaz: "white",
-          kırmızı: "red",
-          mavi: "blue",
-          yeşil: "green",
-          sarı: "yellow",
-          mor: "purple",
-          turuncu: "orange",
-          pembe: "pink",
-          kahverengi: "brown",
-          gri: "gray",
-          ekru: "ecru",
-        };
+        const color = translateTurkishYarnColor(colorSource, "en");
 
-        const color =
-          colors[colorSource.toLocaleLowerCase("tr-TR")];
-
-        return `${prefix}Start with ${color} yarn (${brand.trim()})`;
+        return color
+          ? `${prefix}Start with ${color} yarn (${brand.trim()})`
+          : _match;
       },
     )
     .replace(
@@ -1272,6 +1292,9 @@ export const normalizeSourceNaturalLanguage = (
     );
 
 
+const fullyResolvedLongButtonholeGuidancePattern =
+  /^\s*\d+\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)\s*$/iu;
+
 export const normalizeSourceNaturalLanguageDetailed = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -1283,13 +1306,24 @@ export const normalizeSourceNaturalLanguageDetailed = (
     contentKind,
   );
 
+  const trimmedSource = source.trim();
+  const trailingActionSpans =
+    scanRoundCountTrailingActionSourceSpans(trimmedSource);
+
+  const fullyResolvedRoundCountTrailingAction =
+    trailingActionSpans.length === 1 &&
+    trailingActionSpans[0]?.start === 0 &&
+    trailingActionSpans[0]?.end === trimmedSource.length;
+
   const fullyResolved =
     contentKind === "pattern" &&
     targetLanguage === "en" &&
     (
       fullyResolvedChainSkipContinueAndFinishPattern.test(source) ||
       fullyResolvedReferencedLoopStitchCountPattern.test(source) ||
-      fullyResolvedChainTurnSlipStitchContinuationPattern.test(source)
+      fullyResolvedChainTurnSlipStitchContinuationPattern.test(source) ||
+      fullyResolvedLongButtonholeGuidancePattern.test(source) ||
+      fullyResolvedRoundCountTrailingAction
     );
 
   return {
