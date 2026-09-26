@@ -46,7 +46,12 @@ const placeholderCandidatePattern = /__XQ[^\s]*?QX__/gu;
 export const containsReservedPlaceholder = (text: string): boolean =>
   /__XQ[^\s]*?QX__/u.test(text);
 
-const placeholderFor = (index: number): string => {
+/**
+ * The canonical reserved placeholder for a 0-based token index:
+ * `__XQ` + four base-26 letters + `QX__`. Shared by every layer that hides
+ * text from the provider, so there is exactly one placeholder grammar.
+ */
+export const reservedPlaceholder = (index: number): string => {
   let remaining = index;
   let encoded = "";
   for (let position = 0; position < 4; position += 1) {
@@ -141,7 +146,7 @@ export const protectImmutablePattern = (
   }
   const tokens = nonOverlapping.map((occurrence, index) => ({
     ...occurrence.token,
-    placeholder: placeholderFor(startIndex + index),
+    placeholder: reservedPlaceholder(startIndex + index),
   })) as ProtectedToken[];
 
   let cursor = 0;
@@ -182,13 +187,17 @@ export const renderProtectedToken = (
         ? renderRoundReference(token, targetLanguage)
         : token.source;
 
-export const restoreImmutablePattern = (
+/**
+ * Integrity of reserved placeholders in provider output against the expected
+ * placeholders, in order. Reports MISSING, DUPLICATE, UNEXPECTED and MUTATED
+ * placeholders; REORDERED only when none of those occurred. Empty when the
+ * output carries exactly the expected placeholders in the expected order.
+ */
+export const placeholderIntegrityErrors = (
   translated: string,
-  protectedSource: ProtectedImmutableText,
-  targetLanguage: TargetLanguage,
-): NotationRestoration => {
+  expected: readonly string[],
+): PlaceholderIntegrityDiagnostic[] => {
   const errors: PlaceholderIntegrityDiagnostic[] = [];
-  const expected = protectedSource.tokens.map(({ placeholder }) => placeholder);
   const expectedSet = new Set(expected);
   const exact = [...translated.matchAll(exactPlaceholderPattern)].map(
     (match) => match[0],
@@ -248,6 +257,18 @@ export const restoreImmutablePattern = (
       ),
     );
   }
+  return errors;
+};
+
+export const restoreImmutablePattern = (
+  translated: string,
+  protectedSource: ProtectedImmutableText,
+  targetLanguage: TargetLanguage,
+): NotationRestoration => {
+  const errors: PlaceholderIntegrityDiagnostic[] = placeholderIntegrityErrors(
+    translated,
+    protectedSource.tokens.map(({ placeholder }) => placeholder),
+  );
   if (errors.length > 0) return { text: translated, valid: false, errors };
 
   let restored = translated;

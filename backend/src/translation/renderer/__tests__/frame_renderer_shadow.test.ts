@@ -97,6 +97,9 @@ describe("frame renderer shadow: production isolation", () => {
   it("is not imported by any production module", () => {
     const importers = productionFiles(sourceRoot)
       .filter((path) => !path.includes(rendererDirectory))
+      // Shadow frame protection consumes the IR and render units; its own isolation
+      // test (assembly/__tests__/frame_protection_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}assembly${sep}`))
       .filter((path) => /frame_renderer/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);

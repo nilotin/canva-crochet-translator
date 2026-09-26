@@ -102,6 +102,9 @@ describe("frame parser shadow: production isolation", () => {
       // The shadow frame renderer consumes the IR; its own isolation test
       // (renderer/__tests__/frame_renderer_shadow.test.ts) keeps it out of production.
       .filter((path) => !path.includes(`${sep}translation${sep}renderer${sep}`))
+      // Shadow frame protection consumes the IR and render units; its own isolation
+      // test (assembly/__tests__/frame_protection_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}assembly${sep}`))
       .filter((path) => /frame_parser|frame_ir/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);
