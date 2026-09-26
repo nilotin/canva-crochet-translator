@@ -5,6 +5,9 @@ import { extractLeadingInstruction } from "./instruction_marker.js";
 import {
   isPatternOnlyProtectedText,
   protectImmutablePattern,
+  reservedPlaceholder,
+  reservedPlaceholdersIn,
+  type ProtectedImmutableText,
   type ProtectedToken,
 } from "./notation/immutable.js";
 import type { TargetLanguage, TranslationBlock } from "./types.js";
@@ -22,7 +25,11 @@ type UnpositionedMixedSegmentToken =
   | { kind: "instruction_marker"; text: string }
   | { kind: "structure"; text: string }
   | { kind: "whitespace"; text: string }
-  | { kind: "natural_language"; id: string; text: string };
+  | { kind: "natural_language"; id: string; text: string }
+  // A system-owned reserved placeholder the caller declared as expected. It is
+  // lexical passthrough: never prose, never notation, reconstructed verbatim
+  // until the layer that created it restores it.
+  | { kind: "reserved_placeholder"; text: string };
 
 export type MixedSegmentToken = UnpositionedMixedSegmentToken & {
   start: number;
@@ -214,13 +221,127 @@ export const classifySegment = (source: string): SegmentClassification => {
     : "mixed";
 };
 
+export type LexMixedSegmentOptions = {
+  /**
+   * System-owned reserved placeholders the caller inserted into `source`
+   * (for example by frame protection). Each must be canonical, listed once
+   * and occur exactly once in `source`; any other reserved placeholder syntax
+   * in `source` makes the result invalid. Ownership is never inferred from
+   * syntax alone. Omitted or empty: the lexer behaves exactly as before.
+   */
+  readonly reservedPlaceholders?: readonly string[];
+};
+
+const NO_RESERVED: ReadonlySet<string> = new Set();
+
+/** Protected text with the expected reserved placeholders removed, for classification. */
+const withoutReserved = (
+  protectedSource: ProtectedImmutableText,
+  reserved: ReadonlySet<string>,
+): ProtectedImmutableText => ({
+  text: [...reserved].reduce((text, placeholder) => text.replace(placeholder, ""), protectedSource.text),
+  tokens: protectedSource.tokens,
+});
+
+/** Invalid expected-placeholder usage, in a deterministic order. Empty when usable. */
+const reservedPlaceholderErrors = (
+  source: string,
+  expected: readonly string[],
+): string[] => {
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  const canonical = new Set<string>();
+  for (const placeholder of expected) {
+    const found = reservedPlaceholdersIn(placeholder);
+    if (found.length !== 1 || found[0] !== placeholder) {
+      errors.push(`Invalid expected reserved placeholder ${JSON.stringify(placeholder)}.`);
+    } else if (seen.has(placeholder)) {
+      errors.push(`Duplicate expected reserved placeholder ${placeholder}.`);
+    } else {
+      canonical.add(placeholder);
+    }
+    seen.add(placeholder);
+  }
+  const inSource = reservedPlaceholdersIn(source);
+  for (const placeholder of canonical) {
+    const count = inSource.filter((candidate) => candidate === placeholder).length;
+    if (count !== 1) {
+      errors.push(
+        `Expected reserved placeholder ${placeholder} must occur exactly once in the source (found ${count}).`,
+      );
+    }
+  }
+  for (const placeholder of new Set(inSource)) {
+    if (!seen.has(placeholder)) {
+      errors.push(`Unexpected reserved placeholder ${placeholder} in the source.`);
+    }
+  }
+  return errors;
+};
+
+/**
+ * The first immutable placeholder start index whose whole range is disjoint
+ * from the expected placeholders, so an immutable token can never be mistaken
+ * for a system placeholder (or the reverse). Numbering is internal: mixed
+ * tokens never expose immutable placeholders, so the choice has no effect on
+ * the lexer's output.
+ */
+const disjointImmutableStart = (source: string, reserved: ReadonlySet<string>): number => {
+  const count = protectImmutablePattern(source).tokens.length;
+  let start = 0;
+  while (
+    Array.from({ length: count }, (_unused, index) => reservedPlaceholder(start + index)).some(
+      (placeholder) => reserved.has(placeholder),
+    )
+  ) {
+    start += 1;
+  }
+  return start;
+};
+
 export const lexMixedSegment = (
   source: string,
   targetLanguage: TargetLanguage,
   idPrefix: string,
+  options: LexMixedSegmentOptions = {},
 ): LexedMixedSegment => {
-  const protectedSource = protectImmutablePattern(source);
-  if (isPatternOnlyProtectedText(protectedSource))
+  const expected = options.reservedPlaceholders ?? [];
+  if (expected.length === 0) {
+    return lexProtectedSegment(source, targetLanguage, idPrefix, protectImmutablePattern(source), NO_RESERVED);
+  }
+  const errors = reservedPlaceholderErrors(source, expected);
+  if (errors.length > 0) {
+    return { classification: "mixed", tokens: [], spans: [], valid: false, errors };
+  }
+  const reserved = new Set(expected);
+  const protectedSource = protectImmutablePattern(source, disjointImmutableStart(source, reserved));
+  for (const placeholder of reserved) {
+    if (protectedSource.text.split(placeholder).length !== 2) {
+      return {
+        classification: "mixed",
+        tokens: [],
+        spans: [],
+        valid: false,
+        errors: [`Expected reserved placeholder ${placeholder} was altered by immutable protection.`],
+      };
+    }
+  }
+  return lexProtectedSegment(source, targetLanguage, idPrefix, protectedSource, reserved);
+};
+
+/** The lexer proper. With no reserved placeholders this is the original lexer, unchanged. */
+const lexProtectedSegment = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  idPrefix: string,
+  protectedSource: ProtectedImmutableText,
+  reserved: ReadonlySet<string>,
+): LexedMixedSegment => {
+  if (
+    isPatternOnlyProtectedText(
+      reserved.size === 0 ? protectedSource : withoutReserved(protectedSource, reserved),
+    )
+  )
     return {
       classification: "pattern_only",
       tokens: [],
@@ -228,7 +349,7 @@ export const lexMixedSegment = (
       valid: true,
       errors: [],
     };
-  if (protectedSource.tokens.length === 0)
+  if (protectedSource.tokens.length === 0 && reserved.size === 0)
     return {
       classification: "natural_language_only",
       tokens: [],
@@ -249,6 +370,8 @@ export const lexMixedSegment = (
     const protectedToken = byPlaceholder.get(match[0]);
     if (protectedToken)
       tokens.push(immutableToken(protectedToken, targetLanguage));
+    else if (reserved.has(match[0]))
+      tokens.push({ kind: "reserved_placeholder", text: match[0] });
     cursor = start + match[0].length;
   }
   tokens.push(...lexUnprotected(protectedSource.text.slice(cursor)));
