@@ -1,8 +1,11 @@
 import type { TargetLanguage } from "../types.js";
 import {
-  normalizeRoundCountYarnCutSourceSpans,
+  inferCrochetCountUnitAtSourcePosition,
   parseBareRoundCountSourceLine,
   renderEnglishBareRoundCountLine,
+  renderEnglishRoundCountTrailingActionSpan,
+  renderEnglishRoundCountYarnCutSpan,
+  scanRoundCountTrailingActionSourceSpans,
   scanRoundCountYarnCutSourceSpans,
 } from "./bare_round_count.js";
 import {
@@ -152,15 +155,36 @@ const TURKISH_YARN_COLORS: Record<string, string> = {
 };
 
 const isStitchMarkerInstruction = (source: string): boolean =>
-  /başlangıç\s+noktamız/iu.test(source) &&
-  /işaretleyici\p{L}*/iu.test(source) &&
-  /buraya/iu.test(source) &&
-  /(?:takıyoruz|yerleştiriyoruz|sabitliyoruz)/iu.test(source);
+  /^\s*(?:\d+\)\s*)?(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?|başlangıç\s+noktamız\s+burası\s+olacak)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz|sabitliyoruz)\s*[.]?\s*$/iu.test(
+    source,
+  );
 
 const normalizeEnglishCrochetInstructionLine = (
   source: string,
   translated: string,
+  sourceContext: string = source,
+  sourceStart = 0,
 ): string => {
+  const roundCountTrailingActionSpans =
+    scanRoundCountTrailingActionSourceSpans(source);
+  const roundCountTrailingActionSpan = roundCountTrailingActionSpans[0];
+
+  if (
+    roundCountTrailingActionSpans.length === 1 &&
+    roundCountTrailingActionSpan &&
+    source.slice(0, roundCountTrailingActionSpan.start).trim() === "" &&
+    source.slice(roundCountTrailingActionSpan.end).trim() === ""
+  ) {
+    return renderEnglishRoundCountTrailingActionSpan(
+      roundCountTrailingActionSpan,
+      "sc",
+      inferCrochetCountUnitAtSourcePosition(
+        sourceContext,
+        sourceStart + roundCountTrailingActionSpan.start,
+      ),
+    );
+  }
+
   const roundCountYarnCutSpans = scanRoundCountYarnCutSourceSpans(source);
   const roundCountYarnCutSpan = roundCountYarnCutSpans[0];
   if (
@@ -169,7 +193,14 @@ const normalizeEnglishCrochetInstructionLine = (
     source.slice(0, roundCountYarnCutSpan.start).trim() === "" &&
     source.slice(roundCountYarnCutSpan.end).trim() === ""
   ) {
-    return normalizeRoundCountYarnCutSourceSpans(source, "sc");
+    return renderEnglishRoundCountYarnCutSpan(
+      roundCountYarnCutSpan,
+      "sc",
+      inferCrochetCountUnitAtSourcePosition(
+        sourceContext,
+        sourceStart + roundCountYarnCutSpan.start,
+      ),
+    );
   }
 
   const sourceClauses = /^(.*?)(\s+[—–-]\s+)(.*)$/u.exec(source);
@@ -179,6 +210,8 @@ const normalizeEnglishCrochetInstructionLine = (
     const normalizedPrefix = normalizeEnglishCrochetInstructionLine(
       sourceClauses[1] ?? "",
       translatedPrefix,
+      sourceContext,
+      sourceStart,
     );
 
     if (translatedClauses || normalizedPrefix !== translatedPrefix) {
@@ -265,7 +298,7 @@ const normalizeEnglishCrochetInstructionLine = (
     const [, prefix, chains, stitches, skipped, finalChains] =
       finishingHairStrand;
 
-    return `${prefix}Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch ${finalChains} and cut the yarn, leaving a long tail for sewing.`;
+    return `${prefix}Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, sl st into the next stitch. Continue in this way to the end of the round. At the end of the round, ch ${finalChains} and cut the yarn, leaving a long tail for sewing.`;
   }
 
   const repeatedHairStrand =
@@ -277,7 +310,7 @@ const normalizeEnglishCrochetInstructionLine = (
     const [, prefix, chains, stitches, skipped, repeats, suffix] =
       repeatedHairStrand;
 
-    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch)*${repeats}${suffix}`;
+    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, sl st into the next stitch)*${repeats}${suffix}`;
   }
 
   const repeatedLongHairThenBangs =
@@ -296,7 +329,7 @@ const normalizeEnglishCrochetInstructionLine = (
       longHairCount,
     ] = repeatedLongHairThenBangs;
 
-    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, SL.ST into the next stitch)*${repeats}. After making ${longHairCount} long hair strands, work the bangs.`;
+    return `${prefix}(Ch ${chains} and turn. Starting from the second chain, ${stitches}sc, skip ${skipped}sc, sl st into the next stitch)*${repeats}. After making ${longHairCount} long hair strands, work the bangs.`;
   }
 
   const chainTurnFoundation =
@@ -491,10 +524,24 @@ const normalizeEnglishCrochetInstructionLine = (
     );
 
   if (shortLoopRound) {
+    const prefix = shortLoopRound[1] ?? "";
     const loop = shortLoopRound[2]?.toUpperCase();
+
+    if (!loop) {
+      return translated;
+    }
+
+    const escapedPrefix = prefix.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+
     return translated.replace(
-      new RegExp(`^(${shortLoopRound[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})?${loop}\\s+from\\s+`, "iu"),
-      `${shortLoopRound[1]}In ${loop}, `,
+      new RegExp(
+        `^(${escapedPrefix})?${loop}\\s+from\\s+`,
+        "iu",
+      ),
+      `${prefix}In ${loop}, `,
     );
   }
 
@@ -565,7 +612,14 @@ const normalizeEnglishCrochetInstructionLine = (
 
   const roundCount = parseBareRoundCountSourceLine(source);
   if (roundCount) {
-    return renderEnglishBareRoundCountLine(roundCount, "sc");
+    return renderEnglishBareRoundCountLine(
+      roundCount,
+      "sc",
+      inferCrochetCountUnitAtSourcePosition(
+        sourceContext,
+        sourceStart,
+      ),
+    );
   }
 
   const magicRing =
@@ -680,23 +734,40 @@ const normalizeEnglishCrochetInstructions = (
   source: string,
   translated: string,
   targetLanguage: TargetLanguage,
+  sourceContext: string = source,
+  sourceStart = 0,
 ): string => {
   if (targetLanguage !== "en") return translated;
   const sourceLines = source.split("\n");
-  const crochetTerminology = /(?<!\p{L})sıra\p{L}*/iu.test(source)
-    ? translated
-        .replace(/\brows\b/giu, "rounds")
-        .replace(/\brow\b/giu, "round")
-    : translated;
+
+  const usesTurningRows =
+    /\bbütün\s+sıra\s+sonlarında\b[\s\S]{0,80}\bdönüyoruz\b/iu.test(
+      source,
+    ) ||
+    /\b\d+\s+zincir(?:\s+çekip)?\s+dön(?:üyoruz)?\b/iu.test(source);
+
+  const crochetTerminology =
+    /(?<!\p{L})sıra\p{L}*/iu.test(source) && !usesTurningRows
+      ? translated
+          .replace(/\brows\b/giu, "rounds")
+          .replace(/\brow\b/giu, "round")
+      : translated;
   const translatedLines = crochetTerminology.split("\n");
   if (sourceLines.length !== translatedLines.length) return crochetTerminology;
+  let lineStart = 0;
+
   return sourceLines
-    .map((sourceLine, index) =>
-      normalizeEnglishCrochetInstructionLine(
+    .map((sourceLine, index) => {
+      const normalized = normalizeEnglishCrochetInstructionLine(
         sourceLine,
         translatedLines[index] ?? "",
-      ),
-    )
+        sourceContext,
+        sourceStart + lineStart,
+      );
+
+      lineStart += sourceLine.length + (index < sourceLines.length - 1 ? 1 : 0);
+      return normalized;
+    })
     .join("\n");
 };
 
@@ -799,6 +870,8 @@ export const normalizeTranslationStyle = (
   translated: string,
   targetLanguage: TargetLanguage,
   contentKind: "pattern" | "materials" = "pattern",
+  sourceContext: string = source,
+  sourceStart = 0,
 ): string => {
   const magicRingOpening = normalizeMagicRingOpening(
     source,
@@ -819,6 +892,8 @@ export const normalizeTranslationStyle = (
     source,
     mixed,
     targetLanguage,
+    sourceContext,
+    sourceStart,
   );
   const floBlo = normalizeSimpleFloBlo(
     source,
@@ -826,13 +901,23 @@ export const normalizeTranslationStyle = (
     targetLanguage,
   );
 
+  const normalizedTerminology = normalizeReverseSingleCrochetTerminology(
+    source,
+    floBlo,
+    targetLanguage,
+  );
+
+  const canonicalNotation =
+    targetLanguage === "en"
+      ? normalizedTerminology.replace(
+          /(?<!\p{L})SL[.]ST(?!\p{L})/giu,
+          "sl st",
+        )
+      : normalizedTerminology;
+
   return normalizeMaterialsSafetyEyes(
     source,
-    normalizeReverseSingleCrochetTerminology(
-      source,
-      floBlo,
-      targetLanguage,
-    ),
+    canonicalNotation,
     targetLanguage,
     contentKind,
   );

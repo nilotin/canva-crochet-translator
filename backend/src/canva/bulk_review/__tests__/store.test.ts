@@ -98,6 +98,43 @@ describe("durable bulk review store", () => {
     });
   });
 
+  it("round-trips atomic-collapse absorbed formatting provenance", async () => {
+    const path = await pathForTest();
+
+    await new JsonBulkReviewStore(path).saveReview(
+      review({
+        pipelineRevision: "translation-pipeline-v14",
+        blocks: [
+          {
+            ...review().blocks[0]!,
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: 3 },
+              { id: "fmt-1", start: 3, end: 3 },
+            ],
+            formattingProjection: "atomic_collapse",
+            absorbedFormattingRegionIds: ["fmt-1"],
+          },
+        ],
+      }),
+    );
+
+    const restored = await new JsonBulkReviewStore(path).getReview({
+      userId: "user-1",
+      targetDesignId: "target-1",
+      targetLanguage: "en",
+      pageId: "page-1",
+    });
+
+    expect(restored?.blocks[0]).toMatchObject({
+      formattingProjection: "atomic_collapse",
+      absorbedFormattingRegionIds: ["fmt-1"],
+      targetFormattingRegions: [
+        { id: "fmt-0", start: 0, end: 3 },
+        { id: "fmt-1", start: 3, end: 3 },
+      ],
+    });
+  });
+
   it("replaces the previous review for the same page key", async () => {
     const path = await pathForTest();
     const store = new JsonBulkReviewStore(path);

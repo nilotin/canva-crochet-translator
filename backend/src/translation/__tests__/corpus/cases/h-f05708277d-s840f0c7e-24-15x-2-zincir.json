@@ -1,0 +1,95 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "salem-round",
+        "source": "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+        "translated": "24) 15sc, ch 2, skip 2 sts, 9sc, ch 2, skip 2 sts, 38sc (we will insert the eyes into these chain spaces later)",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-f05708277d-s840f0c7e-24-15x-2-zincir",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes a complete Salem-style round without changing its numeric sequence"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "ch",
+        "translated": "ch"
+      },
+      {
+        "source": "skip",
+        "translated": "skip"
+      },
+      {
+        "source": "sts",
+        "translated": "sts"
+      },
+      {
+        "source": "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes",
+        "translated": "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "salem-round",
+        "text": "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "salem-round",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5",
+          "span-6"
+        ],
+        "blockTexts": [
+          "ch",
+          "skip",
+          "sts",
+          "ch",
+          "skip",
+          "sts",
+          "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "e8fa6dabf56218df6a03cbecee2a1191a5afc27d1e7690b96d5168d3779b7330"
+      }
+    ]
+  }
+}

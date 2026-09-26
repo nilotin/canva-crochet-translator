@@ -16,6 +16,7 @@ import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
 import {
+  inferCrochetCountUnitAtSourcePosition,
   parseBareRoundCountSourceLine,
   parseBareRoundCountTargetLine,
   scanRoundCountTrailingActionSourceSpans,
@@ -88,9 +89,112 @@ const comparableSourceNumbersWithWrittenCrochetCounts = (
   source: string,
 ): string[] => comparableSourceNumberTokens(source).map(({ value }) => value);
 
+const expectedCrochetCountUnitWord = (
+  count: string,
+  sourceContext: string,
+  sourcePosition: number,
+): "round" | "rounds" | "row" | "rows" => {
+  const unit = inferCrochetCountUnitAtSourcePosition(
+    sourceContext,
+    sourcePosition,
+  );
+
+  if (Number(count) === 1) return unit;
+  return unit === "row" ? "rows" : "rounds";
+};
+
+const hasValidBareCrochetCountUnits = (
+  source: string,
+  translated: string,
+  sourceContext: string = source,
+  sourceOffset = 0,
+): boolean => {
+  const sourceLines = splitLogicalLines(source);
+  const translatedLines = splitLogicalLines(translated);
+  const claimedTranslatedLineIndexes = new Set<number>();
+
+  for (const [index, sourceLine] of sourceLines.entries()) {
+    const sourceMatch = parseBareRoundCountSourceLine(sourceLine.text);
+    if (!sourceMatch) continue;
+
+    const expectedUnitWord = expectedCrochetCountUnitWord(
+      sourceMatch.rounds,
+      sourceContext,
+      sourceOffset + sourceLine.start,
+    );
+
+    let translatedLineIndex: number | undefined;
+
+    if (sourceLines.length === translatedLines.length) {
+      translatedLineIndex = index;
+
+      if (sourceMatch.range !== undefined) {
+        const marker = `${sourceMatch.range})`;
+        const candidate =
+          translatedLines[translatedLineIndex]?.text.trimStart() ?? "";
+
+        if (!candidate.startsWith(marker)) {
+          return false;
+        }
+      }
+    } else if (sourceMatch.range !== undefined) {
+      const marker = `${sourceMatch.range})`;
+      const matchingIndexes = translatedLines
+        .map((line, translatedIndex) => ({
+          translatedIndex,
+          matches: line.text.trimStart().startsWith(marker),
+        }))
+        .filter(({ matches }) => matches)
+        .map(({ translatedIndex }) => translatedIndex);
+
+      if (matchingIndexes.length !== 1) {
+        return false;
+      }
+
+      translatedLineIndex = matchingIndexes[0];
+    } else {
+      // A bare count without a stable marker cannot be assigned safely once
+      // the target line structure has changed.
+      return false;
+    }
+
+    if (
+      translatedLineIndex === undefined ||
+      claimedTranslatedLineIndexes.has(translatedLineIndex)
+    ) {
+      return false;
+    }
+
+    claimedTranslatedLineIndexes.add(translatedLineIndex);
+
+    const translatedLine = translatedLines[translatedLineIndex]?.text;
+    if (translatedLine === undefined) {
+      return false;
+    }
+
+    const unitPattern = new RegExp(
+      `(?<![\\p{L}\\p{N}_])${sourceMatch.rounds}\\s+(round|rounds|row|rows)(?![\\p{L}\\p{N}_])`,
+      "iu",
+    );
+
+    const targetUnit = translatedLine.match(unitPattern)?.[1];
+
+    if (
+      targetUnit === undefined ||
+      targetUnit.toLocaleLowerCase("en") !== expectedUnitWord
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
   source: string,
   translated: string,
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string[] | undefined => {
   const sourceLines = splitLogicalLines(source);
   const translatedLines = splitLogicalLines(translated);
@@ -104,7 +208,14 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
       );
 
       const expectedRoundWord =
-        Number(sourceMatch?.rounds) === 1 ? "round" : "rounds";
+        sourceMatch !== undefined
+          ? expectedCrochetCountUnitWord(
+              sourceMatch.rounds,
+              sourceContext,
+              sourceOffset + sourceLine.start,
+            )
+          : undefined;
+
       const verifiedPair =
         sourceMatch !== undefined &&
         targetMatch !== undefined &&
@@ -126,6 +237,8 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
 const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
   source: string,
   translated: string,
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string[] | undefined => {
   const sourceSpans = scanRoundCountTrailingActionSourceSpans(source);
   const targetSpans = scanRoundCountTrailingActionTargetSpans(translated);
@@ -141,8 +254,11 @@ const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
 
   for (const [index, sourceSpan] of sourceSpans.entries()) {
     const targetSpan = targetSpans[index];
-    const expectedRoundWord =
-      Number(sourceSpan.rounds) === 1 ? "round" : "rounds";
+    const expectedRoundWord = expectedCrochetCountUnitWord(
+      sourceSpan.rounds,
+      sourceContext,
+      sourceOffset + sourceSpan.start,
+    );
 
     if (
       !targetSpan ||
@@ -192,6 +308,8 @@ const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
 const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
   source: string,
   translated: string,
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string[] | undefined => {
   const sourceSpans = scanRoundCountYarnCutSourceSpans(source);
   const targetSpans = scanRoundCountYarnCutTargetSpans(translated);
@@ -206,8 +324,12 @@ const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
 
   for (const [index, sourceSpan] of sourceSpans.entries()) {
     const targetSpan = targetSpans[index];
-    const expectedRoundWord =
-      Number(sourceSpan.rounds) === 1 ? "round" : "rounds";
+    const expectedRoundWord = expectedCrochetCountUnitWord(
+      sourceSpan.rounds,
+      sourceContext,
+      sourceOffset + sourceSpan.start,
+    );
+
     if (
       !targetSpan ||
       sourceSpan.prefix !== targetSpan.prefix ||
@@ -417,6 +539,8 @@ export const validateTranslation = (
   options: {
     notationCaseInsensitive?: boolean;
     contentKind?: "pattern" | "materials";
+    sourceContext?: string;
+    sourceStart?: number;
   } = {},
 ): BlockValidation => {
   const errors: ValidationDiagnostic<ValidationCode>[] = [];
@@ -470,6 +594,8 @@ export const validateTranslation = (
         comparableSourceNumbersWithVerifiedBareRoundCountSwaps(
           source,
           translated,
+          options.sourceContext ?? source,
+          options.sourceStart ?? 0,
         ) ?? [],
         translatedNumbers,
       )) ||
@@ -478,6 +604,8 @@ export const validateTranslation = (
         comparableSourceNumbersWithVerifiedYarnCutSwaps(
           source,
           translated,
+          options.sourceContext ?? source,
+          options.sourceStart ?? 0,
         ) ?? [],
         translatedNumbers,
       )) ||
@@ -486,15 +614,29 @@ export const validateTranslation = (
         comparableSourceNumbersWithVerifiedTrailingActionSwaps(
           source,
           translated,
+          options.sourceContext ?? source,
+          options.sourceStart ?? 0,
         ) ?? [],
         translatedNumbers,
       ));
 
-  if (!numericSequenceMatches) {
+  const bareCountUnitsValid =
+    options.contentKind === "materials" ||
+    targetLanguage !== "en" ||
+    hasValidBareCrochetCountUnits(
+      source,
+      translated,
+      options.sourceContext ?? source,
+      options.sourceStart ?? 0,
+    );
+
+  if (!numericSequenceMatches || !bareCountUnitsValid) {
     errors.push(
       error(
         "NUMBER_MISMATCH",
-        `Numeric values changed: expected [${sourceNumbers.join(", ")}], received [${translatedNumbers.join(", ")}].`,
+        !numericSequenceMatches
+          ? `Numeric values changed: expected [${sourceNumbers.join(", ")}], received [${translatedNumbers.join(", ")}].`
+          : "Crochet row/round terminology does not match the source construction.",
       ),
     );
   }
@@ -598,16 +740,43 @@ export const validateTranslation = (
       continue;
     }
 
+    const notationCaseInsensitive =
+      options.notationCaseInsensitive === true;
+
+    const sourceCanonicalTargetPattern = new RegExp(
+      `(?<![\\p{L}-])${escapeRegExp(target.abbreviation)}(?![\\p{L}-])`,
+      notationCaseInsensitive ? "giu" : "gu",
+    );
+
+    const preExistingCanonicalTargetCount = [
+      ...source.matchAll(sourceCanonicalTargetPattern),
+    ].filter((match) => {
+      if (match.index === undefined) return false;
+
+      const start = match.index;
+      const end = start + match[0].length;
+
+      return !notationOccurrences.some(
+        (occurrence) =>
+          occurrence.start === start &&
+          occurrence.end === end,
+      );
+    }).length;
+
+    const expectedCount =
+      occurrences.length + preExistingCanonicalTargetCount;
+
     const actualCount = countToken(
       translated,
       target.abbreviation,
-      options.notationCaseInsensitive === true,
+      notationCaseInsensitive,
     );
-    if (actualCount !== occurrences.length) {
+
+    if (actualCount !== expectedCount) {
       errors.push(
         error(
           "LOST_PATTERN_NOTATION",
-          `Notation conversion mismatch for “${entry.tr.abbreviation}”: expected ${occurrences.length} occurrence(s) of “${target.abbreviation}”, received ${actualCount}.`,
+          `Notation conversion mismatch for “${entry.tr.abbreviation}”: expected ${expectedCount} occurrence(s) of “${target.abbreviation}”, received ${actualCount}.`,
         ),
       );
     }

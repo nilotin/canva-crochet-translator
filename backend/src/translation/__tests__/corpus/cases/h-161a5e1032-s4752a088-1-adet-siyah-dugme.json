@@ -1,0 +1,72 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "materials-list",
+        "source": "1 adet siyah düğme\n2 adet Catania TR263 ten rengi ip",
+        "translated": "1 adet siyah düğme\n2 adet Catania TR263 ten rengi ip",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-161a5e1032-s4752a088-1-adet-siyah-dugme",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile > gives the provider natural English materials-list and quantity agreement guidance"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ adet siyah düğme\n__XQAAABQX__ adet Catania __XQAAACQX__ ten rengi ip",
+        "translated": "__XQAAAAQX__ adet siyah düğme\n__XQAAABQX__ adet Catania __XQAAACQX__ ten rengi ip"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "materials-list",
+        "text": "1 adet siyah düğme\n2 adet Catania TR263 ten rengi ip"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "materials-list",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "materials-list"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ adet siyah düğme\n__XQAAABQX__ adet Catania __XQAAACQX__ ten rengi ip"
+        ],
+        "systemPromptSha256": "0dc8b55afb894ff5330a65154ce5fb2d3ad64fd0bb1b48a237e9193a63ed5b0f",
+        "targetLanguage": "en",
+        "userPromptSha256": "07d7efa12ad9c0596110bde4c02f951955675289f820a247d4c2c111c2c05549"
+      }
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "local-block-1",
+        "source": "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.",
+        "translated": "12) At the end of each row, ch 1 and turn.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "local-block-2",
+        "source": "13) 5 sıra 16x",
+        "translated": "13) 16sc for 5 rounds",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "r-0b3aaf317b-cross-block-row-context",
+  "known": {
+    "desired": [
+      "13) 16sc for 5 rows"
+    ],
+    "note": "R3. Two blocks in ONE request. translateBlocks handles each block independently, so the turning-row evidence in local-block-1 cannot reach local-block-2. local-block-2 is resolved with no provider call and renders 'rounds'. The same two lines inside ONE block render 'rows' (probed separately, not stored). desired lists only the wrong block (local-block-2); local-block-1 output is not part of the defect.",
+    "observedLive": [
+      "16sc for 5 rounds"
+    ]
+  },
+  "labels": {
+    "families": [
+      "row-count",
+      "turning-row"
+    ],
+    "hazards": [
+      "cross-block-context"
+    ],
+    "zeroProvider": false
+  },
+  "lane": "repro",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Stage 0 Step 3 repro. Source text from the crochet-translator architecture review (2026-09-20); provider seam and result captured from the real translateBlocks in this worktree."
+    }
+  ],
+  "provider": {
+    "mode": "echo"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "local-block-1",
+        "text": "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz."
+      },
+      {
+        "id": "local-block-2",
+        "text": "13) 5 sıra 16x"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "known-bad",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "local-block-1",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "local-block-2",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2"
+        ],
+        "blockTexts": [
+          "At the end of each row",
+          "ch",
+          "and turn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "b2e7e560538e37f7eca1cc3bc2ff8c9f13e98b983f8f494e8265ed9436e59f06"
+      }
+    ]
+  }
+}

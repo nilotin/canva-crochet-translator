@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "crochet-phrasing",
+        "source": "Sihirli halka içine 6x",
+        "translated": "6sc into the magic ring",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-f06d3589ae-s9839f857-sihirli-halka-icine-6x",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes Sihirli halka içine 6x through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "into the magic ring",
+        "translated": "into the magic ring"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "crochet-phrasing",
+        "text": "Sihirli halka içine 6x"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "crochet-phrasing",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "into the magic ring"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "6934909e7c231134e9fde6e21384cc13abcd223b77f538ca1f4de1c6368f373f"
+      }
+    ]
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "round",
+        "source": "6. sıranın BLO’sundan örüyoruz.",
+        "translated": "Work into the BLO of Round 6.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-1073438412-sdc8677ca-6-siranin-blo-sundan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/natural_language/__tests__/round_references.test.ts",
+      "kind": "test",
+      "test": "crochet round references > translates a whole sentence with a protected round relation: 6. sıranın BLO’sundan örüyoruz."
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ örüyoruz.",
+        "translated": "Work into __XQAAAAQX__."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "round",
+        "text": "6. sıranın BLO’sundan örüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "round",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "round"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ örüyoruz."
+        ],
+        "systemPromptSha256": "1659ee8ee98076decd143fba5d4f7eeba5c162aeeb298d40a75c56e61a7ea6a8",
+        "targetLanguage": "en",
+        "userPromptSha256": "55d1956a0d42a5cfbe2f05c5895031910379bfe1c66070a362ff8c0fcd5a7ca8"
+      }
+    ]
+  }
+}

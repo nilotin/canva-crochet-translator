@@ -1,0 +1,31 @@
+{
+  "id": "c-a5774e3d02-page14-sleeve-setup",
+  "labels": {
+    "families": [
+      "sleeve-setup"
+    ],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 candidate, NOT yet human-approved. Source and current output text copied verbatim from src/translation/__tests__/translator.test.ts (\"Page 14 exact saved blocks\" > \"preserves every critical instruction in the exact saved Block 1 row\"), which asserts an exact .toBe() match and zero provider calls. Stored as pending-approval only: current-output capture, not approval."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page14-exact-block-1-row",
+        "text": "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. 20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "pending-approval"
+}

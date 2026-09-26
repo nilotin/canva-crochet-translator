@@ -32,10 +32,8 @@ export const remapFormattingRegions = (
   const target = characters(edited);
   const boundaries = new Set(source.offsets);
   let end = 0;
-  const ids = new Set<string>();
   for (const region of regions) {
     if (
-      ids.has(region.id) ||
       region.start !== end ||
       region.end < region.start ||
       !boundaries.has(region.start) ||
@@ -43,7 +41,6 @@ export const remapFormattingRegions = (
     ) {
       throw new FormattingRemapError("INVALID_TEMPLATE");
     }
-    ids.add(region.id);
     end = region.end;
   }
   if (end !== original.length || !regions.length) {
@@ -190,9 +187,9 @@ export const remapFormattingRegions = (
     if (last && last.id === region.id) last.end = end;
     else result.push({ id: region.id, start, end });
   }
-  // Monotone edit paths must never reorder or split an original region.
-  if (new Set(result.map(({ id }) => id)).size !== result.length) {
-    throw new FormattingRemapError("AMBIGUOUS_ALIGNMENT");
-  }
-  return result;
+  // Region ownership is validated by source-region index above.
+  // Formatting IDs are style identities and may legitimately repeat in
+  // non-adjacent target runs.
+
+return result;
 };

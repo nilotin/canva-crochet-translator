@@ -1,14 +1,19 @@
 import type { TargetLanguage } from "../types.js";
 import {
-  normalizeBareRoundCountSourceLines,
-  normalizeRoundCountTrailingActionSourceSpans,
-  normalizeRoundCountYarnCutSourceSpans,
+  inferCrochetCountUnitAtSourcePosition,
+  parseBareRoundCountSourceLine,
+  renderEnglishBareRoundCountLine,
+  renderEnglishRoundCountTrailingActionSpan,
+  renderEnglishRoundCountYarnCutSpan,
   scanRoundCountTrailingActionSourceSpans,
+  scanRoundCountYarnCutSourceSpans,
+  splitLogicalLines,
 } from "./bare_round_count.js";
 import {
   translateTurkishYarnColor,
   TURKISH_YARN_COLOR_PATTERN,
 } from "./yarn_colors.js";
+import { renderEnglishSleeveInstruction } from "./sleeve_instructions.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -63,18 +68,114 @@ const normalizeMaterialsTerminology = (
       )
     : source;
 
+type OriginalSourceReplacement = {
+  start: number;
+  end: number;
+  text: string;
+};
+
+const normalizeEnglishRoundCountStructures = (
+  source: string,
+  sourceContext: string,
+  sourceOffset: number,
+): string => {
+  const replacements: OriginalSourceReplacement[] = [];
+
+  for (const span of scanRoundCountTrailingActionSourceSpans(source)) {
+    replacements.push({
+      start: span.start,
+      end: span.end,
+      text: renderEnglishRoundCountTrailingActionSpan(
+        span,
+        "x",
+        inferCrochetCountUnitAtSourcePosition(
+          sourceContext,
+          sourceOffset + span.start,
+        ),
+      ),
+    });
+  }
+
+  for (const span of scanRoundCountYarnCutSourceSpans(source)) {
+    replacements.push({
+      start: span.start,
+      end: span.end,
+      text: renderEnglishRoundCountYarnCutSpan(
+        span,
+        "x",
+        inferCrochetCountUnitAtSourcePosition(
+          sourceContext,
+          sourceOffset + span.start,
+        ),
+      ),
+    });
+  }
+
+  for (const line of splitLogicalLines(source)) {
+    const parsed = parseBareRoundCountSourceLine(line.text);
+    if (!parsed) continue;
+
+    replacements.push({
+      start: line.start,
+      end: line.end,
+      text: renderEnglishBareRoundCountLine(
+        parsed,
+        "x",
+        inferCrochetCountUnitAtSourcePosition(
+          sourceContext,
+          sourceOffset + line.start,
+        ),
+      ),
+    });
+  }
+
+  replacements.sort((left, right) => {
+    if (left.start !== right.start) return right.start - left.start;
+    return right.end - left.end;
+  });
+
+  let normalized = source;
+  let rightmostStart = source.length;
+
+  for (const replacement of replacements) {
+    if (
+      replacement.start < 0 ||
+      replacement.end < replacement.start ||
+      replacement.end > source.length
+    ) {
+      continue;
+    }
+
+    // All spans were discovered against the same immutable source.
+    // If two recognized families ever overlap, keep the later/more-specific
+    // replacement already applied and fail closed on the overlapping one.
+    if (replacement.end > rightmostStart) {
+      continue;
+    }
+
+    normalized =
+      normalized.slice(0, replacement.start) +
+      replacement.text +
+      normalized.slice(replacement.end);
+
+    rightmostStart = replacement.start;
+  }
+
+  return normalized;
+};
+
 const normalizeEnglishCrochetStructures = (
   source: string,
   targetLanguage: TargetLanguage,
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string => {
   if (targetLanguage !== "en") return source;
 
-  return normalizeBareRoundCountSourceLines(
-    normalizeRoundCountYarnCutSourceSpans(
-      normalizeRoundCountTrailingActionSourceSpans(source, "x"),
-      "x",
-    ),
-    "x",
+  return normalizeEnglishRoundCountStructures(
+    source,
+    sourceContext,
+    sourceOffset,
   )
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
@@ -184,7 +285,47 @@ const normalizeEnglishCrochetStructures = (
       (_match, chains: string) => `ch ${chains} (buttonhole)`,
     )
     .replace(
-      // Repeated round-end turning instruction.
+      /(^|[\r\n])(\s*(?:\d+\)\s*)?)(?:görselde\s+görüldüğü\s+gibi\s+)?dışa\s+kıvırmak\s+için\s+ördüğümüz\s+kısmın\s+çevresini\s+simli\s+ip\s+ile\s+(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*[,，]?\s*yaparak\s+dönüyoruz\s*[.]\s*tüm\s+çevreyi\s+ördükten\s+sonra\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?(?=$|[\r\n])/gimu,
+      (
+        _match,
+        lineStart: string,
+        prefix: string,
+        repeatedChains: string,
+        finalChains: string,
+      ) =>
+        `${lineStart}${prefix}As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch ${repeatedChains} and cc into the next single crochet as you go. ` +
+        `After working around the entire edge, ch ${finalChains} and cut the yarn.`,
+    )
+    .replace(
+      /(^|[\r\n])(\s*(?:\d+\)\s*)?)(?:görselde\s+görüldüğü\s+gibi\s+)?kol\s+boşluğunun\s+arka\s+tarafından\s+ipimizi\s+sabitliyoruz\s*[.]\s*(\d+)\s*x\s+örüyoruz\s*[.]\s*başlangıç\s+noktamız\s+burası\s+olacak\s*[,，]\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\s*[.]?(?=$|[\r\n])/gimu,
+      (_match, lineStart: string, prefix: string, stitches: string) =>
+        `${lineStart}${prefix}As shown in the image, attach the yarn from the back of the armhole. Work ${stitches}x. This will be the beginning of the round; place a stitch marker here.`,
+    )
+    .replace(
+      /(^|[\r\n])(\s*(?:\d+\)\s*)?)(\d+)\s*x\s+örüyoruz\s*\(\s*kolun\s+üzerindeki\s+dışa\s+doğru\s+kıvırdığımız\s+kısmı\s+öreceğiz\s*\)\s*[.]\s*görselde\s+görüldüğü\s+gibi\s+ben\s+(\d+)\s*x\s+ördüğümde\s+tam\s+kolun\s+üzerine\s+denk\s+geldi\s*[.]\s*sizde\s+kolun\s+üst\s+kısmına\s+denk\s+gelecek\s+şekilde\s+(\d+)-(\d+)\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örebilirsiniz\s*[.]\s*(\d+)\s+zincir\s+çekip\s+dönüyoruz\s*[.]?(?=$|[\r\n])/gimu,
+      (
+        _match,
+        lineStart: string,
+        prefix: string,
+        firstStitches: string,
+        alignedStitches: string,
+        minAdjustment: string,
+        maxAdjustment: string,
+        chains: string,
+      ) =>
+        `${lineStart}${prefix}Work ${firstStitches}x (we will crochet the section folded outward over the arm). ` +
+        `As shown in the image, when I worked ${alignedStitches}x, it aligned exactly over the arm. ` +
+        `You can work ${minAdjustment}-${maxAdjustment} fewer or additional single crochet stitches so that it aligns with the top of the arm. ` +
+        `Ch ${chains} and turn.`,
+    )
+    .replace(
+      // "Bütün sıra sonlarında" is explicit back-and-forth row guidance.
+      /\bbütün\s+sıra\s+sonlarında\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu,
+      (_match, chains: string) =>
+        `At the end of each row, ch ${chains} and turn.`,
+    )
+    .replace(
+      // Plain "sıra sonlarında" keeps the project's established round wording.
       /\bsıra\s+sonlarında\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu,
       (_match, chains: string) =>
         `At the end of each round, ch ${chains} and turn.`,
@@ -425,6 +566,11 @@ const normalizeEnglishCrochetStructures = (
       "$1. ",
     )
     .replace(
+      /\b(?:görselde\s+görüldüğü\s+gibi\s+)?kol\s+boşluğunun\s+arka\s+tarafından\s+ipimizi\s+sabitliyoruz\b[.]?/giu,
+      (_match) =>
+        "As shown in the image, attach the yarn from the back of the armhole.",
+    )
+    .replace(
       /\baynı\s+zincir\s+içine\s+(\d+)\s*x\b/giu,
       "$1sc in the same chain",
     )
@@ -433,7 +579,7 @@ const normalizeEnglishCrochetStructures = (
       "$1x into the chain space",
     )
     .replace(
-      /\b(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\b/giu,
+      /\b(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?|başlangıç\s+noktamız\s+burası\s+olacak)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\b/giu,
       "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
@@ -599,6 +745,11 @@ const normalizeEnglishCrochetStructures = (
         `At the end of the round, ch ${chains} and cut the yarn`,
     )
     .replace(
+      /\btüm\s+çevreyi\s+ördükten\s+sonra\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      (_match, chains: string) =>
+        `After working around the entire edge, ch ${chains} and cut the yarn`,
+    )
+    .replace(
       /\b(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (_match, chains: string) => `ch ${chains} and cut the yarn`,
     )
@@ -612,7 +763,7 @@ const normalizeEnglishCrochetStructures = (
         `skip ${count}x, cc into the next stitch`,
     )
     .replace(
-      // Standalone "tekrar sıradaki X'e cc yapıyoruz" (again, SL.ST into the
+      // Standalone "tekrar sıradaki X'e cc yapıyoruz" (again, sl st into the
       // next X) -- factored as its own reusable atomic clause rather than
       // only existing embedded inside larger composite templates, so it
       // also applies to constructions those templates don't cover. Must run
@@ -624,6 +775,11 @@ const normalizeEnglishCrochetStructures = (
         `then cc into the following ${
           /ilmeğe/iu.test(stitchWord) ? "stitch" : "single crochet"
         }`,
+    )
+    .replace(
+      /\b(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*[,，]?\s*yaparak\s+dönüyoruz\b/giu,
+      (_match, chains: string) =>
+        `making ch ${chains} and cc into the next single crochet as you go`,
     )
     .replace(
       /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*\)/giu,
@@ -1119,10 +1275,12 @@ const normalizeSimpleLoopInstruction = (
         : `Trabaja esta vuelta en ${loopRaw.toUpperCase()}`,
   );
 
-export const normalizeSourceNaturalLanguage = (
+const normalizeSourceNaturalLanguageBase = (
   source: string,
   targetLanguage: TargetLanguage,
   contentKind: "pattern" | "materials" = "pattern",
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string =>
   normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
@@ -1130,6 +1288,8 @@ export const normalizeSourceNaturalLanguage = (
         normalizeEnglishCrochetStructures(
           normalizeMaterialsTerminology(source, targetLanguage, contentKind),
           targetLanguage,
+          sourceContext,
+          sourceOffset,
         ),
         targetLanguage,
       ),
@@ -1292,6 +1452,48 @@ export const normalizeSourceNaturalLanguage = (
     );
 
 
+export const normalizeSourceNaturalLanguage = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials" = "pattern",
+  sourceContext: string = source,
+  sourceOffset = 0,
+): string => {
+  if (contentKind === "pattern" && targetLanguage === "en") {
+    const sleeve = renderEnglishSleeveInstruction(source);
+
+    if (sleeve) {
+      return sleeve.target;
+    }
+  }
+
+  return normalizeSourceNaturalLanguageBase(
+    source,
+    targetLanguage,
+    contentKind,
+    sourceContext,
+    sourceOffset,
+  );
+};
+
+const fullyResolvedLoopCompactChainTurnPattern =
+  /^\s*(?:\d+\)\s*)?bu\s+sırayı\s+(?:FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\s*[.]\s*\d+\s*x\s*[,，]\s*\d+\s*v\s*[,，]\s*\(\s*\d+\s*x\s*[,，]\s*\d+\s*v\s*\)\s*\*\s*\d+\s*[,，]\s*\d+\s*x\s*=\s*\d+\s*x\s*[,，]\s*\d+\s+zincir\s*[,，]\s*dön\s*[,]?\s*$/iu;
+
+const fullyResolvedCompactChainTurnPattern =
+  /^\s*(?:\d+\)\s*)?\d+\s*x\s*[,，]\s*\d+\s+zincir\s*[,，]\s*dön\s*[,]?\s*$/iu;
+
+const fullyResolvedCompactChainCutPattern =
+  /^\s*(?:\d+\)\s*)?\d+\s*x\s*[,，]\s*\d+\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?\s*$/iu;
+
+const fullyResolvedAroundEdgeSlipStitchPattern =
+  /^\s*(?:\d+\)\s*)?(?:görselde\s+görüldüğü\s+gibi\s+)?dışa\s+kıvırmak\s+için\s+ördüğümüz\s+kısmın\s+çevresini\s+simli\s+ip\s+ile\s+\d+\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*[,，]?\s*yaparak\s+dönüyoruz\s*[.]\s*tüm\s+çevreyi\s+ördükten\s+sonra\s+\d+\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?\s*$/iu;
+
+const fullyResolvedSleeveSetupPattern =
+  /^\s*(?:\d+\)\s*)?(?:görselde\s+görüldüğü\s+gibi\s+)?kol\s+boşluğunun\s+arka\s+tarafından\s+ipimizi\s+sabitliyoruz\s*[.]\s*\d+\s*x\s+örüyoruz\s*[.]\s*başlangıç\s+noktamız\s+burası\s+olacak\s*[,，]\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\s*[.]?\s*$/iu;
+
+const fullyResolvedSleeveShapingPattern =
+  /^\s*(?:\d+\)\s*)?\d+\s*x\s+örüyoruz\s*\(\s*kolun\s+üzerindeki\s+dışa\s+doğru\s+kıvırdığımız\s+kısmı\s+öreceğiz\s*\)\s*[.]\s*görselde\s+görüldüğü\s+gibi\s+ben\s+\d+\s*x\s+ördüğümde\s+tam\s+kolun\s+üzerine\s+denk\s+geldi\s*[.]\s*sizde\s+kolun\s+üst\s+kısmına\s+denk\s+gelecek\s+şekilde\s+\d+-\d+\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örebilirsiniz\s*[.]\s*\d+\s+zincir\s+çekip\s+dönüyoruz\s*[.]?\s*$/iu;
+
 const fullyResolvedLongButtonholeGuidancePattern =
   /^\s*\d+\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)\s*$/iu;
 
@@ -1299,11 +1501,15 @@ export const normalizeSourceNaturalLanguageDetailed = (
   source: string,
   targetLanguage: TargetLanguage,
   contentKind: "pattern" | "materials" = "pattern",
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): SourceNaturalLanguageNormalization => {
   const normalized = normalizeSourceNaturalLanguage(
     source,
     targetLanguage,
     contentKind,
+    sourceContext,
+    sourceOffset,
   );
 
   const trimmedSource = source.trim();
@@ -1315,6 +1521,10 @@ export const normalizeSourceNaturalLanguageDetailed = (
     trailingActionSpans[0]?.start === 0 &&
     trailingActionSpans[0]?.end === trimmedSource.length;
 
+  const fullyResolvedSleeveInstruction =
+    targetLanguage === "en" &&
+    renderEnglishSleeveInstruction(trimmedSource) !== undefined;
+
   const fullyResolved =
     contentKind === "pattern" &&
     targetLanguage === "en" &&
@@ -1322,6 +1532,13 @@ export const normalizeSourceNaturalLanguageDetailed = (
       fullyResolvedChainSkipContinueAndFinishPattern.test(source) ||
       fullyResolvedReferencedLoopStitchCountPattern.test(source) ||
       fullyResolvedChainTurnSlipStitchContinuationPattern.test(source) ||
+      fullyResolvedLoopCompactChainTurnPattern.test(source) ||
+      fullyResolvedCompactChainTurnPattern.test(source) ||
+      fullyResolvedCompactChainCutPattern.test(source) ||
+      fullyResolvedAroundEdgeSlipStitchPattern.test(source) ||
+      fullyResolvedSleeveSetupPattern.test(source) ||
+      fullyResolvedSleeveShapingPattern.test(source) ||
+      fullyResolvedSleeveInstruction ||
       fullyResolvedLongButtonholeGuidancePattern.test(source) ||
       fullyResolvedRoundCountTrailingAction
     );

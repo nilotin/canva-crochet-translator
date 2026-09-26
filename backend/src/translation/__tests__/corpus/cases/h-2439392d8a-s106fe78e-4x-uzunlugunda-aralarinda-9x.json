@@ -1,0 +1,95 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "one",
+        "source": "4x uzunluğunda, aralarında 9x kalacak şekilde, gözden 4 sıra üzerinden",
+        "translated": "4 stitches long, 9 stitches apart, 4 rounds above the eye",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ]
+  },
+  "id": "h-2439392d8a-s106fe78e-4x-uzunlugunda-aralarinda-9x",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > sends recognized natural-language shorthand as target-language meaning"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "rounds above the eye",
+        "translated": "rounds above the eye"
+      },
+      {
+        "source": "stitches apart",
+        "translated": "stitches apart"
+      },
+      {
+        "source": "stitches long",
+        "translated": "stitches long"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "one",
+        "text": "4x uzunluğunda, aralarında 9x kalacak şekilde, gözden 4 sıra üzerinden"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "one",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: göz, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: göz, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2"
+        ],
+        "blockTexts": [
+          "stitches long",
+          "stitches apart",
+          "rounds above the eye"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "af5f764b30dcdf592591a0becdb869618e661cdef5a89ec9ffb3fa82872d9360"
+      }
+    ]
+  }
+}

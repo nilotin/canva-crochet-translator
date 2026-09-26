@@ -33,6 +33,13 @@ export const reviewBlockSchema = z
       .max(1_000)
       .optional(),
     formattingProjection: z.literal("atomic_collapse").optional(),
+    absorbedFormattingRegionIds: z
+      .array(z.string().min(1).max(200))
+      .max(1_000)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Absorbed formatting region IDs must be unique.",
+      })
+      .optional(),
   })
   .strict();
 

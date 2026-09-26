@@ -1,0 +1,72 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "metallic-yarn",
+        "source": "Metallic yarn (9 strands)",
+        "translated": "Metallic yarn (9 strands)",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-325f1ff7f9-s198e7112-metallic-yarn-9-strands",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile > leaves an existing metallic-yarn strand entry unchanged"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Metallic yarn (__XQAAAAQX__ strands)",
+        "translated": "Metallic yarn (__XQAAAAQX__ strands)"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "metallic-yarn",
+        "text": "Metallic yarn (9 strands)"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "metallic-yarn",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "metallic-yarn"
+        ],
+        "blockTexts": [
+          "Metallic yarn (__XQAAAAQX__ strands)"
+        ],
+        "systemPromptSha256": "5777c20b13749b26d35e018620eb9a945a7efcd1676aa6047267e0e5c3bad773",
+        "targetLanguage": "en",
+        "userPromptSha256": "8867cf8ae98c436330daf15abcfbf8d88a5b720944e739cd195b8661d430f04c"
+      }
+    ]
+  }
+}

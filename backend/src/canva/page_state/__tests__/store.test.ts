@@ -86,6 +86,48 @@ describe("durable page translation state", () => {
     },
   );
 
+  it("round-trips atomic-collapse absorbed formatting provenance", async () => {
+    const path = await pathForTest();
+    const store = new JsonPageTranslationStateStore(path);
+
+    await store.savePageState(
+      state({
+        pipelineRevision: "translation-pipeline-v14",
+        blocks: [
+          {
+            ...state().blocks[0]!,
+            translated: "6sc",
+            editedTranslation: "6sc",
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: 3 },
+              { id: "fmt-1", start: 3, end: 3 },
+            ],
+            formattingProjection: "atomic_collapse",
+            absorbedFormattingRegionIds: ["fmt-1"],
+          },
+        ],
+      }),
+    );
+
+    const restored = await new JsonPageTranslationStateStore(
+      path,
+    ).getPageState({
+      userId: "user-1",
+      targetDesignId: "target-1",
+      targetLanguage: "en",
+      pageIdentity: "page:one",
+    });
+
+    expect(restored?.blocks[0]).toMatchObject({
+      formattingProjection: "atomic_collapse",
+      absorbedFormattingRegionIds: ["fmt-1"],
+      targetFormattingRegions: [
+        { id: "fmt-0", start: 0, end: 3 },
+        { id: "fmt-1", start: 3, end: 3 },
+      ],
+    });
+  });
+
   it("persists applied digests and counts unique applied pages after restart", async () => {
     const path = await pathForTest();
     const store = new JsonPageTranslationStateStore(path);

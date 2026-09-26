@@ -1,0 +1,126 @@
+{
+  "expected": {
+    "results": [
+      {
+        "absorbedFormattingRegionIds": [
+          "fmt-2"
+        ],
+        "errorCodes": [],
+        "formattingProjection": "atomic_collapse",
+        "id": "persisted-page-9-block-3",
+        "source": "✦ Bu sıradan sonra kol ve \ngövdeye teli takabilirsiniz.\n4) (7x, 1e)*6 = 48x\n5) 3x, 1e, (6x, 1e)*5, 3x = 42x\n6) (5x, 1e)*6 = 36x\n7) 2x, 1e, (4x, 1e)*5, 2x = 30x\n8) (3x, 1e)*6 = 24x\n9) 1x, 1e, (2x, 1e)*5, 1x = 18x\n10-15) 6 sıra 18x --- ipimizi kesiyoruz. ",
+        "targetFormattingRegions": [
+          {
+            "end": 65,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 298,
+            "id": "fmt-1",
+            "start": 65
+          },
+          {
+            "end": 298,
+            "id": "fmt-2",
+            "start": 298
+          }
+        ],
+        "translated": "✦ After this round, you can attach the wire to the arm and body.\n4) (7sc, 1dec)*6 = 48sc\n5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc\n6) (5sc, 1dec)*6 = 36sc\n7) 2sc, 1dec, (4sc, 1dec)*5, 2sc = 30sc\n8) (3sc, 1dec)*6 = 24sc\n9) 1sc, 1dec, (2sc, 1dec)*5, 1sc = 18sc\n10-15) 18sc for 6 rounds — cut the yarn. ",
+        "valid": true,
+        "warningCodes": []
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "persisted-page-9-block-3",
+        "regionId": "fmt-0",
+        "text": "✦ After this round, you can attach the wire to the arm and body.\n"
+      },
+      {
+        "blockId": "persisted-page-9-block-3",
+        "regionId": "fmt-1",
+        "text": "4) (7sc, 1dec)*6 = 48sc\n5) 3sc, 1dec, (6sc, 1dec)*5, 3sc = 42sc\n6) (5sc, 1dec)*6 = 36sc\n7) 2sc, 1dec, (4sc, 1dec)*5, 2sc = 30sc\n8) (3sc, 1dec)*6 = 24sc\n9) 1sc, 1dec, (2sc, 1dec)*5, 1sc = 18sc\n10-15) 18sc for 6 rounds — cut the yarn. "
+      },
+      {
+        "blockId": "persisted-page-9-block-3",
+        "regionId": "fmt-2",
+        "text": ""
+      }
+    ]
+  },
+  "id": "h-3882616ab2-sfb8dd806-bu-siradan-sonra-kol",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > validates the persisted 9-line/8-line Block 3 through atomic formatting reconstruction"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "✦ Bu sıradan sonra kol ve \ngövdeye teli takabilirsiniz.",
+        "translated": "✦ After this round, you can attach the wire to the arm and body."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 56,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 226,
+            "id": "fmt-1",
+            "start": 56
+          },
+          {
+            "end": 253,
+            "id": "fmt-2",
+            "start": 226
+          }
+        ],
+        "id": "persisted-page-9-block-3",
+        "text": "✦ Bu sıradan sonra kol ve \ngövdeye teli takabilirsiniz.\n4) (7x, 1e)*6 = 48x\n5) 3x, 1e, (6x, 1e)*5, 3x = 42x\n6) (5x, 1e)*6 = 36x\n7) 2x, 1e, (4x, 1e)*5, 2x = 30x\n8) (3x, 1e)*6 = 24x\n9) 1x, 1e, (2x, 1e)*5, 1x = 18x\n10-15) 6 sıra 18x --- ipimizi kesiyoruz. "
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "persisted-page-9-block-3",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "persisted-page-9-block-3::format:0::segment:0"
+        ],
+        "blockTexts": [
+          "✦ Bu sıradan sonra kol ve \ngövdeye teli takabilirsiniz."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "726ca2b4428d76824411d89902ec13f3318833cd1e0cf155ef70349d1fb53c23"
+      }
+    ]
+  }
+}

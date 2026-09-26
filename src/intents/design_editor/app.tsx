@@ -76,6 +76,10 @@ import {
   serializeTemplateCandidateSnapshotExport,
   type TemplateCandidateSnapshotExportRow,
 } from "./template_snapshot_export";
+import {
+  captureCurrentPageFormattingSnapshotExport,
+  serializeCurrentPageFormattingSnapshotExport,
+} from "./current_page_formatting_snapshot_export";
 
 const ENGLISH = "en";
 const SPANISH = "es";
@@ -1670,6 +1674,35 @@ export const App = ({
       | { status: "error"; message: string }
     >({ status: "idle" });
 
+  const [
+    currentPageFormattingSnapshotExportState,
+    setCurrentPageFormattingSnapshotExportState,
+  ] = useState<
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "ready"; json: string; blockCount: number }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  const handleExportCurrentPageFormattingSnapshot = async () => {
+    setCurrentPageFormattingSnapshotExportState({ status: "loading" });
+
+    try {
+      const snapshot = await captureCurrentPageFormattingSnapshotExport();
+
+      setCurrentPageFormattingSnapshotExportState({
+        status: "ready",
+        json: serializeCurrentPageFormattingSnapshotExport(snapshot),
+        blockCount: snapshot.blocks.length,
+      });
+    } catch (error) {
+      setCurrentPageFormattingSnapshotExportState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
+
   const handleExportTemplateSnapshots = async () => {
     setTemplateSnapshotExportState({ status: "loading" });
     try {
@@ -1841,6 +1874,40 @@ export const App = ({
             >
               Export template candidate snapshots
             </Button>
+
+            <Button
+              variant="secondary"
+              onClick={() => void handleExportCurrentPageFormattingSnapshot()}
+              disabled={
+                currentPageFormattingSnapshotExportState.status === "loading"
+              }
+            >
+              Export current page formatting snapshot
+            </Button>
+
+            {currentPageFormattingSnapshotExportState.status === "loading" && (
+              <Text tone="secondary">Reading current page formatting…</Text>
+            )}
+
+            {currentPageFormattingSnapshotExportState.status === "error" && (
+              <Alert tone="critical">
+                {currentPageFormattingSnapshotExportState.message}
+              </Alert>
+            )}
+
+            {currentPageFormattingSnapshotExportState.status === "ready" && (
+              <Rows spacing="0.5u">
+                <Text tone="secondary">
+                  {currentPageFormattingSnapshotExportState.blockCount} block(s).
+                  Select all and copy:
+                </Text>
+                <MultilineInput
+                  value={currentPageFormattingSnapshotExportState.json}
+                  readOnly
+                  autoGrow
+                />
+              </Rows>
+            )}
             {templateSnapshotExportState.status === "loading" && (
               <Text tone="secondary">Reading document…</Text>
             )}

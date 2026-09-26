@@ -1,0 +1,94 @@
+{
+  "id": "c-1bb09c4de3-page14-multi-style-block-2",
+  "labels": {
+    "families": [
+      "formatting-projection",
+      "sleeve-shaping"
+    ],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 candidate, NOT yet human-approved. Source, 12-region formatting split, and current output text copied verbatim from src/translation/__tests__/translator.test.ts (\"Page 14 exact saved blocks\" > \"preserves representative multi-style formatting across the complete saved Block 2\"), which asserts an exact .toBe() match, zero provider calls (UnconditionalCorruptingProvider), and contiguous non-zero-width target region ownership per segment. Stored as pending-approval only: current-output capture, not approval. No source style VALUES (regionStyles) are available from any exporter/fixture for this case, so only geometry is frozen."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 18,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 94,
+            "id": "fmt-1",
+            "start": 18
+          },
+          {
+            "end": 166,
+            "id": "fmt-2",
+            "start": 94
+          },
+          {
+            "end": 257,
+            "id": "fmt-3",
+            "start": 166
+          },
+          {
+            "end": 283,
+            "id": "fmt-4",
+            "start": 257
+          },
+          {
+            "end": 314,
+            "id": "fmt-5",
+            "start": 283
+          },
+          {
+            "end": 343,
+            "id": "fmt-6",
+            "start": 314
+          },
+          {
+            "end": 358,
+            "id": "fmt-7",
+            "start": 343
+          },
+          {
+            "end": 366,
+            "id": "fmt-8",
+            "start": 358
+          },
+          {
+            "end": 381,
+            "id": "fmt-9",
+            "start": 366
+          },
+          {
+            "end": 389,
+            "id": "fmt-10",
+            "start": 381
+          },
+          {
+            "end": 422,
+            "id": "fmt-11",
+            "start": 389
+          }
+        ],
+        "id": "page14-exact-block-2-multi-style",
+        "text": "2-25) 24 sıra 20x\n26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz.\n2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,\n3) 24x, 1 zincir, dön,\n4) 24x, 1 zincir çekip ipimizi kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "pending-approval"
+}

@@ -1,0 +1,838 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "formatted-hook-and-ambiguous-repetition",
+        "source": "✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.\n1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.\n2) 6v = 12x\n3) (1x, 1v)*6 = 18x\n4) (2x, 1v)*6 = 24x\n5) FLO’dan (3x, 1v)*6 = 30x\n6) (4x, 1v)*6 = 36x\n7) (5x, 1v)*6 = 42x\n8) FLO’dan (6x, 1v)*6 = 48x\n9) (7x, 1v)*6 = 54x\n10) (8x, 1v)*6 = 60x\n11) FLO’ dan (9x, 1v)*66x \n12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+        "targetFormattingRegions": [
+          {
+            "end": 2,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 88,
+            "id": "fmt-1",
+            "start": 2
+          },
+          {
+            "end": 91,
+            "id": "fmt-2",
+            "start": 88
+          },
+          {
+            "end": 185,
+            "id": "fmt-3",
+            "start": 91
+          },
+          {
+            "end": 187,
+            "id": "fmt-4",
+            "start": 185
+          },
+          {
+            "end": 200,
+            "id": "fmt-5",
+            "start": 187
+          },
+          {
+            "end": 203,
+            "id": "fmt-6",
+            "start": 200
+          },
+          {
+            "end": 214,
+            "id": "fmt-7",
+            "start": 203
+          },
+          {
+            "end": 217,
+            "id": "fmt-8",
+            "start": 214
+          },
+          {
+            "end": 224,
+            "id": "fmt-9",
+            "start": 217
+          },
+          {
+            "end": 227,
+            "id": "fmt-10",
+            "start": 224
+          },
+          {
+            "end": 238,
+            "id": "fmt-11",
+            "start": 227
+          },
+          {
+            "end": 241,
+            "id": "fmt-12",
+            "start": 238
+          },
+          {
+            "end": 248,
+            "id": "fmt-13",
+            "start": 241
+          },
+          {
+            "end": 251,
+            "id": "fmt-14",
+            "start": 248
+          },
+          {
+            "end": 270,
+            "id": "fmt-15",
+            "start": 251
+          },
+          {
+            "end": 272,
+            "id": "fmt-16",
+            "start": 270
+          },
+          {
+            "end": 280,
+            "id": "fmt-17",
+            "start": 272
+          },
+          {
+            "end": 283,
+            "id": "fmt-18",
+            "start": 280
+          },
+          {
+            "end": 294,
+            "id": "fmt-19",
+            "start": 283
+          },
+          {
+            "end": 297,
+            "id": "fmt-20",
+            "start": 294
+          },
+          {
+            "end": 304,
+            "id": "fmt-21",
+            "start": 297
+          },
+          {
+            "end": 307,
+            "id": "fmt-22",
+            "start": 304
+          },
+          {
+            "end": 318,
+            "id": "fmt-23",
+            "start": 307
+          },
+          {
+            "end": 321,
+            "id": "fmt-24",
+            "start": 318
+          },
+          {
+            "end": 328,
+            "id": "fmt-25",
+            "start": 321
+          },
+          {
+            "end": 331,
+            "id": "fmt-26",
+            "start": 328
+          },
+          {
+            "end": 350,
+            "id": "fmt-27",
+            "start": 331
+          },
+          {
+            "end": 353,
+            "id": "fmt-28",
+            "start": 350
+          },
+          {
+            "end": 360,
+            "id": "fmt-29",
+            "start": 353
+          },
+          {
+            "end": 363,
+            "id": "fmt-30",
+            "start": 360
+          },
+          {
+            "end": 374,
+            "id": "fmt-31",
+            "start": 363
+          },
+          {
+            "end": 377,
+            "id": "fmt-32",
+            "start": 374
+          },
+          {
+            "end": 384,
+            "id": "fmt-33",
+            "start": 377
+          },
+          {
+            "end": 388,
+            "id": "fmt-34",
+            "start": 384
+          },
+          {
+            "end": 399,
+            "id": "fmt-35",
+            "start": 388
+          },
+          {
+            "end": 402,
+            "id": "fmt-36",
+            "start": 399
+          },
+          {
+            "end": 409,
+            "id": "fmt-37",
+            "start": 402
+          },
+          {
+            "end": 413,
+            "id": "fmt-38",
+            "start": 409
+          },
+          {
+            "end": 432,
+            "id": "fmt-39",
+            "start": 413
+          },
+          {
+            "end": 438,
+            "id": "fmt-40",
+            "start": 432
+          },
+          {
+            "end": 439,
+            "id": "fmt-41",
+            "start": 438
+          },
+          {
+            "end": 443,
+            "id": "fmt-42",
+            "start": 439
+          },
+          {
+            "end": 506,
+            "id": "fmt-43",
+            "start": 443
+          }
+        ],
+        "translated": "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.\n1) 6sc into the magic ring. This will be the beginning of the round; place a stitch marker here.\n2) 6inc = 12sc\n3) (1sc, 1inc)*6 = 18sc\n4) (2sc, 1inc)*6 = 24sc\n5) In FLO, (3sc, 1inc)*6 = 30sc\n6) (4sc, 1inc)*6 = 36sc\n7) (5sc, 1inc)*6 = 42sc\n8) In FLO, (6sc, 1inc)*6 = 48sc\n9) (7sc, 1inc)*6 = 54sc\n10) (8sc, 1inc)*6 = 60sc\n11) In FLO, (9sc, 1inc)*66sc \n12) 66sc. Without cutting the yarn, continue with the hair strands.",
+        "valid": true,
+        "warningCodes": [
+          "AMBIGUOUS_REPETITION_NOTATION"
+        ]
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-0",
+        "text": "✦ "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-1",
+        "text": "Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-10",
+        "text": "4) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-11",
+        "text": "(2sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-12",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-13",
+        "text": "= 24sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-14",
+        "text": "5) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-15",
+        "text": "In FLO, (3sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-16",
+        "text": "*6"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-17",
+        "text": " = 30sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-18",
+        "text": "6) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-19",
+        "text": "(4sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-2",
+        "text": "1) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-20",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-21",
+        "text": "= 36sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-22",
+        "text": "7) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-23",
+        "text": "(5sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-24",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-25",
+        "text": "= 42sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-26",
+        "text": "8) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-27",
+        "text": "In FLO, (6sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-28",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-29",
+        "text": "= 48sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-3",
+        "text": "6sc into the magic ring. This will be the beginning of the round; place a stitch marker here.\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-30",
+        "text": "9) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-31",
+        "text": "(7sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-32",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-33",
+        "text": "= 54sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-34",
+        "text": "10) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-35",
+        "text": "(8sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-36",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-37",
+        "text": "= 60sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-38",
+        "text": "11) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-39",
+        "text": "In FLO, (9sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-4",
+        "text": "2)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-40",
+        "text": "*66sc "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-41",
+        "text": "\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-42",
+        "text": "12) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-43",
+        "text": "66sc. Without cutting the yarn, continue with the hair strands."
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-5",
+        "text": " 6inc = 12sc\n"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-6",
+        "text": "3) "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-7",
+        "text": "(1sc, 1inc)"
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-8",
+        "text": "*6 "
+      },
+      {
+        "blockId": "formatted-hook-and-ambiguous-repetition",
+        "regionId": "fmt-9",
+        "text": "= 18sc\n"
+      }
+    ]
+  },
+  "id": "h-39c84d7844-sb03f52fa-2-20-numara-tig",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > canonicalizes the hook intro and warns about literal ambiguous notation in the formatted full block"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "In",
+        "translated": "In"
+      },
+      {
+        "source": "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows.",
+        "translated": "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows."
+      },
+      {
+        "source": "continue with the hair strands.",
+        "translated": "continue with the hair strands."
+      },
+      {
+        "source": "into the magic ring. This will be the beginning of the round",
+        "translated": "into the magic ring. This will be the beginning of the round"
+      },
+      {
+        "source": "place a stitch marker here.",
+        "translated": "place a stitch marker here."
+      },
+      {
+        "source": "sc. Without cutting the yarn",
+        "translated": "sc. Without cutting the yarn"
+      },
+      {
+        "source": "✦",
+        "translated": "✦"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 2,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 64,
+            "id": "fmt-1",
+            "start": 2
+          },
+          {
+            "end": 67,
+            "id": "fmt-2",
+            "start": 64
+          },
+          {
+            "end": 159,
+            "id": "fmt-3",
+            "start": 67
+          },
+          {
+            "end": 161,
+            "id": "fmt-4",
+            "start": 159
+          },
+          {
+            "end": 171,
+            "id": "fmt-5",
+            "start": 161
+          },
+          {
+            "end": 174,
+            "id": "fmt-6",
+            "start": 171
+          },
+          {
+            "end": 182,
+            "id": "fmt-7",
+            "start": 174
+          },
+          {
+            "end": 185,
+            "id": "fmt-8",
+            "start": 182
+          },
+          {
+            "end": 191,
+            "id": "fmt-9",
+            "start": 185
+          },
+          {
+            "end": 194,
+            "id": "fmt-10",
+            "start": 191
+          },
+          {
+            "end": 202,
+            "id": "fmt-11",
+            "start": 194
+          },
+          {
+            "end": 205,
+            "id": "fmt-12",
+            "start": 202
+          },
+          {
+            "end": 211,
+            "id": "fmt-13",
+            "start": 205
+          },
+          {
+            "end": 214,
+            "id": "fmt-14",
+            "start": 211
+          },
+          {
+            "end": 230,
+            "id": "fmt-15",
+            "start": 214
+          },
+          {
+            "end": 232,
+            "id": "fmt-16",
+            "start": 230
+          },
+          {
+            "end": 239,
+            "id": "fmt-17",
+            "start": 232
+          },
+          {
+            "end": 242,
+            "id": "fmt-18",
+            "start": 239
+          },
+          {
+            "end": 250,
+            "id": "fmt-19",
+            "start": 242
+          },
+          {
+            "end": 253,
+            "id": "fmt-20",
+            "start": 250
+          },
+          {
+            "end": 259,
+            "id": "fmt-21",
+            "start": 253
+          },
+          {
+            "end": 262,
+            "id": "fmt-22",
+            "start": 259
+          },
+          {
+            "end": 270,
+            "id": "fmt-23",
+            "start": 262
+          },
+          {
+            "end": 273,
+            "id": "fmt-24",
+            "start": 270
+          },
+          {
+            "end": 279,
+            "id": "fmt-25",
+            "start": 273
+          },
+          {
+            "end": 282,
+            "id": "fmt-26",
+            "start": 279
+          },
+          {
+            "end": 298,
+            "id": "fmt-27",
+            "start": 282
+          },
+          {
+            "end": 301,
+            "id": "fmt-28",
+            "start": 298
+          },
+          {
+            "end": 307,
+            "id": "fmt-29",
+            "start": 301
+          },
+          {
+            "end": 310,
+            "id": "fmt-30",
+            "start": 307
+          },
+          {
+            "end": 318,
+            "id": "fmt-31",
+            "start": 310
+          },
+          {
+            "end": 321,
+            "id": "fmt-32",
+            "start": 318
+          },
+          {
+            "end": 327,
+            "id": "fmt-33",
+            "start": 321
+          },
+          {
+            "end": 331,
+            "id": "fmt-34",
+            "start": 327
+          },
+          {
+            "end": 339,
+            "id": "fmt-35",
+            "start": 331
+          },
+          {
+            "end": 342,
+            "id": "fmt-36",
+            "start": 339
+          },
+          {
+            "end": 348,
+            "id": "fmt-37",
+            "start": 342
+          },
+          {
+            "end": 352,
+            "id": "fmt-38",
+            "start": 348
+          },
+          {
+            "end": 369,
+            "id": "fmt-39",
+            "start": 352
+          },
+          {
+            "end": 374,
+            "id": "fmt-40",
+            "start": 369
+          },
+          {
+            "end": 375,
+            "id": "fmt-41",
+            "start": 374
+          },
+          {
+            "end": 379,
+            "id": "fmt-42",
+            "start": 375
+          },
+          {
+            "end": 440,
+            "id": "fmt-43",
+            "start": 379
+          }
+        ],
+        "id": "formatted-hook-and-ambiguous-repetition",
+        "text": "✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.\n1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.\n2) 6v = 12x\n3) (1x, 1v)*6 = 18x\n4) (2x, 1v)*6 = 24x\n5) FLO’dan (3x, 1v)*6 = 30x\n6) (4x, 1v)*6 = 36x\n7) (5x, 1v)*6 = 42x\n8) FLO’dan (6x, 1v)*6 = 48x\n9) (7x, 1v)*6 = 54x\n10) (8x, 1v)*6 = 60x\n11) FLO’ dan (9x, 1v)*66x \n12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "formatted-hook-and-ambiguous-repetition",
+        "warnings": [
+          {
+            "code": "AMBIGUOUS_REPETITION_NOTATION",
+            "message": "Ambiguous repetition notation detected in the source: *66x. Please review this instruction."
+          }
+        ]
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "formatted-hook-and-ambiguous-repetition::format:0::segment:0"
+        ],
+        "blockTexts": [
+          "✦"
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "c7e62ba074f70127db9c12da8a6e8dc0ab364ed1d4b22380dc3ad5fdec65b428"
+      },
+      {
+        "blockIds": [
+          "formatted-hook-and-ambiguous-repetition::format:1::segment:0"
+        ],
+        "blockTexts": [
+          "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "b29558961742233ae65fa994c673bbb3e4e17f7c67e40e9edc55626e164ae7df"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "into the magic ring. This will be the beginning of the round",
+          "place a stitch marker here."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "7567f464b593263870d40ea4c074b370b8743ca279d66597abdcc8bcc23bc6cf"
+      },
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "In"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "3d2a41827f5b262b8cc96af156117fdf989319a53fadc026e8a02397c4e0790e"
+      },
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "In"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "5e84f5e92a27f2740453cea46ed999f0627294027092c7092eabccd96722a47a"
+      },
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "In"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "92f1f319a1a8168e9b966cf30effb64a93a6561f2671895033a008bb19e0fcb1"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "sc. Without cutting the yarn",
+          "continue with the hair strands."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "7de12a19c013d982273b5e019b56f1257f127debd388856b55e55d989dfb3047"
+      }
+    ]
+  }
+}

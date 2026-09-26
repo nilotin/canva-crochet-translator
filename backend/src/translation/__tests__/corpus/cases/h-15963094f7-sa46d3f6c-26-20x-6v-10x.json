@@ -1,0 +1,53 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "pattern",
+        "source": "26) 20x, 6v, 10x, 6v, 24x = 78x",
+        "translated": "26) 20pb, 6aum, 10pb, 6aum, 24pb = 78pb",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-15963094f7-sa46d3f6c-26-20x-6v-10x",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > bypasses the provider for a pattern-only es segment"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "pattern",
+        "text": "26) 20x, 6v, 10x, 6v, 24x = 78x"
+      }
+    ],
+    "targetLanguage": "es"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "pattern",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

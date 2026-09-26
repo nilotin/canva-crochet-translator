@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "alternate-hook-yarn-intro",
+        "source": "2.20 numara tığ, siyah ip ile (catania 110) örüyoruz.",
+        "translated": "Using a 2.20 mm crochet hook and siyah yarn (catania 110), work as follows.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-b171d45d38-s277969e8-2-20-numara-tig",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > normalizes a hook intro with the yarn brand after ile through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Using a __XQAAAAQX__ crochet hook and siyah yarn __XQAAABQX__catania __XQAAACQX____XQAAADQX__, work as follows.",
+        "translated": "Using a __XQAAAAQX__ crochet hook and siyah yarn __XQAAABQX__catania __XQAAACQX____XQAAADQX__, work as follows."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "alternate-hook-yarn-intro",
+        "text": "2.20 numara tığ, siyah ip ile (catania 110) örüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "alternate-hook-yarn-intro",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "alternate-hook-yarn-intro"
+        ],
+        "blockTexts": [
+          "Using a __XQAAAAQX__ crochet hook and siyah yarn __XQAAABQX__catania __XQAAACQX____XQAAADQX__, work as follows."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "b78627a0a6e105f0549a3bd09d0af7b6aa5f81075fd7df77521fd980a32aea6d"
+      }
+    ]
+  }
+}

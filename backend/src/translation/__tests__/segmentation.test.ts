@@ -76,6 +76,21 @@ describe("translation segmentation", () => {
     );
   });
 
+  it("tracks each trimmed segment's exact source offsets", () => {
+    const source = longNumberedPattern;
+    const segments = segmentTranslationBlock(source);
+
+    for (const segment of segments) {
+      expect(source.slice(segment.start, segment.end)).toBe(segment.text);
+    }
+
+    for (let index = 1; index < segments.length; index += 1) {
+      expect(segments[index]?.start).toBeGreaterThanOrEqual(
+        segments[index - 1]?.end ?? 0,
+      );
+    }
+  });
+
   it("does not split a bare hook size across a newline", () => {
     const source = `${"a".repeat(480)}\n${"b".repeat(14)} 2.20\ntığ ile örüyoruz.`;
     const { segments, reconstructed } = reconstructSource(source);

@@ -1,0 +1,95 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page14-exact-block-1",
+        "source": "Bluz kolu;\n1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. 20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.",
+        "translated": "Bluz kolu;\n1) As shown in the image, attach the yarn from the back of the armhole. Work 20sc. This will be the beginning of the round; place a stitch marker here.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-127de8dd49-s66b882dd-bluz-kolu-1-gorselde",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "Page 14 exact saved Block 1 including heading > keeps the sleeve instruction deterministic while allowing only the heading prose onto the provider path"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": ". This will be the beginning of the round",
+        "translated": ". This will be the beginning of the round"
+      },
+      {
+        "source": "As shown in the image",
+        "translated": "As shown in the image"
+      },
+      {
+        "source": "Bluz kolu",
+        "translated": "Bluz kolu"
+      },
+      {
+        "source": "attach the yarn from the back of the armhole. Work",
+        "translated": "attach the yarn from the back of the armhole. Work"
+      },
+      {
+        "source": "place a stitch marker here.",
+        "translated": "place a stitch marker here."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page14-exact-block-1",
+        "text": "Bluz kolu;\n1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. 20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page14-exact-block-1",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4"
+        ],
+        "blockTexts": [
+          "Bluz kolu",
+          "As shown in the image",
+          "attach the yarn from the back of the armhole. Work",
+          ". This will be the beginning of the round",
+          "place a stitch marker here."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "e8360954146ae5231d03219d362076914774e2a3b934efa62b6c1815d5edff31"
+      }
+    ]
+  }
+}

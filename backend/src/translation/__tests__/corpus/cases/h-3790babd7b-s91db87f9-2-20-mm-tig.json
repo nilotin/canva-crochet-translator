@@ -1,0 +1,83 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [
+          "EMPTY_TRANSLATION",
+          "MISSING_PROTECTED_NOTATION"
+        ],
+        "id": "corrupted-immutable",
+        "source": "2.20 mm tığ ile örüyoruz.",
+        "translated": "",
+        "valid": false,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-3790babd7b-s91db87f9-2-20-mm-tig",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > never exposes a corrupted immutable restoration to final output"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Using a __XQAAAAQX__ crochet hook, work as follows.",
+        "translated": "Using a crochet hook, work as follows."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "corrupted-immutable",
+        "text": "2.20 mm tığ ile örüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [
+          {
+            "code": "MISSING_PROTECTED_NOTATION",
+            "message": "Segment 1: Protected immutable token __XQAAAAQX__ is missing."
+          },
+          {
+            "code": "EMPTY_TRANSLATION",
+            "message": "The returned translation is empty."
+          }
+        ],
+        "id": "corrupted-immutable",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "corrupted-immutable"
+        ],
+        "blockTexts": [
+          "Using a __XQAAAAQX__ crochet hook, work as follows."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "133d917f527b6a238877d93781748d2a07a8558ad0e132ad105bdf279b02d3b8"
+      }
+    ]
+  }
+}

@@ -283,7 +283,66 @@ describe("translation review", () => {
   });
 
   describe("reusable static templates", () => {
-    it.each([
+    it("rejects atomic-collapse zero-width styles without absorbed-region provenance", () => {
+    const source = "abcdef";
+    const snapshots = new Map([
+      [
+        "block",
+        [
+          {
+            index: 0,
+            length: 3,
+            text: "abc",
+            formatting: { color: "#ff0000" },
+          },
+          {
+            index: 3,
+            length: 3,
+            text: "def",
+            formatting: { color: "#0000ff" },
+          },
+        ],
+      ],
+    ]);
+
+    const review = buildPageReview(
+      [{ localId: "block", sourceText: source, order: 0 }],
+      snapshots,
+      {
+        translations: [
+          {
+            id: "block",
+            source,
+            translated: source,
+            valid: true,
+            errors: [],
+            warnings: [],
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: source.length },
+              {
+                id: "fmt-1",
+                start: source.length,
+                end: source.length,
+              },
+            ],
+            formattingProjection: "atomic_collapse",
+          },
+        ],
+      },
+    );
+
+    expect(review.reviewStatus).toBe("blocked");
+    expect(review.blocks[0]?.validation).toBe("BLOCK");
+    expect(review.blocks[0]?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "FORMATTING_MAPPING_REQUIRED",
+        }),
+      ]),
+    );
+  });
+
+  it.each([
       ["en", FRONT_NOTICE.en],
       ["es", FRONT_NOTICE.es],
     ] as const)(
@@ -1267,6 +1326,7 @@ describe("translation review", () => {
               },
             ],
             formattingProjection: "atomic_collapse",
+            absorbedFormattingRegionIds: ["fmt-1", "fmt-2"],
           },
         ],
       }),
@@ -1394,6 +1454,59 @@ describe("translation review", () => {
       );
     },
   );
+
+  it("blocks a malformed supplied formatting map even when the source styles are uniform", () => {
+    const source = "abcdef";
+    const snapshots = new Map([
+      [
+        "block",
+        [
+          {
+            index: 0,
+            length: 3,
+            text: "abc",
+            formatting: { color: "#000000" },
+          },
+          {
+            index: 3,
+            length: 3,
+            text: "def",
+            formatting: { color: "#000000" },
+          },
+        ],
+      ],
+    ]);
+
+    const review = buildPageReview(
+      [{ localId: "block", sourceText: source, order: 0 }],
+      snapshots,
+      {
+        translations: [
+          {
+            id: "block",
+            source,
+            translated: source,
+            valid: true,
+            errors: [],
+            warnings: [],
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: 2 },
+              { id: "fmt-1", start: 3, end: 6 },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(review.blocks[0]?.validation).toBe("BLOCK");
+    expect(review.blocks[0]?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "FORMATTING_MAPPING_REQUIRED",
+        }),
+      ]),
+    );
+  });
 
   it("preserves projected inline formatting on translated notation", async () => {
     const content = mutableRange("6x, v, 4x", [
@@ -2173,5 +2286,115 @@ describe("translation review", () => {
       ),
     ).resolves.toMatchObject({ appliedBlocks: 1 });
     expect(sync).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("semantic target-ordered formatting runs", () => {
+  it("applies reordered source styles to their translated semantic pieces", async () => {
+    const source = "2-11) 10 sıra 64x";
+    const translated = "2-11) 64sc for 10 rounds";
+
+    const content = mutableRange(source, [
+      {
+        text: "2-11) ",
+        formatting: { color: "#ff0000", fontWeight: "bold" },
+      },
+      {
+        text: "10 sıra ",
+        formatting: { color: "#00ff00" },
+      },
+      {
+        text: "64x",
+        formatting: { color: "#0000ff" },
+      },
+    ]);
+
+    const sync = jest.fn(async () => undefined);
+    const query = jest.fn(async (_options, callback) =>
+      callback({ contents: [content], sync }),
+    );
+
+    const stitchStart = translated.indexOf("64sc");
+    const stitchEnd = stitchStart + "64sc".length;
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-1",
+            source,
+            translated,
+            valid: true,
+            errors: [],
+            warnings: [],
+            targetFormattingRegions: [
+              { id: "fmt-0", start: 0, end: stitchStart },
+              { id: "fmt-2", start: stitchStart, end: stitchEnd },
+              { id: "fmt-1", start: stitchEnd, end: translated.length },
+            ],
+          },
+        ],
+      }),
+    }));
+
+    const review = await translateCurrentPage(
+      "en",
+      "semantic-format-context",
+      {
+        queryCurrentPage: query as never,
+        fetch: fetcher as never,
+        ...translationAuth,
+      },
+    );
+
+    expect(review.reviewStatus).toBe("ready");
+
+    await applyPageReview(
+      review,
+      {
+        contextId: "semantic-format-context",
+        language: "en",
+      },
+      {
+        verifyTarget: async () => ({
+          isTranslationTarget: true,
+          language: "en",
+          sourceTitle: "Source",
+          contextId: "semantic-format-context",
+        }),
+        queryCurrentPage: query as never,
+      },
+    );
+
+    expect(content.formatText).toHaveBeenCalledTimes(3);
+
+    expect(content.formatText).toHaveBeenCalledWith(
+      { index: 0, length: stitchStart },
+      expect.objectContaining({
+        color: "#ff0000",
+        fontWeight: "bold",
+      }),
+    );
+
+    expect(content.formatText).toHaveBeenCalledWith(
+      {
+        index: stitchStart,
+        length: stitchEnd - stitchStart,
+      },
+      expect.objectContaining({
+        color: "#0000ff",
+      }),
+    );
+
+    expect(content.formatText).toHaveBeenCalledWith(
+      {
+        index: stitchEnd,
+        length: translated.length - stitchEnd,
+      },
+      expect.objectContaining({
+        color: "#00ff00",
+      }),
+    );
   });
 });

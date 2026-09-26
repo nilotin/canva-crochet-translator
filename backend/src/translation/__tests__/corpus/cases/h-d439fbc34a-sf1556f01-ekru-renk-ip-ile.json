@@ -1,0 +1,305 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page8-cut-yarn",
+        "source": "✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)\n52) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+        "translated": "✦ With ecru yarn: (Cut the orange yarn.)\n52) 24sc. Ch 1 and cut the yarn.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "page8-second-leg",
+        "source": "✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.\n52) 26x\n53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+        "translated": "✦ On the second leg, work the first 51 rounds in the same way.\n52) 26sc\n53) Work 12sc, then continue with the body without cutting the yarn.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "page8-alignment",
+        "source": "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+        "translated": "✦ For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "page8-join",
+        "source": "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+        "translated": "✦ From the second leg, ch 3 and join to the first leg with the backs of the legs facing you.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "page8-body-round",
+        "source": "1) 26x(ilk bacak), 3x (zincir üstü), 26x (ikinci bacak), 3x (zincir üstü) ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak = 58x",
+        "translated": "1) 26sc (first leg), 3sc (along the chain), 26sc (second leg), 3sc (along the chain) = 58sc. This will be the beginning of the round; place a stitch marker here.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-d439fbc34a-sf1556f01-ekru-renk-ip-ile",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes Page 8 leg and body instructions through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Cut the orange yarn.",
+        "translated": "Cut the orange yarn."
+      },
+      {
+        "source": "For me",
+        "translated": "For me"
+      },
+      {
+        "source": "From the second leg",
+        "translated": "From the second leg"
+      },
+      {
+        "source": "On the second leg",
+        "translated": "On the second leg"
+      },
+      {
+        "source": "With ecru yarn",
+        "translated": "With ecru yarn"
+      },
+      {
+        "source": "Work",
+        "translated": "Work"
+      },
+      {
+        "source": "along the chain",
+        "translated": "along the chain"
+      },
+      {
+        "source": "and cut the yarn.",
+        "translated": "and cut the yarn."
+      },
+      {
+        "source": "and join to the first leg with the backs of the legs facing you.",
+        "translated": "and join to the first leg with the backs of the legs facing you."
+      },
+      {
+        "source": "ch",
+        "translated": "ch"
+      },
+      {
+        "source": "fewer or additional single crochet stitches to reach the center.",
+        "translated": "fewer or additional single crochet stitches to reach the center."
+      },
+      {
+        "source": "first leg",
+        "translated": "first leg"
+      },
+      {
+        "source": "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak",
+        "translated": "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak"
+      },
+      {
+        "source": "rounds in the same way.",
+        "translated": "rounds in the same way."
+      },
+      {
+        "source": "sc",
+        "translated": "sc"
+      },
+      {
+        "source": "sc. Ch",
+        "translated": "sc. Ch"
+      },
+      {
+        "source": "second leg",
+        "translated": "second leg"
+      },
+      {
+        "source": "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align",
+        "translated": "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align"
+      },
+      {
+        "source": "then continue with the body without cutting the yarn.",
+        "translated": "then continue with the body without cutting the yarn."
+      },
+      {
+        "source": "work",
+        "translated": "work"
+      },
+      {
+        "source": "work the first",
+        "translated": "work the first"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page8-cut-yarn",
+        "text": "✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)\n52) 24x, 1 zincir çekip ipimizi kesiyoruz."
+      },
+      {
+        "id": "page8-second-leg",
+        "text": "✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.\n52) 26x\n53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz."
+      },
+      {
+        "id": "page8-alignment",
+        "text": "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin."
+      },
+      {
+        "id": "page8-join",
+        "text": "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz."
+      },
+      {
+        "id": "page8-body-round",
+        "text": "1) 26x(ilk bacak), 3x (zincir üstü), 26x (ikinci bacak), 3x (zincir üstü) ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak = 58x"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page8-cut-yarn",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "page8-second-leg",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "page8-alignment",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "page8-join",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "page8-body-round",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3"
+        ],
+        "blockTexts": [
+          "With ecru yarn",
+          "Cut the orange yarn.",
+          "sc. Ch",
+          "and cut the yarn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "81965ba7111efa7af2dea5a30b311b17ecf0a9d0f52daa437270493162599b7e"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5"
+        ],
+        "blockTexts": [
+          "On the second leg",
+          "work the first",
+          "rounds in the same way.",
+          "Work",
+          "sc",
+          "then continue with the body without cutting the yarn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "3aa66073b71d7a6ba3e9d7ca08cf4924e524f43127f4de1d6b55cf1d1f2fc1b5"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3"
+        ],
+        "blockTexts": [
+          "For me",
+          "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align",
+          "work",
+          "fewer or additional single crochet stitches to reach the center."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "8a172f36c7e8f753c2ba5cf8f56c7f085b9931d34ffabbe38fe707859cce48b4"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2"
+        ],
+        "blockTexts": [
+          "From the second leg",
+          "ch",
+          "and join to the first leg with the backs of the legs facing you."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "561d388ca50c473e3c9b5cead8bf3445f152d898293587037bc231782039016c"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5",
+          "span-6",
+          "span-7",
+          "span-8"
+        ],
+        "blockTexts": [
+          "sc",
+          "first leg",
+          "sc",
+          "along the chain",
+          "sc",
+          "second leg",
+          "sc",
+          "along the chain",
+          "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "3545590c33344fa8730f3c0ffe0c3e43b9ae1724955174dd8d25188ec47523a7"
+      }
+    ]
+  }
+}

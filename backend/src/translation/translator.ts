@@ -39,8 +39,12 @@ import { validateReturnedBlockIds, validateTranslation } from "./validator.js";
 import { buildFormattingTranslationUnits } from "./formatting_units.js";
 
 import {
+  projectBareRoundCountAtomicFormattingRegions,
+  projectCompactCrochetRowFormattingRegions,
   projectDeterministicFormattingRegions,
   projectFormattingRegionsFromPieces,
+  projectInstructionMarkerBodyFormattingRegions,
+  projectSleeveAtomicFormattingRegions,
 } from "./formatting_projection.js";
 
 type TranslationContentKind = "pattern" | "materials";
@@ -156,16 +160,23 @@ const translateSegment = async (
   targetLanguage: TargetLanguage,
   provider: TranslationProvider,
   contentKind: TranslationContentKind = "pattern",
+  sourceContext: string = block.text,
+  sourceStart = 0,
 ) => {
   const instruction =
     contentKind === "pattern"
       ? extractLeadingInstruction(block.text)
       : undefined;
   const sourceBody = instruction?.body ?? block.text;
+  const sourceBodyStart =
+    sourceStart + (block.text.length - sourceBody.length);
+
   const normalization = normalizeSourceNaturalLanguageDetailed(
     sourceBody,
     targetLanguage,
     contentKind,
+    sourceContext,
+    sourceBodyStart,
   );
   // Checked against the raw source (before normalization may have already
   // rewritten a recognized clause into target-language text) so the atomic
@@ -265,7 +276,7 @@ const translateSegment = async (
 
       const prompt = buildMixedSpanPrompt(
         targetLanguage,
-        mixed.spans.map(({ text }) => text).join("\n"),
+        normalized,
         providerSpans,
       );
       const providerResult = await provider.translate({
@@ -410,6 +421,8 @@ const translateSegment = async (
           restored,
           targetLanguage,
           contentKind,
+          sourceContext,
+          sourceStart,
         )
       : restored;
   const validation =
@@ -421,6 +434,8 @@ const translateSegment = async (
           {
             notationCaseInsensitive: true,
             contentKind,
+            sourceContext,
+            sourceStart,
           },
         )
       : {
@@ -459,6 +474,7 @@ const PERSISTENT_FRAGMENT_ERROR_CODES = new Set<ValidationCode>([
   "RESERVED_PLACEHOLDER_LEAK",
   "INTERNAL_MIXED_LEXER_ERROR",
   "UNSAFE_SEGMENTATION_BOUNDARY",
+  "EMPTY_TRANSLATION",
 ]);
 
 const persistentFragmentErrors = (
@@ -502,9 +518,39 @@ const translateFormattingUnits = async (
     string,
     NonNullable<TranslationResult["targetFormattingRegions"]>[number]
   >();
+  const semanticProjectedRuns: NonNullable<
+    TranslationResult["targetFormattingRegions"]
+  > = [];
+  const semanticProjectedRunAllowsZeroWidth: boolean[] = [];
+
+  let usesSemanticProjection = false;
   let usesAtomicCollapse = false;
+  const absorbedFormattingRegionIds = new Set<string>();
 
   let targetCursor = 0;
+
+  const appendTargetOrderedRun = (
+    run: NonNullable<
+      TranslationResult["targetFormattingRegions"]
+    >[number],
+    allowsZeroWidth = false,
+  ) => {
+    const previous = semanticProjectedRuns[semanticProjectedRuns.length - 1];
+
+    if (
+      previous &&
+      previous.id === run.id &&
+      previous.end === run.start &&
+      previous.start !== previous.end &&
+      run.start !== run.end
+    ) {
+      previous.end = run.end;
+      return;
+    }
+
+    semanticProjectedRuns.push({ ...run });
+    semanticProjectedRunAllowsZeroWidth.push(allowsZeroWidth);
+  };
 
   const recordProjectedUnit = (
     unit: (typeof units)[number],
@@ -512,6 +558,7 @@ const translateFormattingUnits = async (
     end: number,
   ) => {
     const existing = projectedById.get(unit.id);
+
     if (existing) {
       if (existing.end !== start) return false;
       existing.end = end;
@@ -522,9 +569,83 @@ const translateFormattingUnits = async (
     for (const id of unit.absorbedRegionIds ?? []) {
       if (projectedById.has(id)) return false;
       projectedById.set(id, { id, start: end, end });
+      absorbedFormattingRegionIds.add(id);
+    }
+
+    appendTargetOrderedRun({
+      id: unit.id,
+      start,
+      end,
+    });
+
+    for (const id of unit.absorbedRegionIds ?? []) {
+      appendTargetOrderedRun(
+        {
+          id,
+          start: end,
+          end,
+        },
+        true,
+      );
     }
 
     if (unit.collapsesFormatting) usesAtomicCollapse = true;
+    return true;
+  };
+
+  const recordSemanticProjectedUnit = (
+    unit: (typeof units)[number],
+    translatedUnit: string,
+    start: number,
+  ): boolean => {
+    if (!unit.atomic || !unit.collapsesFormatting) return false;
+
+    const sourceRegions = [...(block.formattingRegions ?? [])]
+      .filter(
+        ({ start: regionStart, end: regionEnd }) =>
+          regionStart < unit.end && regionEnd > unit.start,
+      )
+      .map(({ id, start: regionStart, end: regionEnd }) => ({
+        id,
+        start: Math.max(regionStart, unit.start) - unit.start,
+        end: Math.min(regionEnd, unit.end) - unit.start,
+      }));
+
+    if (sourceRegions.length <= 1) return false;
+
+    const projected =
+      projectBareRoundCountAtomicFormattingRegions(
+        unit.text,
+        translatedUnit,
+        sourceRegions,
+      ) ??
+      projectSleeveAtomicFormattingRegions(
+        unit.text,
+        translatedUnit,
+        sourceRegions,
+      ) ??
+      projectCompactCrochetRowFormattingRegions(
+        unit.text,
+        translatedUnit,
+        sourceRegions,
+      ) ??
+      projectInstructionMarkerBodyFormattingRegions(
+        unit.text,
+        translatedUnit,
+        sourceRegions,
+      );
+
+    if (!projected) return false;
+
+    for (const run of projected) {
+      appendTargetOrderedRun({
+        id: run.id,
+        start: start + run.start,
+        end: start + run.end,
+      });
+    }
+
+    usesSemanticProjection = true;
     return true;
   };
 
@@ -577,7 +698,14 @@ const translateFormattingUnits = async (
     }
 
     const segments = unit.atomic
-      ? [{ index: 0, prefix: "", text: coreText, suffix: "" }]
+      ? [{
+          index: 0,
+          prefix: "",
+          text: coreText,
+          suffix: "",
+          start: 0,
+          end: coreText.length,
+        }]
       : segmentTranslationBlock(coreText);
     const translatedSegments: string[] = [];
 
@@ -602,6 +730,8 @@ const translateFormattingUnits = async (
         targetLanguage,
         provider,
         contentKind,
+        block.text,
+        unit.start + leadingWhitespace.length + segment.start,
       );
 
       translatedSegments.push(result.translated);
@@ -616,12 +746,21 @@ const translateFormattingUnits = async (
 
     translatedUnits.push(translatedUnit);
 
-    formattingProjectionValid =
-      recordProjectedUnit(
+    const recordedSemanticProjection =
+      recordSemanticProjectedUnit(
         unit,
+        translatedUnit,
         targetCursor,
-        targetCursor + translatedUnit.length,
-      ) && formattingProjectionValid;
+      );
+
+    if (!recordedSemanticProjection) {
+      formattingProjectionValid =
+        recordProjectedUnit(
+          unit,
+          targetCursor,
+          targetCursor + translatedUnit.length,
+        ) && formattingProjectionValid;
+    }
 
     targetCursor += translatedUnit.length;
   }
@@ -630,14 +769,45 @@ const translateFormattingUnits = async (
   const orderedSourceRegions = [...(block.formattingRegions ?? [])].sort(
     (left, right) => left.start - right.start,
   );
-  const targetFormattingRegions = formattingProjectionValid
+  const legacyTargetFormattingRegions = formattingProjectionValid
     ? orderedSourceRegions.map(({ id }) => projectedById.get(id))
     : [];
-  const hasCompleteProjection =
-    targetFormattingRegions.length === orderedSourceRegions.length &&
-    targetFormattingRegions.every(
+
+  const hasCompleteLegacyProjection =
+    legacyTargetFormattingRegions.length === orderedSourceRegions.length &&
+    legacyTargetFormattingRegions.every(
       (region): region is NonNullable<typeof region> => region !== undefined,
     );
+
+  const semanticProjectionIds = new Set(
+    semanticProjectedRuns.map(({ id }) => id),
+  );
+
+  const hasCompleteSemanticProjection =
+    formattingProjectionValid &&
+    semanticProjectedRuns.length > 0 &&
+    semanticProjectedRuns[0]?.start === 0 &&
+    semanticProjectedRuns[semanticProjectedRuns.length - 1]?.end ===
+      translated.length &&
+    semanticProjectedRuns.every(
+      (region, index) =>
+        region.end >= region.start &&
+        (region.end > region.start ||
+          semanticProjectedRunAllowsZeroWidth[index] === true) &&
+        (index === 0 ||
+          semanticProjectedRuns[index - 1]?.end === region.start),
+    ) &&
+    orderedSourceRegions.every(({ id }) => semanticProjectionIds.has(id));
+
+  const targetFormattingRegions = usesSemanticProjection
+    ? semanticProjectedRuns
+    : hasCompleteLegacyProjection
+      ? legacyTargetFormattingRegions
+      : [];
+
+  const hasCompleteProjection = usesSemanticProjection
+    ? hasCompleteSemanticProjection
+    : hasCompleteLegacyProjection;
 
   const fullValidation = validateTranslation(
     block.text,
@@ -668,7 +838,10 @@ const translateFormattingUnits = async (
     warnings,
     ...(hasCompleteProjection ? { targetFormattingRegions } : {}),
     ...(hasCompleteProjection && usesAtomicCollapse
-      ? { formattingProjection: "atomic_collapse" as const }
+      ? {
+          formattingProjection: "atomic_collapse" as const,
+          absorbedFormattingRegionIds: [...absorbedFormattingRegionIds],
+        }
       : {}),
   };
 };
@@ -724,6 +897,8 @@ export const translateBlocks = async (
         targetLanguage,
         provider,
         contentKind,
+        block.text,
+        segment.start,
       );
       translatedSegments.push(result.translated);
       segmentErrors.push(...result.errors);

@@ -1,0 +1,83 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [
+          "EMPTY_TRANSLATION",
+          "RESERVED_PLACEHOLDER_LEAK"
+        ],
+        "id": "mixed-placeholder",
+        "source": "6x sonra duruyoruz",
+        "translated": "",
+        "valid": false,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-0d9c0005dd-sde0609bf-6x-sonra-duruyoruz",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > rejects a reserved placeholder introduced by mixed prose output"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "sonra duruyoruz",
+        "translated": "__XQZZZZQX__"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "mixed-placeholder",
+        "text": "6x sonra duruyoruz"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [
+          {
+            "code": "RESERVED_PLACEHOLDER_LEAK",
+            "message": "Segment 1: Internal translation placeholder syntax was found in the output."
+          },
+          {
+            "code": "EMPTY_TRANSLATION",
+            "message": "The returned translation is empty."
+          }
+        ],
+        "id": "mixed-placeholder",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "sonra duruyoruz"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "1145f5afffe55e8689ca192fe058780771a88c4b11f942597b9861bbdc5cbe8e"
+      }
+    ]
+  }
+}

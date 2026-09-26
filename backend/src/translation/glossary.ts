@@ -88,7 +88,7 @@ export const PROJECT_NOTATION: readonly CrochetNotationEntry[] = [
   {
     concept: "slip_stitch",
     tr: { abbreviation: "CC", description: "ilmek kaydırma" },
-    en: { abbreviation: "SL.ST", description: "Slip Stitch" },
+    en: { abbreviation: "sl st", description: "Slip Stitch" },
     es: { abbreviation: "pd", description: "punto deslizado" },
   },
   {

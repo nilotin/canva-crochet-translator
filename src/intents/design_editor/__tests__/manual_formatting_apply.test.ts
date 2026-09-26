@@ -16,7 +16,14 @@ const formatting = [
   { ...base, color: "#ff0000", fontWeight: "bold" as const },
   { ...base, color: "#000000" },
 ];
-const setup = async (edited: string) => {
+const setup = async (
+  edited: string,
+  targetFormattingRegions = [
+    { id: "fmt-0", start: 0, end: 5 },
+    { id: "fmt-1", start: 5, end: 9 },
+    { id: "fmt-2", start: 9, end: 14 },
+  ],
+) => {
   const content = {
     deleted: false,
     readPlaintext: () => source,
@@ -49,11 +56,7 @@ const setup = async (edited: string) => {
             valid: true,
             errors: [],
             warnings: [],
-            targetFormattingRegions: [
-              { id: "fmt-0", start: 0, end: 5 },
-              { id: "fmt-1", start: 5, end: 9 },
-              { id: "fmt-2", start: 9, end: 14 },
-            ],
+            targetFormattingRegions,
           },
         ],
       }),
@@ -145,4 +148,39 @@ it("rejects a manual paragraph merge that would overwrite rich styles", () => {
       ]),
     ),
   ).toThrow("FORMATTING_EDIT_CONFLICT");
+});
+
+it("applies a manual edit when a formatting id repeats in non-adjacent target runs", async () => {
+  const edited = "LEFT blue RIGHT";
+
+  const { content, sync, apply } = await setup(edited, [
+    { id: "fmt-0", start: 0, end: 5 },
+    { id: "fmt-1", start: 5, end: 9 },
+    { id: "fmt-0", start: 9, end: 10 },
+    { id: "fmt-2", start: 10, end: 14 },
+  ]);
+
+  await apply();
+
+  expect(content.replaceText).toHaveBeenCalledWith(
+    { index: 0, length: source.length },
+    edited,
+  );
+
+  expect(content.formatText.mock.calls).toEqual([
+    [{ index: 0, length: 5 }, { color: "#000000" }],
+    [
+      { index: 5, length: 5 },
+      { color: "#ff0000", fontWeight: "bold" },
+    ],
+    [{ index: 10, length: 1 }, { color: "#000000" }],
+    [{ index: 11, length: 4 }, { color: "#000000" }],
+  ]);
+
+  expect(content.formatParagraph).toHaveBeenCalledWith(
+    { index: 0, length: edited.length },
+    base,
+  );
+
+  expect(sync).toHaveBeenCalledTimes(1);
 });

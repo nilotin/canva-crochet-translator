@@ -21,8 +21,8 @@ const review: PersistedBulkPageReview = {
 };
 
 describe("bulk review state", () => {
-  it("uses translation pipeline revision v11", () => {
-    expect(TRANSLATION_PIPELINE_REVISION).toBe("translation-pipeline-v13");
+  it("uses translation pipeline revision v14", () => {
+    expect(TRANSLATION_PIPELINE_REVISION).toBe("translation-pipeline-v14");
   });
 
   it("uses the stable Canva page id as its page identity", () => {
@@ -57,6 +57,26 @@ describe("bulk review state", () => {
         "page-formatting-v1-1234",
       ),
     ).toBe(false);
+  });
+
+  it("rejects v13 reviews that predate absorbed formatting provenance", () => {
+    expect(
+      isBulkReviewFresh(
+        { ...review, pipelineRevision: "translation-pipeline-v13" },
+        "page-content-v1-1234",
+        "page-formatting-v1-1234",
+      ),
+    ).toBe(false);
+  });
+
+  it("accepts a v14 review when content and formatting are unchanged", () => {
+    expect(
+      isBulkReviewFresh(
+        { ...review, pipelineRevision: "translation-pipeline-v14" },
+        "page-content-v1-1234",
+        "page-formatting-v1-1234",
+      ),
+    ).toBe(true);
   });
 
   it("rejects a legacy review with no pipeline revision", () => {

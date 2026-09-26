@@ -1,0 +1,95 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page15-collar-turning-row",
+        "source": "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. Bütün sıra sonlarında 1 zincir çekip dönüyoruz.",
+        "translated": "1) Work 28sc, Ch 1 and turn. At the end of each row, ch 1 and turn.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-2c5ac91027-sbeea7f04-1-28x-oruyoruz-1",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "Page 15 collar turning-row regression > preserves both turning instructions and uses row terminology through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Ch",
+        "translated": "Ch"
+      },
+      {
+        "source": "Work",
+        "translated": "Work"
+      },
+      {
+        "source": "and turn.",
+        "translated": "and turn."
+      },
+      {
+        "source": "and turn. At the end of each row",
+        "translated": "and turn. At the end of each row"
+      },
+      {
+        "source": "ch",
+        "translated": "ch"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page15-collar-turning-row",
+        "text": "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. Bütün sıra sonlarında 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page15-collar-turning-row",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4"
+        ],
+        "blockTexts": [
+          "Work",
+          "Ch",
+          "and turn. At the end of each row",
+          "ch",
+          "and turn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "0a3d7648fa3e1fe31c30930980fc3bf1868a7d7ff66cf00f100967ec329b52c3"
+      }
+    ]
+  }
+}

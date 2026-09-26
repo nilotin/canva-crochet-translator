@@ -1,0 +1,121 @@
+{
+  "expected": {
+    "results": [
+      {
+        "absorbedFormattingRegionIds": [
+          "fmt-body-a",
+          "fmt-body-b"
+        ],
+        "errorCodes": [],
+        "formattingProjection": "atomic_collapse",
+        "id": "formatted-around-edge-slip-stitch-finishing",
+        "source": "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip ipimizi kesiyoruz.",
+        "targetFormattingRegions": [
+          {
+            "end": 231,
+            "id": "fmt-marker",
+            "start": 0
+          },
+          {
+            "end": 231,
+            "id": "fmt-body-a",
+            "start": 231
+          },
+          {
+            "end": 231,
+            "id": "fmt-body-b",
+            "start": 231
+          }
+        ],
+        "translated": "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn.",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "formatted-around-edge-slip-stitch-finishing",
+        "regionId": "fmt-body-a",
+        "text": ""
+      },
+      {
+        "blockId": "formatted-around-edge-slip-stitch-finishing",
+        "regionId": "fmt-body-b",
+        "text": ""
+      },
+      {
+        "blockId": "formatted-around-edge-slip-stitch-finishing",
+        "regionId": "fmt-marker",
+        "text": "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn."
+      }
+    ]
+  },
+  "id": "h-43d0bb4885-s3533a06f-30-gorselde-goruldugu-gibi",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > keeps the around-edge slip-stitch finishing instruction deterministic across Canva formatting boundaries"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 4,
+            "id": "fmt-marker",
+            "start": 0
+          },
+          {
+            "end": 101,
+            "id": "fmt-body-a",
+            "start": 4
+          },
+          {
+            "end": 200,
+            "id": "fmt-body-b",
+            "start": 101
+          }
+        ],
+        "id": "formatted-around-edge-slip-stitch-finishing",
+        "text": "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip ipimizi kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "formatted-around-edge-slip-stitch-finishing",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: iç, dış, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: iç, dış, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": []
+  }
+}

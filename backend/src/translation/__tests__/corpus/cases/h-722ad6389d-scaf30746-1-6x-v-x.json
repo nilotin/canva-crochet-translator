@@ -1,0 +1,298 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "canva-block",
+        "source": "1) (6x, v) x 6. FLO örüyoruz.\n2) (6x, v) x 6. FLO örüyoruz.\n3) (6x, v) x 6. FLO örüyoruz.\n4) (6x, v) x 6. FLO örüyoruz.\n5) (6x, v) x 6. FLO örüyoruz.\n6) (6x, v) x 6. FLO örüyoruz.\n7) (6x, v) x 6. FLO örüyoruz.\n8) (6x, v) x 6. FLO örüyoruz.\n9) (6x, v) x 6. FLO örüyoruz.\n10) (6x, v) x 6. FLO örüyoruz.\n11) (6x, v) x 6. FLO örüyoruz.\n12) (6x, v) x 6. FLO örüyoruz.\n13) (6x, v) x 6. FLO örüyoruz.\n14) (6x, v) x 6. FLO örüyoruz.\n15) (6x, v) x 6. FLO örüyoruz.\n16) (6x, v) x 6. FLO örüyoruz.\n17) (6x, v) x 6. FLO örüyoruz.\n18) (6x, v) x 6. FLO örüyoruz.",
+        "translated": "1) (6sc, inc) x 6. FLO örüyoruz.\n2) (6sc, inc) x 6. FLO örüyoruz.\n3) (6sc, inc) x 6. FLO örüyoruz.\n4) (6sc, inc) x 6. FLO örüyoruz.\n5) (6sc, inc) x 6. FLO örüyoruz.\n6) (6sc, inc) x 6. FLO örüyoruz.\n7) (6sc, inc) x 6. FLO örüyoruz.\n8) (6sc, inc) x 6. FLO örüyoruz.\n9) (6sc, inc) x 6. FLO örüyoruz.\n10) (6sc, inc) x 6. FLO örüyoruz.\n11) (6sc, inc) x 6. FLO örüyoruz.\n12) (6sc, inc) x 6. FLO örüyoruz.\n13) (6sc, inc) x 6. FLO örüyoruz.\n14) (6sc, inc) x 6. FLO örüyoruz.\n15) (6sc, inc) x 6. FLO örüyoruz.\n16) (6sc, inc) x 6. FLO örüyoruz.\n17) (6sc, inc) x 6. FLO örüyoruz.\n18) (6sc, inc) x 6. FLO örüyoruz.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-722ad6389d-scaf30746-1-6x-v-x",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > segments a long notation-heavy Canva block and reconstructs one passing result"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": ".",
+        "translated": "."
+      },
+      {
+        "source": "örüyoruz.",
+        "translated": "örüyoruz."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "canva-block",
+        "text": "1) (6x, v) x 6. FLO örüyoruz.\n2) (6x, v) x 6. FLO örüyoruz.\n3) (6x, v) x 6. FLO örüyoruz.\n4) (6x, v) x 6. FLO örüyoruz.\n5) (6x, v) x 6. FLO örüyoruz.\n6) (6x, v) x 6. FLO örüyoruz.\n7) (6x, v) x 6. FLO örüyoruz.\n8) (6x, v) x 6. FLO örüyoruz.\n9) (6x, v) x 6. FLO örüyoruz.\n10) (6x, v) x 6. FLO örüyoruz.\n11) (6x, v) x 6. FLO örüyoruz.\n12) (6x, v) x 6. FLO örüyoruz.\n13) (6x, v) x 6. FLO örüyoruz.\n14) (6x, v) x 6. FLO örüyoruz.\n15) (6x, v) x 6. FLO örüyoruz.\n16) (6x, v) x 6. FLO örüyoruz.\n17) (6x, v) x 6. FLO örüyoruz.\n18) (6x, v) x 6. FLO örüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "canva-block",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          ".",
+          "örüyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "53df8201cb710b94ddf5e1b5cdc86c72a261e332191415f8df552020680a8937"
+      }
+    ]
+  }
+}

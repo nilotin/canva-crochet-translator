@@ -1,0 +1,83 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "mixed",
+        "source": "24) 25x, 1 zincir, 1x atla, 10x",
+        "translated": "24) 25sc, ch 1, skip 1 st, 10sc",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-3bc7246124-s027c1361-24-25x-1-zincir",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > batches only mixed natural-language spans in one provider call"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "ch",
+        "translated": "ch"
+      },
+      {
+        "source": "skip",
+        "translated": "skip"
+      },
+      {
+        "source": "st",
+        "translated": "st"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "mixed",
+        "text": "24) 25x, 1 zincir, 1x atla, 10x"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "mixed",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2"
+        ],
+        "blockTexts": [
+          "ch",
+          "skip",
+          "st"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "585db033c65d089c5d0c5c14ec4befbd2f6efea930d52c7e59583e3c30da37b8"
+      }
+    ]
+  }
+}

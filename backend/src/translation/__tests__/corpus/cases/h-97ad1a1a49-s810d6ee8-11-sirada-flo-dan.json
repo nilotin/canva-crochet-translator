@@ -1,0 +1,53 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page11-round-flo-blo",
+        "source": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.",
+        "translated": "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-97ad1a1a49-s810d6ee8-11-sirada-flo-dan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile with Canva formatting regions > bypasses the provider entirely for a segment fully covered by the nested round/FLO-BLO atomic family and keeps the canonical deterministic output (Page 11 live regression): 11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page11-round-flo-blo",
+        "text": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page11-round-flo-blo",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

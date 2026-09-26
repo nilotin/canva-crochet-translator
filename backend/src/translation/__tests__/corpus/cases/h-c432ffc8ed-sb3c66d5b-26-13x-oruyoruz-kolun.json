@@ -1,0 +1,120 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [
+          "SEMANTIC_ANCHOR_MISSING"
+        ],
+        "id": "page14-sleeve-shaping-es",
+        "source": "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz.",
+        "translated": "26) 13pb örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13pb ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz.",
+        "valid": false,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ]
+  },
+  "id": "h-c432ffc8ed-sb3c66d5b-26-13x-oruyoruz-kolun",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "Page 14 sleeve deterministic ownership > keeps the sleeve shaping family on the provider path for Spanish"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": ". Görselde görüldüğü gibi ben",
+        "translated": ". Görselde görüldüğü gibi ben"
+      },
+      {
+        "source": "kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz",
+        "translated": "kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz"
+      },
+      {
+        "source": "sık iğne eksik ya da fazla örebilirsiniz.",
+        "translated": "sık iğne eksik ya da fazla örebilirsiniz."
+      },
+      {
+        "source": "zincir çekip dönüyoruz.",
+        "translated": "zincir çekip dönüyoruz."
+      },
+      {
+        "source": "ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde",
+        "translated": "ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde"
+      },
+      {
+        "source": "örüyoruz",
+        "translated": "örüyoruz"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page14-sleeve-shaping-es",
+        "text": "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "es"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [
+          {
+            "code": "SEMANTIC_ANCHOR_MISSING",
+            "message": "Translation may have lost the critical upper/above placement."
+          }
+        ],
+        "id": "page14-sleeve-shaping-es",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: üst, dış."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: üst, dış."
+          }
+        ]
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5"
+        ],
+        "blockTexts": [
+          "örüyoruz",
+          "kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz",
+          ". Görselde görüldüğü gibi ben",
+          "ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde",
+          "sık iğne eksik ya da fazla örebilirsiniz.",
+          "zincir çekip dönüyoruz."
+        ],
+        "systemPromptSha256": "10eed3cf242d44868c007075146d4c933e17a51cb78d6faf9d7cdd6239f5eb1e",
+        "targetLanguage": "es",
+        "userPromptSha256": "56707212f41f797a4434dc33b4bf6d9a870d9c2075b17ae38d1a22302dbcfbc0"
+      }
+    ]
+  }
+}

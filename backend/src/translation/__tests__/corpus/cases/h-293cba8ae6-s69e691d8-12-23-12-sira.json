@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "segment-13",
+        "source": "12-23) 12 sıra 66x",
+        "translated": "12-23) 12 vueltas 66pb",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-293cba8ae6-s69e691d8-12-23-12-sira",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > reconstructs the Segment 13 numeric range safely in es"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "sıra",
+        "translated": "vueltas"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "segment-13",
+        "text": "12-23) 12 sıra 66x"
+      }
+    ],
+    "targetLanguage": "es"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "segment-13",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0"
+        ],
+        "blockTexts": [
+          "sıra"
+        ],
+        "systemPromptSha256": "10eed3cf242d44868c007075146d4c933e17a51cb78d6faf9d7cdd6239f5eb1e",
+        "targetLanguage": "es",
+        "userPromptSha256": "cf1992e6a58e0bb947a71cfc6e20131f8d56fe90a7d2807c7ea6291969651966"
+      }
+    ]
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [
+          "MEASUREMENT_INTEGRITY_MISMATCH"
+        ],
+        "id": "live-pumpkin-regression",
+        "source": "Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz.\n✦ Sıra sonlarında iki zincir çekip bir üst sıraya geçiyoruz.\n✦ Bütün sıraları Blo’dan örüyoruz.\n1) 10 zincir çekip geriye dönüyoruz, zincir üzerine üçüncü zincirden itibaren 8hdc\n2-16) 15 sıra 8hdc, iki ucu birleştirmek için ipimizi uzun kesiyoruz.",
+        "translated": "Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz.\n✦ Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz.\n✦ Bütün sıraları BLO’dan örüyoruz.\n1) Ch 10 and turn. Starting from the third chain, work 8hdc\n2-16) 15 sıra 8hdc, iki ucu birleştirmek için ipimizi uzun kesiyoruz.",
+        "valid": false,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED",
+          "POSSIBLE_GLOSSARY_MISMATCH",
+          "POSSIBLE_GLOSSARY_MISMATCH"
+        ]
+      }
+    ]
+  },
+  "id": "h-adcec187ab-s9637a557-bal-kabagi-2-00",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > does not introduce numeric mismatches for written Turkish chain counts"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Bal kabağı",
+        "translated": "Bal kabağı"
+      },
+      {
+        "source": "Bütün sıraları",
+        "translated": "Bütün sıraları"
+      },
+      {
+        "source": "Ch",
+        "translated": "Ch"
+      },
+      {
+        "source": "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz.",
+        "translated": "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz."
+      },
+      {
+        "source": "and turn. Starting from the third chain",
+        "translated": "and turn. Starting from the third chain"
+      },
+      {
+        "source": "iki ucu birleştirmek için ipimizi uzun kesiyoruz.",
+        "translated": "iki ucu birleştirmek için ipimizi uzun kesiyoruz."
+      },
+      {
+        "source": "numara tığ",
+        "translated": "numara tığ"
+      },
+      {
+        "source": "simli ip ile örüyoruz.",
+        "translated": "simli ip ile örüyoruz."
+      },
+      {
+        "source": "sıra",
+        "translated": "sıra"
+      },
+      {
+        "source": "work",
+        "translated": "work"
+      },
+      {
+        "source": "’dan örüyoruz.",
+        "translated": "’dan örüyoruz."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "live-pumpkin-regression",
+        "text": "Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz.\n✦ Sıra sonlarında iki zincir çekip bir üst sıraya geçiyoruz.\n✦ Bütün sıraları Blo’dan örüyoruz.\n1) 10 zincir çekip geriye dönüyoruz, zincir üzerine üçüncü zincirden itibaren 8hdc\n2-16) 15 sıra 8hdc, iki ucu birleştirmek için ipimizi uzun kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [
+          {
+            "code": "MEASUREMENT_INTEGRITY_MISMATCH",
+            "message": "Measurements must retain their numeric precision, paired units, occurrence counts, and source order."
+          }
+        ],
+        "id": "live-pumpkin-regression",
+        "warnings": [
+          {
+            "code": "POSSIBLE_GLOSSARY_MISMATCH",
+            "message": "Segment 1: Expected terminology related to “ip” was not found."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: üst, iç, sıra."
+          },
+          {
+            "code": "POSSIBLE_GLOSSARY_MISMATCH",
+            "message": "Expected terminology related to “ip” was not found."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: üst, iç, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5",
+          "span-6",
+          "span-7",
+          "span-8",
+          "span-9",
+          "span-10"
+        ],
+        "blockTexts": [
+          "Bal kabağı",
+          "numara tığ",
+          "simli ip ile örüyoruz.",
+          "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz.",
+          "Bütün sıraları",
+          "’dan örüyoruz.",
+          "Ch",
+          "and turn. Starting from the third chain",
+          "work",
+          "sıra",
+          "iki ucu birleştirmek için ipimizi uzun kesiyoruz."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "d3d81a934e1bfd9a2f06dc58c88a25401eabafeb73c42e3c468c59f0176a240e"
+      }
+    ]
+  }
+}

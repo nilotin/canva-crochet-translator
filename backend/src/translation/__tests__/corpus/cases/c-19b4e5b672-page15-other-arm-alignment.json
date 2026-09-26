@@ -1,0 +1,101 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page15-live-other-arm",
+        "source": "✦ Diğer kolu da aynı şekilde örüyoruz. (26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)",
+        "targetFormattingRegions": [
+          {
+            "end": 2,
+            "id": "fmt-marker",
+            "start": 0
+          },
+          {
+            "end": 263,
+            "id": "fmt-body",
+            "start": 2
+          }
+        ],
+        "translated": "✦ Work the other arm in the same way. (In Round 26, on the first arm I worked 13sc to align with the top of the arm. On the other arm, it aligned after 9sc. Work 1-2 fewer or additional single crochet stitches as needed so that it aligns with the top of the arm.)",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "page15-live-other-arm",
+        "regionId": "fmt-body",
+        "text": "Work the other arm in the same way. (In Round 26, on the first arm I worked 13sc to align with the top of the arm. On the other arm, it aligned after 9sc. Work 1-2 fewer or additional single crochet stitches as needed so that it aligns with the top of the arm.)"
+      },
+      {
+        "blockId": "page15-live-other-arm",
+        "regionId": "fmt-marker",
+        "text": "✦ "
+      }
+    ]
+  },
+  "id": "c-19b4e5b672-page15-other-arm-alignment",
+  "labels": {
+    "families": [
+      "other-arm-alignment"
+    ],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 golden case. Exact source (with formatting split) and expected target from an explicit human-approved Page 15 spec, verified byte-identical to the live translateBlocks output of src/translation/__tests__/translator.test.ts (\"Page 15 live other-arm marker regression\" describe block) in this worktree."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 2,
+            "id": "fmt-marker",
+            "start": 0
+          },
+          {
+            "end": 256,
+            "id": "fmt-body",
+            "start": 2
+          }
+        ],
+        "id": "page15-live-other-arm",
+        "text": "✦ Diğer kolu da aynı şekilde örüyoruz. (26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "approved",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page15-live-other-arm",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: üst, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: üst, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": []
+  }
+}

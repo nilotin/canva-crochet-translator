@@ -1,0 +1,83 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "generic-buttonhole-turn",
+        "source": "42x - 5 zincir (düğme iliği) dön",
+        "translated": "42sc, ch 5 (buttonhole) and turn",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-3dfc00307b-sdb11fa96-42x-5-zincir-dugme",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes buttonhole chain-turn instructions through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "and turn",
+        "translated": "and turn"
+      },
+      {
+        "source": "buttonhole",
+        "translated": "buttonhole"
+      },
+      {
+        "source": "ch",
+        "translated": "ch"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "generic-buttonhole-turn",
+        "text": "42x - 5 zincir (düğme iliği) dön"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "generic-buttonhole-turn",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2"
+        ],
+        "blockTexts": [
+          "ch",
+          "buttonhole",
+          "and turn"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "6ee7cd56df3522073531e34817941c22e03f82e83314d4a9bdb7684e003a01b2"
+      }
+    ]
+  }
+}

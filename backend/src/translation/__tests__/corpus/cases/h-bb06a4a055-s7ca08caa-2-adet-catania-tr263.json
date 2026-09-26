@@ -1,0 +1,198 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "formatted-materials",
+        "source": "✦ 2 adet Catania TR263\n    Ten rengi\n✦ 55cm gri renk süet ip\n✦ 2.5mm Elektrik Teli (kol, gövde)",
+        "targetFormattingRegions": [
+          {
+            "end": 1,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 37,
+            "id": "fmt-1",
+            "start": 1
+          },
+          {
+            "end": 38,
+            "id": "fmt-2",
+            "start": 37
+          },
+          {
+            "end": 62,
+            "id": "fmt-3",
+            "start": 38
+          },
+          {
+            "end": 63,
+            "id": "fmt-4",
+            "start": 62
+          },
+          {
+            "end": 97,
+            "id": "fmt-5",
+            "start": 63
+          }
+        ],
+        "translated": "✦ 2 adet Catania TR263\n    Ten rengi\n✦ 55 cm gri renk süet ip\n✦ 2.5 mm Elektrik Teli (kol, gövde)",
+        "valid": true,
+        "warningCodes": []
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-0",
+        "text": "✦"
+      },
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-1",
+        "text": " 2 adet Catania TR263\n    Ten rengi\n"
+      },
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-2",
+        "text": "✦"
+      },
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-3",
+        "text": " 55 cm gri renk süet ip\n"
+      },
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-4",
+        "text": "✦"
+      },
+      {
+        "blockId": "formatted-materials",
+        "regionId": "fmt-5",
+        "text": " 2.5 mm Elektrik Teli (kol, gövde)"
+      }
+    ]
+  },
+  "id": "h-bb06a4a055-s7ca08caa-2-adet-catania-tr263",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile with Canva formatting regions > keeps decorative bullet regions deterministic and translates only material prose regions"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ Elektrik Teli (kol, gövde)",
+        "translated": "__XQAAAAQX__ Elektrik Teli (kol, gövde)"
+      },
+      {
+        "source": "__XQAAAAQX__ adet Catania __XQAAABQX__\n    Ten rengi",
+        "translated": "__XQAAAAQX__ adet Catania __XQAAABQX__\n    Ten rengi"
+      },
+      {
+        "source": "__XQAAAAQX__ gri renk süet ip",
+        "translated": "__XQAAAAQX__ gri renk süet ip"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 1,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 37,
+            "id": "fmt-1",
+            "start": 1
+          },
+          {
+            "end": 38,
+            "id": "fmt-2",
+            "start": 37
+          },
+          {
+            "end": 61,
+            "id": "fmt-3",
+            "start": 38
+          },
+          {
+            "end": 62,
+            "id": "fmt-4",
+            "start": 61
+          },
+          {
+            "end": 95,
+            "id": "fmt-5",
+            "start": 62
+          }
+        ],
+        "id": "formatted-materials",
+        "text": "✦ 2 adet Catania TR263\n    Ten rengi\n✦ 55cm gri renk süet ip\n✦ 2.5mm Elektrik Teli (kol, gövde)"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "formatted-materials",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "formatted-materials::format:1::segment:0"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ adet Catania __XQAAABQX__\n    Ten rengi"
+        ],
+        "systemPromptSha256": "0dc8b55afb894ff5330a65154ce5fb2d3ad64fd0bb1b48a237e9193a63ed5b0f",
+        "targetLanguage": "en",
+        "userPromptSha256": "c54fab2281240fdcf91a43f0dd023c62a2f6f90a2ec53382f5e829bf47b4c225"
+      },
+      {
+        "blockIds": [
+          "formatted-materials::format:3::segment:0"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ gri renk süet ip"
+        ],
+        "systemPromptSha256": "5777c20b13749b26d35e018620eb9a945a7efcd1676aa6047267e0e5c3bad773",
+        "targetLanguage": "en",
+        "userPromptSha256": "eabcbb1fd60fbac2593dec672d695454e2c1480c18b25d1a742acff97851d238"
+      },
+      {
+        "blockIds": [
+          "formatted-materials::format:5::segment:0"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ Elektrik Teli (kol, gövde)"
+        ],
+        "systemPromptSha256": "5777c20b13749b26d35e018620eb9a945a7efcd1676aa6047267e0e5c3bad773",
+        "targetLanguage": "en",
+        "userPromptSha256": "ca34231317d364309f5ccf20a443a906ad1843bbc1ac53d2ada4c8e57c8cd160"
+      }
+    ]
+  }
+}

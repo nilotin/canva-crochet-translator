@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "live",
+        "source": "Süet ipimiz yoksa da 55cm tütün rengi ip ile zincir çekip aynı işlemi yapabiliriz.",
+        "translated": "If we don't have suede yarn, we can make a chain with 55 cm of tobacco-colored yarn and do the same.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-276051bf6a-s770a4ed3-suet-ipimiz-yoksa-da",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/measurements.test.ts",
+      "kind": "test",
+      "test": "atomic measurements > translates the live sentence as one protected semantic unit (split style: false)"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Süet ipimiz yoksa da __XQAAAAQX__ tütün rengi ip ile zincir çekip aynı işlemi yapabiliriz.",
+        "translated": "If we don't have suede yarn, we can make a chain with __XQAAAAQX__ of tobacco-colored yarn and do the same."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "live",
+        "text": "Süet ipimiz yoksa da 55cm tütün rengi ip ile zincir çekip aynı işlemi yapabiliriz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "live",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "live"
+        ],
+        "blockTexts": [
+          "Süet ipimiz yoksa da __XQAAAAQX__ tütün rengi ip ile zincir çekip aynı işlemi yapabiliriz."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "dd15bffaa306226f5a72d65371e32a5ca4b181891134a1ac4d86f7aa1c52d18e"
+      }
+    ]
+  }
+}

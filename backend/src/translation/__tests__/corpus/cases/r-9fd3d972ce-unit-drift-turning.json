@@ -1,0 +1,86 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "local-block-1",
+        "source": "Sıra sonunda 1 zincir çekip dönüyoruz.",
+        "translated": "At the end of the round, ch 1 and turn.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "r-9fd3d972ce-unit-drift-turning",
+  "known": {
+    "desired": [
+      "At the end of the row, ch 1 and turn."
+    ],
+    "note": "R4. The oracle entries are SYNTHETIC. They model a provider that obeys the current prompt's rule and renders 'sıra' as 'round'. They are not recorded model output. The pipeline sends 'Sıra sonunda Ch' and 'and turn.' to the provider, accepts 'At the end of the round, ch 1 and turn.' and reports it valid: nothing checks that a turning instruction should say 'row'.",
+    "observedLive": []
+  },
+  "labels": {
+    "families": [
+      "turning-row"
+    ],
+    "hazards": [
+      "row-round-unit-drift"
+    ],
+    "zeroProvider": false
+  },
+  "lane": "repro",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Stage 0 Step 3 repro. Source text from the crochet-translator architecture review (2026-09-20); provider seam and result captured from the real translateBlocks in this worktree."
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Sıra sonunda Ch",
+        "translated": "At the end of the round, ch"
+      },
+      {
+        "source": "and turn.",
+        "translated": "and turn."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "local-block-1",
+        "text": "Sıra sonunda 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "known-bad",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "local-block-1",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "Sıra sonunda Ch",
+          "and turn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "9478e924ef3631dcac7a61d884554ca87c22ae9724ee28e7da219862c71af3a8"
+      }
+    ]
+  }
+}

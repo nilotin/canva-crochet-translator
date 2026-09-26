@@ -6,6 +6,29 @@ import {
 } from "../normalizer.js";
 
 describe("normalizeSourceNaturalLanguage", () => {
+
+  it("keeps a chain-and-next-slip-stitch action semantically whole", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "1 zincir, sıradaki sık iğneye cc, yaparak dönüyoruz",
+        "en",
+      ),
+    ).toBe(
+      "making ch 1 and cc into the next single crochet as you go",
+    );
+  });
+
+  it("normalizes finishing after working around an entire edge", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Tüm çevreyi ördükten sonra 1 zincir çekip ipimizi kesiyoruz.",
+        "en",
+      ),
+    ).toBe(
+      "After working around the entire edge, ch 1 and cut the yarn.",
+    );
+  });
+
   it.each([
     ["en", "4 stitches long"],
     ["es", "4 puntos de largo"],
@@ -1084,6 +1107,30 @@ describe("normalizeSourceNaturalLanguage", () => {
     );
   });
 
+  it("keeps later count-unit lookup aligned after an earlier length-changing rewrite", () => {
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "2) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.\n" +
+      "3) 4 sıra 12x";
+
+    const result = normalizeSourceNaturalLanguage(
+      source,
+      "en",
+      "pattern",
+    );
+
+    expect(result).toContain(
+      "2) 16x for 5 rows, ch 1 and cut the yarn.",
+    );
+    expect(result).toContain(
+      "3) 12x for 4 rounds",
+    );
+    expect(result).not.toContain(
+      "3) 12x for 4 rows",
+    );
+  });
+
   it("normalizes the round-count yarn-cut family before provider translation", () => {
     expect(
       normalizeSourceNaturalLanguage(
@@ -1568,6 +1615,16 @@ describe("Page 13 buttonhole and repeated round-end families", () => {
     ).toBe("At the end of each round, ch 1 and turn.");
   });
 
+  it("consumes the optional Bütün prefix in repeated row-end turning instructions", () => {
+    expect(
+      normalizeSourceNaturalLanguage(
+        "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.",
+        "en",
+        "pattern",
+      ),
+    ).toBe("At the end of each row, ch 1 and turn.");
+  });
+
   it.each([
     ["6 zincir (düğme iliği)", "ch 6 (buttonhole)"],
     ["1 zincir (düğme iliği)", "ch 1 (buttonhole)"],
@@ -1637,5 +1694,92 @@ describe("long buttonhole spelling variants", () => {
       "Skip 6 chains (to form a buttonhole; " +
       "you can increase or decrease the number of chains depending on the size of the button you will use).",
     );
+  });
+});
+
+describe("Page 14 blouse sleeve setup", () => {
+  it("normalizes the saved back-of-armhole attachment, stitch count, and marker instruction", () => {
+    const source =
+      "Bluz kolu; " +
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. " +
+      "Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const translated = normalizeSourceNaturalLanguage(
+      source,
+      "en",
+      "pattern",
+    );
+
+    expect(translated).toContain(
+      "As shown in the image, attach the yarn from the back of the armhole.",
+    );
+    expect(translated).toContain("Work 20x.");
+    expect(translated).toContain(
+      "This will be the beginning of the round; place a stitch marker here",
+    );
+  });
+
+  it("keeps the back-of-armhole attachment count-generic", () => {
+    const source =
+      "Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "17x örüyoruz.";
+
+    const translated = normalizeSourceNaturalLanguage(
+      source,
+      "en",
+      "pattern",
+    );
+
+    expect(translated).toBe(
+      "As shown in the image, attach the yarn from the back of the armhole. Work 17x.",
+    );
+  });
+});
+
+describe("Page 14 sleeve shaping family", () => {
+  it("normalizes the exact saved Row 26 instruction", () => {
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    expect(
+      normalizeSourceNaturalLanguage(source, "en", "pattern"),
+    ).toBe(
+      "26) Work 13sc (we will crochet the section folded outward over the arm). " +
+      "As shown in the image, when I worked 13sc, it aligned exactly over the arm. " +
+      "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. " +
+      "Ch 1 and turn.",
+    );
+  });
+
+  it("keeps sleeve setup and shaping English-only deterministic", () => {
+    const setup =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const shaping =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    expect(
+      normalizeSourceNaturalLanguageDetailed(setup, "en", "pattern").fullyResolved,
+    ).toBe(true);
+
+    expect(
+      normalizeSourceNaturalLanguageDetailed(shaping, "en", "pattern").fullyResolved,
+    ).toBe(true);
+
+    expect(
+      normalizeSourceNaturalLanguageDetailed(setup, "es", "pattern").fullyResolved,
+    ).toBe(false);
+
+    expect(
+      normalizeSourceNaturalLanguageDetailed(shaping, "es", "pattern").fullyResolved,
+    ).toBe(false);
   });
 });

@@ -1,0 +1,70 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page11-block-a-round-flo-blo",
+        "source": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.",
+        "translated": "Attach the yarn to the BLO of the single crochet stitches worked in the FLO of Round 11.",
+        "valid": true,
+        "warningCodes": []
+      },
+      {
+        "errorCodes": [],
+        "id": "page11-block-b-continuation",
+        "source": "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, 1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. Bu şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 3 zincir çekiyoruz.",
+        "translated": "Ch 20 and turn. Starting from the third chain, work 18hdc, skip 1sc, sl st into the next stitch, then sl st into the following single crochet. Continue in this way to the end of the round. At the end of the round, ch 3.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-90a8b78a12-s2c620a27-11-sirada-flo-dan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile with Canva formatting regions > full Page 11 regression: nested Round 11 FLO/BLO attachment bypasses the provider while the chain/skip/slip-stitch continuation translates to crochet-native English, with no ROUND_REFERENCE_MISMATCH and every number/compact-notation token preserved"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page11-block-a-round-flo-blo",
+        "text": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz."
+      },
+      {
+        "id": "page11-block-b-continuation",
+        "text": "20 zincir çekip dönüyoruz, zincir üzerine üçüncü zincirden itibaren 18hdc, 1x atla sıradaki ilmeğe cc, tekrar sıradaki sık iğneye cc yapıyoruz. Bu şekilde sıra sonuna kadar devam ediyoruz. Sıra sonuna geldiğimizde 3 zincir çekiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page11-block-a-round-flo-blo",
+        "warnings": []
+      },
+      {
+        "errors": [],
+        "id": "page11-block-b-continuation",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

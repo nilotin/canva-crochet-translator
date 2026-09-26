@@ -141,4 +141,5 @@ export type TranslationResult = {
   warnings: ValidationDiagnostic<WarningCode>[];
   targetFormattingRegions?: TargetFormattingRegion[];
   formattingProjection?: "atomic_collapse";
+  absorbedFormattingRegionIds?: string[];
 };

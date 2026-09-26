@@ -1,0 +1,113 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "generic-yarn-start-round-end",
+        "source": "Siyah ip (catania 110) ile başlıyoruz. Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
+        "translated": "Start with black yarn (catania 110). At the end of each round, join with sl st, ch 1, and continue to the next round.",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ]
+  },
+  "id": "h-a8fd99106a-s7f820d9b-siyah-ip-catania-110",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes yarn start and round-end joining through the full pipeline"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": ". At the end of each round",
+        "translated": ". At the end of each round"
+      },
+      {
+        "source": "Start with black yarn",
+        "translated": "Start with black yarn"
+      },
+      {
+        "source": "and continue to the next round.",
+        "translated": "and continue to the next round."
+      },
+      {
+        "source": "catania",
+        "translated": "catania"
+      },
+      {
+        "source": "ch",
+        "translated": "ch"
+      },
+      {
+        "source": "join with",
+        "translated": "join with"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "generic-yarn-start-round-end",
+        "text": "Siyah ip (catania 110) ile başlıyoruz. Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "generic-yarn-start-round-end",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: üst, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: üst, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4",
+          "span-5"
+        ],
+        "blockTexts": [
+          "Start with black yarn",
+          "catania",
+          ". At the end of each round",
+          "join with",
+          "ch",
+          "and continue to the next round."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "2169948aef93d5998d3d5e59b2244d22ae8b887a1c34eb88f1f8a848c118f88e"
+      }
+    ]
+  }
+}

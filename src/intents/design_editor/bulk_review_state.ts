@@ -56,7 +56,12 @@ export type PersistedBulkPageStatus = "ready" | "needs_review" | "blocked";
 // v13: ambiguous compressed repetition notation is preserved literally but is
 // now a review warning instead of an integrity block. Persisted v12 reviews may
 // contain the previous blocking classification and must be translated again.
-export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v13";
+//
+// v14: atomic-collapse formatting projections now carry explicit per-region
+// absorbedFormattingRegionIds provenance. Persisted v13 reviews may contain
+// zero-width atomic-collapse ranges without that proof and must be translated
+// again rather than having provenance inferred from their saved ranges.
+export const TRANSLATION_PIPELINE_REVISION = "translation-pipeline-v14";
 
 export type PersistedBulkPageReview = {
   pageId: string;

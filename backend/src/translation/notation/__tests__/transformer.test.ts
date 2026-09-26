@@ -9,7 +9,7 @@ const simulateModel = (source: string, targetLanguage: "en" | "es") => {
 
 describe("deterministic notation transformation", () => {
   it.each([
-    ["en", "6sc, inc, 6sc, SL.ST"],
+    ["en", "6sc, inc, 6sc, sl st"],
     ["es", "6pb, aum, 6pb, pd"],
   ] as const)(
     "protects and restores pure notation for %s",
@@ -30,7 +30,7 @@ describe("deterministic notation transformation", () => {
   );
 
   it.each([
-    ["en", "40SL.ST, SL.ST"],
+    ["en", "40sl st, sl st"],
     ["es", "40pd, pd"],
   ] as const)(
     "accepts lowercase cc as the project slip-stitch source alias for %s",
@@ -40,7 +40,7 @@ describe("deterministic notation transformation", () => {
   );
 
   it.each([
-    ["Cc", "en", "SL.ST"],
+    ["Cc", "en", "sl st"],
     ["cC", "es", "pd"],
     ["FlO", "en", "FLO"],
     ["fLo", "es", "Flo"],

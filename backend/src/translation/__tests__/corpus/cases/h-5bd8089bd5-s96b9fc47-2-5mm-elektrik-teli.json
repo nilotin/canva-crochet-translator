@@ -1,0 +1,72 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "materials",
+        "source": "2.5mm Elektrik Teli (kol, gövde)",
+        "translated": "2.5 mm Elektrik Teli (kol, gövde)",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-5bd8089bd5-s96b9fc47-2-5mm-elektrik-teli",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile > translates materials prose without treating parentheses or crochet-like words as immutable pattern content"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ Elektrik Teli (kol, gövde)",
+        "translated": "__XQAAAAQX__ Elektrik Teli (kol, gövde)"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "materials",
+        "text": "2.5mm Elektrik Teli (kol, gövde)"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "materials",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "materials"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ Elektrik Teli (kol, gövde)"
+        ],
+        "systemPromptSha256": "5777c20b13749b26d35e018620eb9a945a7efcd1676aa6047267e0e5c3bad773",
+        "targetLanguage": "en",
+        "userPromptSha256": "baf527f0339acb09f09b05a43cd7a7d492f0564838bdea038a75e7a11c3f865b"
+      }
+    ]
+  }
+}

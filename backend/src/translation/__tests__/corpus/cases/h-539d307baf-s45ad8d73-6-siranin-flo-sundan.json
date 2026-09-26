@@ -1,0 +1,74 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "rendered-formatting",
+        "source": "6. sıranın FLO’sundan",
+        "targetFormattingRegions": [
+          {
+            "end": 18,
+            "id": "fmt-0",
+            "start": 0
+          }
+        ],
+        "translated": "the FLO of Round 6",
+        "valid": true,
+        "warningCodes": []
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "rendered-formatting",
+        "regionId": "fmt-0",
+        "text": "the FLO of Round 6"
+      }
+    ]
+  },
+  "id": "h-539d307baf-s45ad8d73-6-siranin-flo-sundan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > keeps full-source formatting aligned with rendered immutable output for 6. sıranın FLO’sundan"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 21,
+            "id": "fmt-0",
+            "start": 0
+          }
+        ],
+        "id": "rendered-formatting",
+        "text": "6. sıranın FLO’sundan"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "rendered-formatting",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

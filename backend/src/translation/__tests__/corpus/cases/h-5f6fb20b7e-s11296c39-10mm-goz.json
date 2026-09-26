@@ -1,0 +1,72 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "safety-eyes",
+        "source": "10mm Göz",
+        "translated": "10 mm safety eyes",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-5f6fb20b7e-s11296c39-10mm-goz",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile > normalizes a materials safety-eye entry deterministically: 10mm Göz"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ safety eyes",
+        "translated": "__XQAAAAQX__ safety eyes"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "safety-eyes",
+        "text": "10mm Göz"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "safety-eyes",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "safety-eyes"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ safety eyes"
+        ],
+        "systemPromptSha256": "5777c20b13749b26d35e018620eb9a945a7efcd1676aa6047267e0e5c3bad773",
+        "targetLanguage": "en",
+        "userPromptSha256": "7356fbf236d0effa031e7ddd816a3f479976bdbefd0bbe710c6524b1b134aacc"
+      }
+    ]
+  }
+}

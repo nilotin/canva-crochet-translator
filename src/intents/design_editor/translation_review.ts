@@ -50,6 +50,7 @@ export type ReviewBlock = {
     end: number;
   }[];
   formattingProjection?: "atomic_collapse";
+  absorbedFormattingRegionIds?: string[];
 };
 
 export type PageReview = {
@@ -71,6 +72,7 @@ export type TranslationResponse = {
       end: number;
     }[];
     formattingProjection?: "atomic_collapse";
+    absorbedFormattingRegionIds?: string[];
   }[];
 };
 
@@ -234,27 +236,58 @@ const hasCompleteFormattingProjection = (
     | undefined,
   targetLength: number,
   formattingProjection?: "atomic_collapse",
+  absorbedFormattingRegionIds?: readonly string[],
 ): boolean => {
-  if (!requiresFormattingProjection(snapshots)) return true;
-  if (!targetRegions || targetRegions.length !== snapshots.length) return false;
+  const formattingProjectionRequired =
+    requiresFormattingProjection(snapshots);
+
+  if (!targetRegions?.length) {
+    return !formattingProjectionRequired;
+  }
+
+  const validIds = new Set(
+    snapshots.map((_snapshot, index) => `fmt-${index}`),
+  );
+  const seenIds = new Set<string>();
+  const absorbedIds = new Set(absorbedFormattingRegionIds ?? []);
+
+  if (
+    absorbedFormattingRegionIds?.some((id) => !validIds.has(id)) ||
+    absorbedIds.size !== (absorbedFormattingRegionIds?.length ?? 0)
+  ) {
+    return false;
+  }
 
   let end = 0;
-  for (const [index, region] of targetRegions.entries()) {
+
+  for (const region of targetRegions) {
     if (
-      region.id !== `fmt-${index}` ||
+      !validIds.has(region.id) ||
       !Number.isInteger(region.start) ||
       !Number.isInteger(region.end) ||
       region.start !== end ||
       region.end < region.start ||
-      (region.end === region.start &&
-        formattingProjection !== "atomic_collapse") ||
       region.end > targetLength
     ) {
       return false;
     }
+
+    if (
+      region.end === region.start &&
+      (formattingProjection !== "atomic_collapse" ||
+        !absorbedIds.has(region.id))
+    ) {
+      return false;
+    }
+
+    seenIds.add(region.id);
     end = region.end;
   }
-  return end === targetLength;
+
+  return (
+    end === targetLength &&
+    [...validIds].every((id) => seenIds.has(id))
+  );
 };
 
 export const buildPageReview = (
@@ -291,6 +324,7 @@ export const buildPageReview = (
       item.targetFormattingRegions,
       item.translated.length,
       item.formattingProjection,
+      item.absorbedFormattingRegionIds,
     );
 
     const formattingErrors = formattingProjectionMissing
@@ -323,6 +357,7 @@ export const buildPageReview = (
       sourceFormattingSignature: formattingRegionSignature(snapshots),
       targetFormattingRegions: item.targetFormattingRegions,
       formattingProjection: item.formattingProjection,
+      absorbedFormattingRegionIds: item.absorbedFormattingRegionIds,
     } satisfies ReviewBlock;
   });
 
@@ -632,6 +667,7 @@ export const planProjectedFormatting = (
         targetRegions,
         block.translated.length,
         block.formattingProjection,
+        block.absorbedFormattingRegionIds,
       )
     ) {
       conflict("INVALID_TEMPLATE");
@@ -668,6 +704,7 @@ export const planProjectedFormatting = (
         targetRegions,
         block.editedTranslation.length,
         block.formattingProjection,
+        block.absorbedFormattingRegionIds,
       )) ||
     targetRegions.some(
       ({ id, start, end }) =>

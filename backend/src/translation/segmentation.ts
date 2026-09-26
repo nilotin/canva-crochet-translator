@@ -15,6 +15,8 @@ export type TranslationSegment = {
   prefix: string;
   text: string;
   suffix: string;
+  start: number;
+  end: number;
 };
 
 const exceedsLimit = (text: string) => !isSegmentWithinLimits(text);
@@ -88,7 +90,11 @@ const splitOversized = (source: string) => {
   return groups;
 };
 
-const withWhitespace = (raw: string, index: number): TranslationSegment => {
+const withWhitespace = (
+  raw: string,
+  index: number,
+  rawStart: number,
+): TranslationSegment => {
   const prefix = raw.match(/^\s*/u)?.[0] ?? "";
   const suffix = raw.match(/\s*$/u)?.[0] ?? "";
   return {
@@ -96,6 +102,8 @@ const withWhitespace = (raw: string, index: number): TranslationSegment => {
     prefix,
     text: raw.slice(prefix.length, raw.length - suffix.length),
     suffix,
+    start: rawStart + prefix.length,
+    end: rawStart + raw.length - suffix.length,
   };
 };
 
@@ -103,14 +111,35 @@ export const segmentTranslationBlock = (
   source: string,
 ): TranslationSegment[] => {
   if (!exceedsLimit(source)) {
-    return [{ index: 0, prefix: "", text: source, suffix: "" }];
+    return [{
+      index: 0,
+      prefix: "",
+      text: source,
+      suffix: "",
+      start: 0,
+      end: source.length,
+    }];
   }
-  const hardParts = splitAt(source, boundaries(source, "hard"));
-  return hardParts
-    .flatMap(splitOversized)
-    .map(withWhitespace)
-    .filter((segment) => segment.text.length > 0)
-    .map((segment, index) => ({ ...segment, index }));
+
+  const rawParts = splitAt(source, boundaries(source, "hard"))
+    .flatMap(splitOversized);
+
+  const segments: TranslationSegment[] = [];
+  let cursor = 0;
+
+  for (const raw of rawParts) {
+    const segment = withWhitespace(raw, segments.length, cursor);
+    cursor += raw.length;
+
+    if (segment.text.length === 0) continue;
+
+    segments.push({
+      ...segment,
+      index: segments.length,
+    });
+  }
+
+  return segments;
 };
 
 export const reconstructSegments = (

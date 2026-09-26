@@ -1,0 +1,115 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [
+          "EMPTY_TRANSLATION"
+        ],
+        "id": "mixed-empty-prose-semantic-and-collapse",
+        "source": "Bu açıklama çevrilsin.\n2-11) 10 sıra 64x\n4) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+        "translated": "\n2-11) 64sc for 10 rounds\n4) 24sc. Ch 1 and cut the yarn.",
+        "valid": false,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-d3cc1710cc-s64028a30-bu-aciklama-cevrilsin-2",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "mixed zero-width provenance safety > does not let a later atomic collapse legitimize an empty ordinary translation unit"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Bu açıklama çevrilsin.",
+        "translated": ""
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 22,
+            "id": "fmt-prose",
+            "start": 0
+          },
+          {
+            "end": 23,
+            "id": "fmt-gap-1",
+            "start": 22
+          },
+          {
+            "end": 37,
+            "id": "fmt-round-a",
+            "start": 23
+          },
+          {
+            "end": 40,
+            "id": "fmt-round-b",
+            "start": 37
+          },
+          {
+            "end": 41,
+            "id": "fmt-gap-2",
+            "start": 40
+          },
+          {
+            "end": 46,
+            "id": "fmt-collapse-a",
+            "start": 41
+          },
+          {
+            "end": 82,
+            "id": "fmt-collapse-b",
+            "start": 46
+          }
+        ],
+        "id": "mixed-empty-prose-semantic-and-collapse",
+        "text": "Bu açıklama çevrilsin.\n2-11) 10 sıra 64x\n4) 24x, 1 zincir çekip ipimizi kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [
+          {
+            "code": "EMPTY_TRANSLATION",
+            "message": "Segment 1: The returned translation is empty."
+          }
+        ],
+        "id": "mixed-empty-prose-semantic-and-collapse",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "mixed-empty-prose-semantic-and-collapse::format:0::segment:0"
+        ],
+        "blockTexts": [
+          "Bu açıklama çevrilsin."
+        ],
+        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
+        "targetLanguage": "en",
+        "userPromptSha256": "6ba9318085f3801656e2a40ccb0e83497a99598b806e9b4e9af3fa3c58dcdfca"
+      }
+    ]
+  }
+}

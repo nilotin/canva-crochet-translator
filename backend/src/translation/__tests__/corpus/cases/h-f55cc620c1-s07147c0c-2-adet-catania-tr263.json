@@ -1,0 +1,72 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "salem-materials",
+        "source": "2 adet Catania TR263 - ten rengi\n1 adet Catania 110 - siyah\n1 adet Catania 226 - lila\n1 adet Catania 106 - beyaz\n1 adet Catania 411 - turuncu\n1 adet Catania 240 - kahverengi\n2 adet Catania 2456 - yeşil\n12mm Göz\n2.5mm Elektrik Teli\n1 adet büyük siyah düğme\n2 adet küçük siyah düğme",
+        "translated": "2 skeins of Catania TR263 - skin color\n1 skein of Catania 110 - black\n1 skein of Catania 226 - lilac\n1 skein of Catania 106 - white\n1 skein of Catania 411 - orange\n1 skein of Catania 240 - brown\n2 skeins of Catania 2456 - green\n12 mm safety eyes\n2.5 mm electrical wire\n1 large black button\n2 small black buttons",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-f55cc620c1-s07147c0c-2-adet-catania-tr263",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile > restores every protected value in a Salem-style materials block without leaking placeholders"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ adet Catania __XQAAABQX__ - ten rengi\n__XQAAACQX__ adet Catania __XQAAADQX__ - siyah\n__XQAAAEQX__ adet Catania __XQAAAFQX__ - lila\n__XQAAAGQX__ adet Catania __XQAAAHQX__ - beyaz\n__XQAAAIQX__ adet Catania __XQAAAJQX__ - turuncu\n__XQAAAKQX__ adet Catania __XQAAALQX__ - kahverengi\n__XQAAAMQX__ adet Catania __XQAAANQX__ - yeşil\n__XQAAAOQX__ safety eyes\n__XQAAAPQX__ Elektrik Teli\n__XQAAAQQX__ adet büyük siyah düğme\n__XQAAARQX__ adet küçük siyah düğme",
+        "translated": "__XQAAAAQX__ skeins of Catania __XQAAABQX__ - skin color\n__XQAAACQX__ skein of Catania __XQAAADQX__ - black\n__XQAAAEQX__ skein of Catania __XQAAAFQX__ - lilac\n__XQAAAGQX__ skein of Catania __XQAAAHQX__ - white\n__XQAAAIQX__ skein of Catania __XQAAAJQX__ - orange\n__XQAAAKQX__ skein of Catania __XQAAALQX__ - brown\n__XQAAAMQX__ skeins of Catania __XQAAANQX__ - green\n__XQAAAOQX__ eyes\n__XQAAAPQX__ electrical wire\n__XQAAAQQX__ large black button\n__XQAAARQX__ small black buttons"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "salem-materials",
+        "text": "2 adet Catania TR263 - ten rengi\n1 adet Catania 110 - siyah\n1 adet Catania 226 - lila\n1 adet Catania 106 - beyaz\n1 adet Catania 411 - turuncu\n1 adet Catania 240 - kahverengi\n2 adet Catania 2456 - yeşil\n12mm Göz\n2.5mm Elektrik Teli\n1 adet büyük siyah düğme\n2 adet küçük siyah düğme"
+      }
+    ],
+    "contentKind": "materials",
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "salem-materials",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "salem-materials"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ adet Catania __XQAAABQX__ - ten rengi\n__XQAAACQX__ adet Catania __XQAAADQX__ - siyah\n__XQAAAEQX__ adet Catania __XQAAAFQX__ - lila\n__XQAAAGQX__ adet Catania __XQAAAHQX__ - beyaz\n__XQAAAIQX__ adet Catania __XQAAAJQX__ - turuncu\n__XQAAAKQX__ adet Catania __XQAAALQX__ - kahverengi\n__XQAAAMQX__ adet Catania __XQAAANQX__ - yeşil\n__XQAAAOQX__ safety eyes\n__XQAAAPQX__ Elektrik Teli\n__XQAAAQQX__ adet büyük siyah düğme\n__XQAAARQX__ adet küçük siyah düğme"
+        ],
+        "systemPromptSha256": "0dc8b55afb894ff5330a65154ce5fb2d3ad64fd0bb1b48a237e9193a63ed5b0f",
+        "targetLanguage": "en",
+        "userPromptSha256": "6ca67bb9ad05f93960881c8845556b45175c646550cc5124abd7850336f1c531"
+      }
+    ]
+  }
+}

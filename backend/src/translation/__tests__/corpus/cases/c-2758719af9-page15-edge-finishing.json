@@ -1,0 +1,65 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page15-edge-finishing",
+        "source": "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip ipimizi kesiyoruz.",
+        "translated": "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn.",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      }
+    ]
+  },
+  "id": "c-2758719af9-page15-edge-finishing",
+  "labels": {
+    "families": [
+      "edge-finishing"
+    ],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 golden case. Exact source and expected target from an explicit human-approved Page 15 spec, verified byte-identical to the live translateBlocks output of src/translation/__tests__/translator.test.ts (\"Page 15 edge-finishing regression\" describe block) in this worktree."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page15-edge-finishing",
+        "text": "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip ipimizi kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "approved",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page15-edge-finishing",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: iç, dış, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: iç, dış, sıra."
+          }
+        ]
+      }
+    ],
+    "providerCalls": []
+  }
+}

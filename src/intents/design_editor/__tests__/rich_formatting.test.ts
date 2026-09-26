@@ -285,14 +285,7 @@ it.each([
     ],
   ],
   [
-    "wrong order",
-    [
-      ["fmt-1", 0, 3],
-      ["fmt-0", 3, 6],
-    ],
-  ],
-  [
-    "duplicate IDs",
+    "duplicate ID with missing source style",
     [
       ["fmt-0", 0, 3],
       ["fmt-0", 3, 6],

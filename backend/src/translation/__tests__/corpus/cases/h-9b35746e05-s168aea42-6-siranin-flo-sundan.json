@@ -1,0 +1,71 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "round",
+        "source": "6. sıranın FLO’sundan simli ipimizi sabitliyoruz.",
+        "translated": "Attach the glitter yarn to the FLO of Round 6.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-9b35746e05-s168aea42-6-siranin-flo-sundan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/natural_language/__tests__/round_references.test.ts",
+      "kind": "test",
+      "test": "crochet round references > translates a whole sentence with a protected round relation: 6. sıranın FLO’sundan simli ipimizi sabitliyoruz."
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "__XQAAAAQX__ simli ipimizi sabitliyoruz.",
+        "translated": "Attach the glitter yarn to __XQAAAAQX__."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "round",
+        "text": "6. sıranın FLO’sundan simli ipimizi sabitliyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "round",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "round"
+        ],
+        "blockTexts": [
+          "__XQAAAAQX__ simli ipimizi sabitliyoruz."
+        ],
+        "systemPromptSha256": "1659ee8ee98076decd143fba5d4f7eeba5c162aeeb298d40a75c56e61a7ea6a8",
+        "targetLanguage": "en",
+        "userPromptSha256": "cbf443b60d814e633762362bd3aa2414f5cb73f9a57e841768be48c4f459e0ab"
+      }
+    ]
+  }
+}

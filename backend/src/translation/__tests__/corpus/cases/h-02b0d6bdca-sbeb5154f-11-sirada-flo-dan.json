@@ -1,0 +1,77 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "page11-es-regression",
+        "source": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz.",
+        "translated": "en la Vuelta 11 Flo’dan ördüğümüz sık iğnelerin, Blo’sundan ipimizi sabitliyoruz.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-02b0d6bdca-sbeb5154f-11-sirada-flo-dan",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "materials translation profile with Canva formatting regions > does NOT bypass the provider for the nested round/FLO-BLO atomic family when translating into Spanish either, for the same reason -- the deterministic renderer for this family is also English-only (proves atomic full-span coverage alone is insufficient whenever target-language resolution is incomplete, independent of which atomic family is involved)"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "’dan ördüğümüz sık iğnelerin",
+        "translated": "’dan ördüğümüz sık iğnelerin"
+      },
+      {
+        "source": "’sundan ipimizi sabitliyoruz.",
+        "translated": "’sundan ipimizi sabitliyoruz."
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page11-es-regression",
+        "text": "11. sırada FLO’dan ördüğümüz sık iğnelerin, BLO’sundan ipimizi sabitliyoruz."
+      }
+    ],
+    "targetLanguage": "es"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page11-es-regression",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "’dan ördüğümüz sık iğnelerin",
+          "’sundan ipimizi sabitliyoruz."
+        ],
+        "systemPromptSha256": "10eed3cf242d44868c007075146d4c933e17a51cb78d6faf9d7cdd6239f5eb1e",
+        "targetLanguage": "es",
+        "userPromptSha256": "68f5d899c1b0ba0652bde4fc3d42168212e16daa91d1fa53f3110876b776467c"
+      }
+    ]
+  }
+}

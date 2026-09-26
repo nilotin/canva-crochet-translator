@@ -1,0 +1,31 @@
+{
+  "id": "c-4132b504c9-page14-sleeve-shaping",
+  "labels": {
+    "families": [
+      "sleeve-shaping"
+    ],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 candidate, NOT yet human-approved. Source and current output text copied verbatim from src/translation/__tests__/translator.test.ts (\"Page 14 sleeve deterministic ownership\" > \"bypasses the provider for the complete sleeve shaping instruction\"), which asserts an exact .toBe() match and zero provider calls (UnconditionalCorruptingProvider). Stored as pending-approval only: current-output capture, not approval."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "page14-sleeve-shaping",
+        "text": "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "pending-approval"
+}

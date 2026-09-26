@@ -1,0 +1,53 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "row",
+        "source": "12x - 6v",
+        "translated": "12sc - 6inc",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-152b71b301-s40ae04cd-12x-6v",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "translateBlocks provider boundary > never calls the provider for a mixed segment with no natural-language span: 12x - 6v"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "row",
+        "text": "12x - 6v"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "row",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

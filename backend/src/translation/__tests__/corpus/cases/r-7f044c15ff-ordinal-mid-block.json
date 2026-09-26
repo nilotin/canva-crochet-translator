@@ -1,0 +1,88 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "local-block-1",
+        "source": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6x sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nBütün sıra sonlarında 1 zincir çekip dönüyoruz.",
+        "translated": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6sc sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nAt the end of each row, ch 1 and turn.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "r-7f044c15ff-ordinal-mid-block",
+  "known": {
+    "desired": [
+      "As shown in the image, count and skip 6sc from where the first piece ends.\nAttach the yarn to the 7th single crochet.\nAt the end of each row, ch 1 and turn."
+    ],
+    "note": "R2. In a multi-sentence block the prose sent to the provider is split into spans around protected notation. The 6x and the 7 are removed from the prose, the prose is cut at the removed spans, and the span for sentence 2 starts with a stray '.' and runs on, across the newline, into the start of sentence 3. The provider cannot see that 7 is the stitch ordinal or that 6x belongs to 'count and skip'. Provider mode is echo, so translated text is partly untranslated Turkish that still validates. desired holds one string for the whole block.",
+    "observedLive": [
+      "from where the first piece ends 6sc we count and skip",
+      "7we secure the yarn...",
+      "At the end of each round"
+    ]
+  },
+  "labels": {
+    "families": [
+      "ordinal-marker",
+      "turning-row"
+    ],
+    "hazards": [
+      "ordinal-mid-block",
+      "prose-fragmentation"
+    ],
+    "zeroProvider": false
+  },
+  "lane": "repro",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Stage 0 Step 3 repro. Source text from the crochet-translator architecture review (2026-09-20); provider seam and result captured from the real translateBlocks in this worktree."
+    }
+  ],
+  "provider": {
+    "mode": "echo"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "local-block-1",
+        "text": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6x sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nBütün sıra sonlarında 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "known-bad",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "local-block-1",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1",
+          "span-2",
+          "span-3",
+          "span-4"
+        ],
+        "blockTexts": [
+          "Görselde görüldüğü gibi birinci parçanın bittiği yerden",
+          "sayıp atlıyoruz.",
+          ". sık iğneye ipimizi sabitliyoruz.\nAt the end of each row",
+          "ch",
+          "and turn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "19b96c15915e2c428132a60459428e0e36603222565f76a6cee13790d4f91008"
+      }
+    ]
+  }
+}

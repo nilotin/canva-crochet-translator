@@ -1,0 +1,136 @@
+{
+  "expected": {
+    "results": [
+      {
+        "absorbedFormattingRegionIds": [],
+        "errorCodes": [],
+        "formattingProjection": "atomic_collapse",
+        "id": "page13-live-row1-formatting",
+        "source": "1) 34 zincir çekip geriye dönüyoruz. 6 zincir atlıyoruz (düğme iliği oluşturuyoruz. Düğme iliği için çektiğimiz zincir sayısını, kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.) yedinci zincirden itibaren 28x",
+        "targetFormattingRegions": [
+          {
+            "end": 156,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 199,
+            "id": "fmt-1",
+            "start": 156
+          }
+        ],
+        "translated": "1) Ch 34 and turn. Skip 6 chains (to form a buttonhole; you can increase or decrease the number of chains depending on the size of the button you will use). Starting from the seventh chain, work 28sc",
+        "valid": true,
+        "warningCodes": []
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "page13-live-row1-formatting",
+        "regionId": "fmt-0",
+        "text": "1) Ch 34 and turn. Skip 6 chains (to form a buttonhole; you can increase or decrease the number of chains depending on the size of the button you will use)."
+      },
+      {
+        "blockId": "page13-live-row1-formatting",
+        "regionId": "fmt-1",
+        "text": " Starting from the seventh chain, work 28sc"
+      }
+    ]
+  },
+  "id": "h-04b0309f97-se687eb1e-1-34-zincir-cekip",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": false
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "Page 13 exact-live long buttonhole deterministic ownership > keeps the exact live guidance away from the provider across Canva formatting boundaries"
+    }
+  ],
+  "provider": {
+    "entries": [
+      {
+        "source": "Ch",
+        "translated": "Ch"
+      },
+      {
+        "source": "Starting from the seventh chain",
+        "translated": "Starting from the seventh chain"
+      },
+      {
+        "source": "and turn.",
+        "translated": "and turn."
+      },
+      {
+        "source": "work",
+        "translated": "work"
+      }
+    ],
+    "mode": "oracle"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 111,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 227,
+            "id": "fmt-1",
+            "start": 111
+          }
+        ],
+        "id": "page13-live-row1-formatting",
+        "text": "1) 34 zincir çekip geriye dönüyoruz. 6 zincir atlıyoruz (düğme iliği oluşturuyoruz. Düğme iliği için çektiğimiz zincir sayısını, kullanacağınız düğme boyutuna göre artırıp ya da azaltabilirsiniz.) yedinci zincirden itibaren 28x"
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "page13-live-row1-formatting",
+        "warnings": []
+      }
+    ],
+    "providerCalls": [
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "Ch",
+          "and turn."
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "30ee7fadf7a2ee16616521419541db954e69db1b8817f55f029eadfda422c6bd"
+      },
+      {
+        "blockIds": [
+          "span-0",
+          "span-1"
+        ],
+        "blockTexts": [
+          "Starting from the seventh chain",
+          "work"
+        ],
+        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
+        "targetLanguage": "en",
+        "userPromptSha256": "9c18ce4c8b68ae62a27053cea7fca22a62188520fef5ddcc33a016e113178ea3"
+      }
+    ]
+  }
+}

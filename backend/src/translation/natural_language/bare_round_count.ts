@@ -1,3 +1,21 @@
+export type CrochetCountUnit = "round" | "row";
+
+export type CrochetCountUnitWord =
+  | "round"
+  | "rounds"
+  | "row"
+  | "rows";
+
+const crochetCountUnitWord = (
+  count: string,
+  unit: CrochetCountUnit,
+): CrochetCountUnitWord =>
+  Number(count) === 1
+    ? unit
+    : unit === "round"
+      ? "rounds"
+      : "rows";
+
 export type BareRoundCountSourceLine = {
   prefix: string;
   range: string | undefined;
@@ -11,7 +29,7 @@ export type BareRoundCountTargetLine = {
   range: string | undefined;
   stitches: string;
   rounds: string;
-  roundWord: "round" | "rounds";
+  roundWord: CrochetCountUnitWord;
   suffix: string;
 };
 
@@ -34,7 +52,7 @@ export type RoundCountYarnCutSourceSpan = {
 };
 
 export type RoundCountYarnCutTargetSpan = RoundCountYarnCutSourceSpan & {
-  roundWord: "round" | "rounds";
+  roundWord: CrochetCountUnitWord;
 };
 
 export type LogicalLine = {
@@ -65,26 +83,26 @@ export type RoundCountTrailingActionSourceSpan = {
 
 export type RoundCountTrailingActionTargetSpan =
   RoundCountTrailingActionSourceSpan & {
-    roundWord: "round" | "rounds";
+    roundWord: CrochetCountUnitWord;
   };
 
 const SOURCE_LINE_PATTERN =
   /^([\t ]*(?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x([.]?[\t ]*)$/iu;
 
 const TARGET_LINE_PATTERN =
-  /^([\t ]*(?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds)([.]?[\t ]*)$/iu;
+  /^([\t ]*(?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds|row|rows)([.]?[\t ]*)$/iu;
 
 const ROUND_COUNT_YARN_CUT_SOURCE_PATTERN =
   /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x[\t ]*(?:-+|–|—|,|;)[\t ]*[iİ]pimizi[\t ]+kesiyoruz(?:\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))|([\t ]*)(?=$|[\r\n]))/dgimu;
 
 const ROUND_COUNT_YARN_CUT_TARGET_PATTERN =
-  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc for (\d+) (round|rounds) — cut the yarn\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgmu;
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc for (\d+) (round|rounds|row|rows) — cut the yarn\.(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgmu;
 
 const ROUND_COUNT_TRAILING_ACTION_SOURCE_PATTERN =
   /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)[\t ]+sıra[\t ]+(\d+)[\t ]*x[\t ]*[,，][\t ]*(\d+)[\t ]+zincir(?:(?:[\t ]*\([\t ]*düğme[\t ]+iliği[\t ]*\))|(?:[\t ]+çekip[\t ]+ipimizi[\t ]+kesiyoruz\.?))(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgimu;
 
 const ROUND_COUNT_TRAILING_ACTION_TARGET_PATTERN =
-  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds)[\t ]*[,，][\t ]*ch[\t ]+(\d+)(?:(?:[\t ]*\([\t ]*buttonhole[\t ]*\))|(?:[\t ]+and[\t ]+cut[\t ]+the[\t ]+yarn\.?))(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgimu;
+  /(?<![\p{L}\p{N}_])((?:(\d+(?:-\d+)?)\)[\t ]*)?)(\d+)sc[\t ]+for[\t ]+(\d+)[\t ]+(round|rounds|row|rows)[\t ]*[,，][\t ]*ch[\t ]+(\d+)(?:(?:[\t ]*\([\t ]*buttonhole[\t ]*\))|(?:[\t ]+and[\t ]+cut[\t ]+the[\t ]+yarn\.?))(?:([\t ]+)(?=\S)|([\t ]*)(?=$|[\r\n]))/dgimu;
 
 export const parseBareRoundCountSourceLine = (
   source: string,
@@ -112,9 +130,8 @@ export const parseBareRoundCountTargetLine = (
     range: match[2],
     stitches: match[3] ?? "",
     rounds: match[4] ?? "",
-    roundWord: (match[5]?.toLocaleLowerCase("en") ?? "round") as
-      | "round"
-      | "rounds",
+    roundWord: (match[5]?.toLocaleLowerCase("en") ??
+      "round") as CrochetCountUnitWord,
     suffix: match[6] ?? "",
   };
 };
@@ -122,9 +139,10 @@ export const parseBareRoundCountTargetLine = (
 export const renderEnglishBareRoundCountLine = (
   source: BareRoundCountSourceLine,
   stitchNotation: "x" | "sc",
+  unit: CrochetCountUnit = "round",
 ): string => {
-  const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
-  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${roundWord}${source.suffix}`;
+  const unitWord = crochetCountUnitWord(source.rounds, unit);
+  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${unitWord}${source.suffix}`;
 };
 
 const captureSpan = (
@@ -173,7 +191,7 @@ export const scanRoundCountYarnCutTargetSpans = (
       range: match[2],
       stitches: match[3] ?? "",
       rounds: match[4] ?? "",
-      roundWord: (match[5] ?? "round") as "round" | "rounds",
+      roundWord: (match[5] ?? "round") as CrochetCountUnitWord,
       suffix: match[6] ?? match[7] ?? "",
       roundsSpan,
       stitchesSpan,
@@ -235,7 +253,7 @@ export const scanRoundCountTrailingActionTargetSpans = (
         range: match[2],
         stitches: match[3] ?? "",
         rounds: match[4] ?? "",
-        roundWord: (match[5] ?? "round") as "round" | "rounds",
+        roundWord: (match[5] ?? "round") as CrochetCountUnitWord,
         chains: match[6] ?? "",
         kind: trailingActionKindFromTarget(match[0]),
         suffix: match[7] ?? match[8] ?? "",
@@ -248,11 +266,12 @@ export const scanRoundCountTrailingActionTargetSpans = (
 export const renderEnglishRoundCountTrailingActionSpan = (
   source: RoundCountTrailingActionSourceSpan,
   stitchNotation: "x" | "sc",
+  unit: CrochetCountUnit = "round",
 ): string => {
-  const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
+  const unitWord = crochetCountUnitWord(source.rounds, unit);
   const core =
     `${source.prefix}${source.stitches}${stitchNotation} for ` +
-    `${source.rounds} ${roundWord}, ch ${source.chains}`;
+    `${source.rounds} ${unitWord}, ch ${source.chains}`;
 
   const action =
     source.kind === "buttonhole_chain"
@@ -262,9 +281,86 @@ export const renderEnglishRoundCountTrailingActionSpan = (
   return `${core}${action}${source.suffix}`;
 };
 
+export const inferCrochetCountUnitAtSourcePosition = (
+  source: string,
+  position: number,
+): CrochetCountUnit => {
+  const lines = splitLogicalLines(source);
+  const lineIndex = lines.findIndex(
+    ({ start, end }) => start <= position && position <= end,
+  );
+
+  if (lineIndex < 0) return "round";
+
+  const numberedInstructionPattern =
+    /^\s*(\d+)(?:-(\d+))?\)\s*/u;
+
+  const currentLine = lines[lineIndex]?.text ?? "";
+  const currentInstruction = currentLine.match(numberedInstructionPattern);
+
+  // Only numbered crochet instructions can inherit construction context.
+  if (!currentInstruction) return "round";
+
+  const currentStart = Number(currentInstruction[1]);
+
+  // A fresh 1) starts a new numbered construction. It must never inherit
+  // turning-row state from an earlier section, even if headings/bullets
+  // separate the two sections.
+  if (!Number.isFinite(currentStart) || currentStart <= 1) {
+    return "round";
+  }
+
+  let expectedPreviousNumber = currentStart - 1;
+
+  for (let index = lineIndex - 1; index >= 0; index -= 1) {
+    const previousLine = lines[index]?.text ?? "";
+
+    if (previousLine.trim() === "") break;
+
+    // Cutting the yarn closes the preceding construction.
+    if (/\bipimizi\s+kesiyoruz\b/iu.test(previousLine)) break;
+
+    const previousInstruction =
+      previousLine.match(numberedInstructionPattern);
+
+    // Non-numbered headings/bullets may occur inside one construction.
+    if (!previousInstruction) continue;
+
+    const previousStart = Number(previousInstruction[1]);
+    const previousEnd = Number(
+      previousInstruction[2] ?? previousInstruction[1],
+    );
+
+    if (
+      !Number.isFinite(previousStart) ||
+      !Number.isFinite(previousEnd) ||
+      previousEnd !== expectedPreviousNumber
+    ) {
+      // Numbering is no longer contiguous, so continuity is unprovable.
+      break;
+    }
+
+    if (
+      /\bbütün\s+sıra\s+sonlarında\b[\s\S]{0,80}\bdönüyoruz\b/iu.test(
+        previousLine,
+      )
+    ) {
+      return "row";
+    }
+
+    expectedPreviousNumber = previousStart - 1;
+
+    if (expectedPreviousNumber < 1) break;
+  }
+
+  return "round";
+};
+
 export const normalizeRoundCountTrailingActionSourceSpans = (
   source: string,
   stitchNotation: "x" | "sc",
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string => {
   const spans = scanRoundCountTrailingActionSourceSpans(source);
   let normalized = source;
@@ -272,7 +368,14 @@ export const normalizeRoundCountTrailingActionSourceSpans = (
   for (const span of [...spans].reverse()) {
     normalized =
       normalized.slice(0, span.start) +
-      renderEnglishRoundCountTrailingActionSpan(span, stitchNotation) +
+      renderEnglishRoundCountTrailingActionSpan(
+        span,
+        stitchNotation,
+        inferCrochetCountUnitAtSourcePosition(
+          sourceContext,
+          sourceOffset + span.start,
+        ),
+      ) +
       normalized.slice(span.end);
   }
 
@@ -282,21 +385,31 @@ export const normalizeRoundCountTrailingActionSourceSpans = (
 export const renderEnglishRoundCountYarnCutSpan = (
   source: RoundCountYarnCutSourceSpan,
   stitchNotation: "x" | "sc",
+  unit: CrochetCountUnit = "round",
 ): string => {
-  const roundWord = Number(source.rounds) === 1 ? "round" : "rounds";
-  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${roundWord} — cut the yarn.${source.suffix}`;
+  const unitWord = crochetCountUnitWord(source.rounds, unit);
+  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${unitWord} — cut the yarn.${source.suffix}`;
 };
 
 export const normalizeRoundCountYarnCutSourceSpans = (
   source: string,
   stitchNotation: "x" | "sc",
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string => {
   const spans = scanRoundCountYarnCutSourceSpans(source);
   let normalized = source;
   for (const span of [...spans].reverse()) {
     normalized =
       normalized.slice(0, span.start) +
-      renderEnglishRoundCountYarnCutSpan(span, stitchNotation) +
+      renderEnglishRoundCountYarnCutSpan(
+        span,
+        stitchNotation,
+        inferCrochetCountUnitAtSourcePosition(
+          sourceContext,
+          sourceOffset + span.start,
+        ),
+      ) +
       normalized.slice(span.end);
   }
   return normalized;
@@ -336,12 +449,21 @@ export const splitLogicalLines = (source: string): LogicalLine[] => {
 export const normalizeBareRoundCountSourceLines = (
   source: string,
   stitchNotation: "x" | "sc",
+  sourceContext: string = source,
+  sourceOffset = 0,
 ): string =>
   splitLogicalLines(source)
     .map((line) => {
       const parsed = parseBareRoundCountSourceLine(line.text);
       const text = parsed
-        ? renderEnglishBareRoundCountLine(parsed, stitchNotation)
+        ? renderEnglishBareRoundCountLine(
+            parsed,
+            stitchNotation,
+            inferCrochetCountUnitAtSourcePosition(
+              sourceContext,
+              sourceOffset + line.start,
+            ),
+          )
         : line.text;
       return text + line.separator;
     })

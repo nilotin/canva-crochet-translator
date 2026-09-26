@@ -91,3 +91,23 @@ it("bounds diff work for large multi-style blocks", () => {
     ]),
   ).toThrow("DIFF_LIMIT_EXCEEDED");
 });
+
+it("remaps a manual edit when the same formatting id appears in non-adjacent target runs", () => {
+  const repeatedIdTemplate = [
+    { id: "fmt-0", start: 0, end: 5 },
+    { id: "fmt-1", start: 5, end: 9 },
+    { id: "fmt-0", start: 9, end: 14 },
+  ];
+
+  expect(
+    remapFormattingRegions(
+      "LEFT red RIGHT",
+      "LEFT blue RIGHT",
+      repeatedIdTemplate,
+    ),
+  ).toEqual([
+    { id: "fmt-0", start: 0, end: 5 },
+    { id: "fmt-1", start: 5, end: 10 },
+    { id: "fmt-0", start: 10, end: 15 },
+  ]);
+});

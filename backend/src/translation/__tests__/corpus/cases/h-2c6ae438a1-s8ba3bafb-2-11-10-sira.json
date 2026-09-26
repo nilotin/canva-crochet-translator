@@ -1,0 +1,148 @@
+{
+  "expected": {
+    "results": [
+      {
+        "absorbedFormattingRegionIds": [
+          "fmt-4"
+        ],
+        "errorCodes": [],
+        "formattingProjection": "atomic_collapse",
+        "id": "mixed-semantic-and-collapse-formatting",
+        "source": "2-11) 10 sıra 64x\n4) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+        "targetFormattingRegions": [
+          {
+            "end": 6,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 10,
+            "id": "fmt-2",
+            "start": 6
+          },
+          {
+            "end": 24,
+            "id": "fmt-1",
+            "start": 10
+          },
+          {
+            "end": 25,
+            "id": "fmt-2",
+            "start": 24
+          },
+          {
+            "end": 56,
+            "id": "fmt-3",
+            "start": 25
+          },
+          {
+            "end": 56,
+            "id": "fmt-4",
+            "start": 56
+          }
+        ],
+        "translated": "2-11) 64sc for 10 rounds\n4) 24sc. Ch 1 and cut the yarn.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ],
+    "styledSlices": [
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-0",
+        "text": "2-11) "
+      },
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-1",
+        "text": " for 10 rounds"
+      },
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-2",
+        "text": "64sc"
+      },
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-2",
+        "text": "\n"
+      },
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-3",
+        "text": "4) 24sc. Ch 1 and cut the yarn."
+      },
+      {
+        "blockId": "mixed-semantic-and-collapse-formatting",
+        "regionId": "fmt-4",
+        "text": ""
+      }
+    ]
+  },
+  "id": "h-2c6ae438a1-s8ba3bafb-2-11-10-sira",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "mixed semantic and atomic-collapse formatting projection > combines semantic target-order runs with a later legacy collapse in one block"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "formattingRegions": [
+          {
+            "end": 6,
+            "id": "fmt-0",
+            "start": 0
+          },
+          {
+            "end": 14,
+            "id": "fmt-1",
+            "start": 6
+          },
+          {
+            "end": 18,
+            "id": "fmt-2",
+            "start": 14
+          },
+          {
+            "end": 23,
+            "id": "fmt-3",
+            "start": 18
+          },
+          {
+            "end": 59,
+            "id": "fmt-4",
+            "start": 23
+          }
+        ],
+        "id": "mixed-semantic-and-collapse-formatting",
+        "text": "2-11) 10 sıra 64x\n4) 24x, 1 zincir çekip ipimizi kesiyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "mixed-semantic-and-collapse-formatting",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

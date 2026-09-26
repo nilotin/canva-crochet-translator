@@ -361,6 +361,122 @@ describe("validateTranslation", () => {
     expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
   });
 
+  it("accepts same-order row wording in an established turning-row context", () => {
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x";
+
+    const result = validateTranslation(
+      source,
+      "1) 28sc, ch 1 and turn. At the end of each row, ch 1 and turn.\n" +
+        "2) (1sc, 1inc)*5, 1sc = 16sc\n" +
+        "3-7) For 5 rows, work 16sc",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("rejects same-order round wording in an established turning-row context", () => {
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x";
+
+    const result = validateTranslation(
+      source,
+      "1) 28sc, ch 1 and turn. At the end of each row, ch 1 and turn.\n" +
+        "2) (1sc, 1inc)*5, 1sc = 16sc\n" +
+        "3-7) For 5 rounds, work 16sc",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("rejects a wrong bare-count unit when duplicate instruction markers make ownership ambiguous", () => {
+    const result = validateTranslation(
+      "1) 5 sıra 16x\n1) 5 sıra 12x",
+      "1) For 5 rounds, work 16sc\n1) For 5 rows, work 12sc",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("rejects a wrong unnumbered bare-count unit when target lines are merged", () => {
+    const result = validateTranslation(
+      "5 sıra 16x\nBitiş",
+      "For 5 rows, work 16sc. Finish",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("accepts singular round wording for a one-round bare count", () => {
+    const result = validateTranslation(
+      "1 sıra 16x",
+      "16sc for 1 round",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("rejects plural round wording for a one-round bare count", () => {
+    const result = validateTranslation(
+      "1 sıra 16x",
+      "16sc for 1 rounds",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
+  it("accepts singular row wording in a turning-row context", () => {
+    const source =
+      "1) 16x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "2) 1 sıra 16x";
+
+    const result = validateTranslation(
+      source,
+      "1) Work 16sc, ch 1 and turn. At the end of each row, ch 1 and turn.\n" +
+        "2) 16sc for 1 row",
+      "en",
+    );
+
+    expect(result.valid).toBe(true);
+    expect(errorCodes(result)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it("rejects plural row wording for a one-row bare count", () => {
+    const source =
+      "1) 16x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "2) 1 sıra 16x";
+
+    const result = validateTranslation(
+      source,
+      "1) Work 16sc, ch 1 and turn. At the end of each row, ch 1 and turn.\n" +
+        "2) 16sc for 1 rows",
+      "en",
+    );
+
+    expect(result.valid).toBe(false);
+    expect(errorCodes(result)).toContain("NUMBER_MISMATCH");
+  });
+
   it("accepts multiple verified bare round-count swaps inside a composed block", () => {
     const result = validateTranslation(
       "2-11) 10 sıra 64x\n12) 60x\n19-33) 15 sıra 48x",
@@ -663,8 +779,28 @@ describe("validateTranslation", () => {
     expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
   });
 
+  it("accepts pre-existing canonical target notation alongside Turkish source notation", () => {
+    const result = validateTranslation(
+      "2) (1x, 1v)*5, 1sc = 16x",
+      "2) (1sc, 1inc)*5, 1sc = 16sc",
+      "en",
+    );
+
+    expect(errorCodes(result)).not.toContain("LOST_PATTERN_NOTATION");
+  });
+
+  it("still rejects losing pre-existing canonical target notation", () => {
+    const result = validateTranslation(
+      "1x, sc",
+      "1sc",
+      "en",
+    );
+
+    expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
+  });
+
   it.each([
-    ["en", "6sc, inc, 6sc, SL.ST"],
+    ["en", "6sc, inc, 6sc, sl st"],
     ["es", "6pb, aum, 6pb, pd"],
   ] as const)(
     "accepts complete project notation conversion for %s",
@@ -680,7 +816,7 @@ describe("validateTranslation", () => {
   );
 
   it.each([
-    ["en", "25sc, 40SL.ST, 1sc skip, SL.ST in the next stitch"],
+    ["en", "25sc, 40sl st, 1sc skip, sl st in the next stitch"],
     ["es", "25pb, 40pd, saltar 1pb, pd en el siguiente punto"],
   ] as const)(
     "accepts lowercase cc as slip-stitch notation without inflating x counts for %s",
@@ -696,7 +832,7 @@ describe("validateTranslation", () => {
   );
 
   it.each([
-    ["Cc", "en", "SL.ST"],
+    ["Cc", "en", "sl st"],
     ["cC", "es", "pd"],
     ["FlO", "en", "FLO"],
     ["fLo", "es", "Flo"],

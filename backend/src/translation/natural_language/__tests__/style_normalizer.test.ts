@@ -1,7 +1,68 @@
 import { describe, expect, it } from "vitest";
 import { normalizeTranslationStyle } from "../style_normalizer.js";
+import {
+  inferCrochetCountUnitAtSourcePosition,
+  scanRoundCountTrailingActionSourceSpans,
+} from "../bare_round_count.js";
 
 describe("normalizeTranslationStyle", () => {
+
+  it("recognizes the formatted collar count family and infers row from the parent context", () => {
+    const sourceContext =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "♦ Yakanın ilk parçasını öreceğiz,\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const source =
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const sourceStart = sourceContext.indexOf("3-7)");
+    const spans = scanRoundCountTrailingActionSourceSpans(source);
+
+    expect(spans).toHaveLength(1);
+    expect(spans[0]).toMatchObject({
+      range: "3-7",
+      rounds: "5",
+      stitches: "16",
+    });
+
+    expect(
+      inferCrochetCountUnitAtSourcePosition(
+        sourceContext,
+        sourceStart + (spans[0]?.start ?? 0),
+      ),
+    ).toBe("row");
+  });
+
+  it("preserves row terminology from parent turning-row context for a local formatted count instruction", () => {
+    const sourceContext =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "♦ Yakanın ilk parçasını öreceğiz,\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const source =
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const sourceStart = sourceContext.indexOf("3-7)");
+
+    expect(
+      normalizeTranslationStyle(
+        source,
+        "3-7) 16sc for 5 rows, ch 1 and cut the yarn.",
+        "en",
+        "pattern",
+        sourceContext,
+        sourceStart,
+      ),
+    ).toBe(
+      "3-7) 16sc for 5 rows, ch 1 and cut the yarn.",
+    );
+  });
+
   it.each([
     ["Ch 55 ch.", "Ch 55."],
     ["Ch 2 ch", "Ch 2"],
@@ -201,7 +262,7 @@ describe("normalizeTranslationStyle", () => {
   it.each([
     ["en", "(1sc, inc) x 6"],
     ["es", "(1pb, aum) x 6"],
-    ["en", "6sc, inc, 6sc, SL.ST"],
+    ["en", "6sc, inc, 6sc, sl st"],
     ["es", "6pb, aum, 6pb, pd"],
     ["en", "hdc-inc, dc-inc, dc-dec, esc-inc"],
     ["es", "aum-mpa, aum-pa, dism-pa, aum-pb-ex"],
@@ -426,7 +487,7 @@ describe("normalizeTranslationStyle", () => {
         "en",
       ),
     ).toBe(
-      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
+      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, sl st into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
     );
   });
 
@@ -438,7 +499,7 @@ describe("normalizeTranslationStyle", () => {
         "en",
       ),
     ).toBe(
-      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, SL.ST into the next stitch)*7",
+      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, sl st into the next stitch)*7",
     );
   });
 
@@ -450,7 +511,7 @@ describe("normalizeTranslationStyle", () => {
         "en",
       ),
     ).toBe(
-      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch)*3. After making 3 long hair strands, work the bangs.",
+      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, sl st into the next stitch)*3. After making 3 long hair strands, work the bangs.",
     );
   });
 
@@ -765,4 +826,86 @@ describe("normalizeTranslationStyle", () => {
     ).toBe("1) 18sc for 1 round — cut the yarn.");
   });
 
+});
+
+describe("Page 15 turning-row terminology regression", () => {
+  it("does not rewrite row to round when the source explicitly turns at each row end", () => {
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+
+    const translated =
+      "1) Work 28sc, ch 1 and turn. " +
+      "At the end of every row, ch 1 and turn.";
+
+    expect(
+      normalizeTranslationStyle(source, translated, "en", "pattern"),
+    ).toBe(translated);
+  });
+});
+
+
+describe("turning-row terminology locality", () => {
+  it("does not apply one line's turning-row context to an unrelated later round-count line", () => {
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "12 sıra 66x";
+
+    const translated =
+      "1) Work 28sc, ch 1 and turn. " +
+      "At the end of every row, ch 1 and turn.\n" +
+      "66sc for 12 rows";
+
+    expect(
+      normalizeTranslationStyle(source, translated, "en", "pattern"),
+    ).toBe(
+      "1) Work 28sc, ch 1 and turn. " +
+        "At the end of every row, ch 1 and turn.\n" +
+        "66sc for 12 rounds",
+    );
+  });
+});
+
+describe("Page 14 stitch-marker mixed-instruction regression", () => {
+  it("does not replace an entire mixed instruction merely because it ends with a marker clause", () => {
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. " +
+      "Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const translated =
+      "1) As shown in the image, attach the yarn from the back of the armhole. " +
+      "Work 20sc. " +
+      "This will be the beginning of the round; place a stitch marker here.";
+
+    const result = normalizeTranslationStyle(
+      source,
+      translated,
+      "en",
+      "pattern",
+    );
+
+    expect(result).toContain(
+      "attach the yarn from the back of the armhole",
+    );
+    expect(result).toContain("Work 20sc");
+    expect(result).toContain("place a stitch marker here");
+  });
+
+  it("still canonicalizes a standalone marker-only instruction", () => {
+    const source =
+      "Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const result = normalizeTranslationStyle(
+      source,
+      "The starting point will be here, put the marker here.",
+      "en",
+      "pattern",
+    );
+
+    expect(result).toBe(
+      "This will be the beginning of the round; place a stitch marker here.",
+    );
+  });
 });

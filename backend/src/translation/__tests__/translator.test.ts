@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   ProviderReadiness,
   TranslationProvider,
@@ -150,6 +150,22 @@ class UnconditionalCorruptingProvider extends InspectingProvider {
       translations: request.blocks.map(({ id, text }) => ({
         id,
         translated: `${text} ${text}`,
+      })),
+    };
+  }
+}
+
+class EmptyTranslationProvider extends InspectingProvider {
+  override async translate(
+    request: Parameters<TranslationProvider["translate"]>[0],
+  ) {
+    this.requests.push(request);
+    this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+
+    return {
+      translations: request.blocks.map(({ id }) => ({
+        id,
+        translated: "",
       })),
     };
   }
@@ -320,6 +336,118 @@ describe("translateBlocks provider boundary", () => {
     );
   });
 
+  it("bypasses the provider for a fully resolved around-edge slip-stitch finishing instruction", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz " +
+      "kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, " +
+      "yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip " +
+      "ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "around-edge-slip-stitch-finishing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.translated).toBe(
+      "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn.",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("keeps the around-edge slip-stitch finishing instruction deterministic across Canva formatting boundaries", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz " +
+      "kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, " +
+      "yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip " +
+      "ipimizi kesiyoruz.";
+
+    const markerEnd = source.indexOf("Görselde");
+    const innerBoundary = source.indexOf("sıradaki") + 4;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "formatted-around-edge-slip-stitch-finishing",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-marker", start: 0, end: markerEnd },
+            { id: "fmt-body-a", start: markerEnd, end: innerBoundary },
+            { id: "fmt-body-b", start: innerBoundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.translated).toBe(
+      "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn.",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+    expect(result?.targetFormattingRegions).toBeDefined();
+  });
+
+  it("preserves the marker and body formatting boundary for the around-edge finishing instruction", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz " +
+      "kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, " +
+      "yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip " +
+      "ipimizi kesiyoruz.";
+
+    const bodyStart = source.indexOf("Görselde");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "around-edge-marker-body-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-marker", start: 0, end: bodyStart },
+            { id: "fmt-body", start: bodyStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+    const translatedBodyStart = translated.indexOf("As shown in the image");
+
+    expect(translated).toBe(
+      "30) As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch 1 and sl st into the next single crochet as you go. After working around the entire edge, ch 1 and cut the yarn.",
+    );
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-marker",
+        start: 0,
+        end: translatedBodyStart,
+      },
+      {
+        id: "fmt-body",
+        start: translatedBodyStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
   it("keeps prose-only segments on the full-sentence provider path", async () => {
     const provider = new InspectingProvider();
     await translateBlocks(
@@ -425,7 +553,7 @@ describe("translateBlocks provider boundary", () => {
       "Starting from the second chain, work 55sc along the chain.",
     );
     expect(result?.translated).toContain(
-      "SL.ST into the next single crochet",
+      "sl st into the next single crochet",
     );
     expect(result?.translated).toContain(
       "then ch 56 again",
@@ -1018,7 +1146,21 @@ describe("translateBlocks provider boundary", () => {
           : ["zincir", "atla", "zincir", "atla"],
       );
       expect(seen.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
-      expect(prompts.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
+
+      const parsedPrompts = prompts.map((prompt) =>
+        JSON.parse(prompt) as {
+          proseContext?: string;
+          spans?: Array<{ id: string; text: string }>;
+        },
+      );
+
+      expect(
+        parsedPrompts.flatMap(({ spans }) => spans ?? []).map(({ text }) => text).join(" "),
+      ).not.toMatch(/24|25|1x|10x|29x/u);
+
+      expect(
+        parsedPrompts.map(({ proseContext }) => proseContext ?? "").join(" "),
+      ).toMatch(/25|1x|10x|29x/u);
     },
   );
 
@@ -1221,9 +1363,9 @@ describe("translateBlocks provider boundary", () => {
       "Starting from the third chain, work 18hdc",
     );
     expect(result?.translated).toContain("skip 1sc");
-    expect(result?.translated).toContain("SL.ST into the next stitch");
+    expect(result?.translated).toContain("sl st into the next stitch");
     expect(result?.translated).toContain(
-      "SL.ST into the following single crochet",
+      "sl st into the following single crochet",
     );
     expect(result?.translated).toContain(
       "Continue in this way to the end of the round.",
@@ -1340,8 +1482,8 @@ describe("translateBlocks provider boundary", () => {
     );
 
     expect(result?.translated).toContain("1sc");
-    expect(result?.translated).toContain("SL.ST");
-    expect(result?.translated).not.toMatch(/\bsl\s+st\b/iu);
+    expect(result?.translated).toContain("sl st");
+    expect(result?.translated).not.toContain("SL.ST");
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
   });
@@ -1901,7 +2043,7 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toBe(
-      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
+      "✦ Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, sl st into the next stitch. Continue in this way to the end of the round. At the end of the round, ch 1 and cut the yarn, leaving a long tail for sewing.",
     );
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
@@ -1980,7 +2122,7 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toBe(
-      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, SL.ST into the next stitch)*7",
+      "(Ch 21 and turn. Starting from the second chain, 20sc, skip 1sc, sl st into the next stitch)*7",
     );
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
@@ -2020,7 +2162,7 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toBe(
-      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, SL.ST into the next stitch)*3. After making 3 long hair strands, work the bangs.",
+      "12) (Ch 46 and turn. Starting from the second chain, 45sc, skip 1sc, sl st into the next stitch)*3. After making 3 long hair strands, work the bangs.",
     );
 
     expect(result?.valid).toBe(true);
@@ -2301,7 +2443,7 @@ describe("crochet instruction phrasing", () => {
     ]);
 
     for (const result of results) {
-      expect(result.valid).toBe(true);
+      expect(result?.valid).toBe(true);
     }
   });
 
@@ -2543,14 +2685,14 @@ describe("crochet instruction phrasing", () => {
       "Start with black yarn (catania 110).",
     );
     expect(result?.translated).toContain(
-      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+      "At the end of each round, join with sl st, ch 1, and continue to the next round.",
     );
 
     expect(result?.translated).not.toContain(
       "Black yarn (catania 110) we begin with",
     );
     expect(result?.translated).not.toContain(
-      "SL.ST join with",
+      "sl st join with",
     );
 
     const codes = result?.errors.map(({ code }) => code) ?? [];
@@ -2596,13 +2738,13 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toContain(
-      "Join to the starting point with SL.ST as shown in the image.",
+      "Join to the starting point with sl st as shown in the image.",
     );
     expect(result?.translated).toContain(
       "Ch 1 and continue with the next round.",
     );
 
-    expect(result?.translated).not.toContain("SL.ST we join");
+    expect(result?.translated).not.toContain("sl st we join");
     expect(result?.translated).not.toContain("1 we chain");
 
     const codes = result?.errors.map(({ code }) => code) ?? [];
@@ -2636,7 +2778,7 @@ describe("crochet instruction phrasing", () => {
       "Ch 1 and cut the yarn, leaving a long tail for sewing",
     );
     expect(result?.translated).toContain(
-      "Ch 1 and join the two ends of the piece with SL.ST as shown in the image",
+      "Ch 1 and join the two ends of the piece with sl st as shown in the image",
     );
     expect(result?.translated).toContain(
       "Ch 1 and continue with the next round",
@@ -2685,17 +2827,17 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toContain(
-      "Skip 1SL.ST from ilk parçanın bittiği yer.",
+      "Skip 1sl st from ilk parçanın bittiği yer.",
     );
     expect(result?.translated).toContain(
-      "Attach the yarn to the BLO of the second SL.ST.",
+      "Attach the yarn to the BLO of the second sl st.",
     );
     expect(result?.translated).toContain(
       "Ch 1 and work 1sc in the next single crochet while yakanın bütün çevresini dönüyoruz.",
     );
 
     expect(result?.translated).not.toContain("yerden Skip");
-    expect(result?.translated).not.toContain("SL.ST we skip");
+    expect(result?.translated).not.toContain("sl st we skip");
     expect(result?.translated).not.toContain(
       "in the next single crochet yaparak",
     );
@@ -2719,7 +2861,7 @@ describe("crochet instruction phrasing", () => {
     );
 
     expect(result?.translated).toBe(
-      "1) Work 45sc. Join to the starting point with SL.ST.",
+      "1) Work 45sc. Join to the starting point with sl st.",
     );
 
     expect(result?.errors).toEqual([]);
@@ -2759,24 +2901,24 @@ describe("crochet instruction phrasing", () => {
       { provider },
     );
 
-    expect(result?.translated).toContain("Skip 3SL.ST.");
+    expect(result?.translated).toContain("Skip 3sl st.");
     expect(result?.translated).toContain(
-      "Attach the yarn to the BLO of the second SL.ST.",
+      "Attach the yarn to the BLO of the second sl st.",
     );
     expect(result?.translated).toContain(
       "Ch 2 and work 1sc in the next single crochet while devam ediyoruz.",
     );
     expect(result?.translated).toContain(
-      "Work another SL.ST into the SL.ST between the two pieces.",
+      "Work another sl st into the sl st between the two pieces.",
     );
 
-    expect(result?.translated).not.toContain("SL.ST we skip");
+    expect(result?.translated).not.toContain("sl st we skip");
     expect(result?.translated).not.toMatch(
       /second SL\.ST.*BLO.*secure/iu,
     );
     expect(result?.translated).not.toContain("2 chain");
     expect(result?.translated).not.toContain(
-      "SL.ST on top again SL.ST we make",
+      "sl st on top again sl st we make",
     );
 
     const codes = result?.errors.map(({ code }) => code) ?? [];
@@ -2807,7 +2949,7 @@ describe("crochet instruction phrasing", () => {
       "(because the base was turned inside out, the FLO loops remained on the inside), then work 32sc.",
     );
     expect(result?.translated).toContain(
-      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+      "At the end of each round, join with sl st, ch 1, and continue to the next round.",
     );
     expect(result?.translated).toContain(
       "Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
@@ -2857,7 +2999,7 @@ describe("crochet instruction phrasing", () => {
       "(because the base was turned inside out, the FLO loops remained on the inside), then work 32sc.",
     );
     expect(attachResult?.translated).toContain(
-      "At the end of each round, join with SL.ST, ch 1, and continue to the next round.",
+      "At the end of each round, join with sl st, ch 1, and continue to the next round.",
     );
     expect(attachResult?.translated).not.toContain("we secure");
     expect(attachResult?.valid).toBe(true);
@@ -2895,7 +3037,7 @@ describe("crochet instruction phrasing", () => {
       "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
     );
     expect(result?.translated).toContain(
-      "(ch 1, SL.ST into the next single crochet)*32",
+      "(ch 1, sl st into the next single crochet)*32",
     );
 
     expect(
@@ -2954,7 +3096,7 @@ describe("crochet instruction phrasing", () => {
       "Attach the green yarn to the BLO of the single crochet stitches worked in the FLO of Round 5 as shown in the image.",
     );
     expect(result?.translated).toContain(
-      "(ch 1, SL.ST into the next single crochet)*32",
+      "(ch 1, sl st into the next single crochet)*32",
     );
     expect(result?.translated).toContain("cut the yarn");
 
@@ -3098,7 +3240,7 @@ describe("crochet instruction phrasing", () => {
     });
   });
 
-  it("protects bare round-count lines across a real Canva formatting boundary", async () => {
+  it("preserves semantic styles when a bare round-count line reorders across a real Canva formatting boundary", async () => {
     const provider = new IsolatedSiraProvider();
     const source =
       "2-11) 10 sıra 64x\n" +
@@ -3147,19 +3289,26 @@ describe("crochet instruction phrasing", () => {
     expect(result?.errors.map(({ code }) => code)).not.toContain(
       "NUMBER_MISMATCH",
     );
-    const translatedFirstLineEnd = result?.translated.indexOf("\n") ?? -1;
+    const translated = result?.translated ?? "";
+    const translatedFirstLineEnd = translated.indexOf("\n");
+    const stitchStart = translated.indexOf("64sc");
+    const stitchEnd = stitchStart + "64sc".length;
+
     expect(result?.targetFormattingRegions).toEqual([
-      { id: "fmt-0", start: 0, end: translatedFirstLineEnd },
+      { id: "fmt-0", start: 0, end: stitchStart },
+      { id: "fmt-1", start: stitchStart, end: stitchEnd },
+      { id: "fmt-0", start: stitchEnd, end: translatedFirstLineEnd },
       {
         id: "fmt-1",
         start: translatedFirstLineEnd,
-        end: result?.translated.length,
+        end: translated.length,
       },
     ]);
-    expect(result?.formattingProjection).toBe("atomic_collapse");
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
   });
 
-  it("emits a zero-width mapping for a style fully absorbed by an atomic span", async () => {
+  it("preserves reordered semantic styles inside an atomic span surrounded by ordinary text", async () => {
     const provider = new IsolatedSiraProvider();
     const source = "Header\n2-11) 10 sıra 64x\nFooter";
     const atomicStart = source.indexOf("2-11)");
@@ -3186,25 +3335,42 @@ describe("crochet instruction phrasing", () => {
     expect(result?.translated).toBe("Header\n2-11) 64sc for 10 rounds\nFooter");
     const translatedAtomicStart = result?.translated.indexOf("2-11)") ?? -1;
     const translatedAtomicEnd = result?.translated.indexOf("\nFooter") ?? -1;
+    const translated = result?.translated ?? "";
+    const translatedStitchStart = translated.indexOf("64sc");
+    const translatedStitchEnd =
+      translatedStitchStart + "64sc".length;
+
     expect(result?.targetFormattingRegions).toEqual([
       { id: "fmt-0", start: 0, end: translatedAtomicStart },
       {
         id: "fmt-1",
         start: translatedAtomicStart,
-        end: translatedAtomicEnd,
+        end: translatedStitchStart,
+      },
+      {
+        id: "fmt-3",
+        start: translatedStitchStart,
+        end: translatedStitchEnd,
       },
       {
         id: "fmt-2",
-        start: translatedAtomicEnd,
+        start: translatedStitchEnd,
         end: translatedAtomicEnd,
       },
       {
         id: "fmt-3",
         start: translatedAtomicEnd,
-        end: result?.translated.length,
+        end: translated.length,
       },
     ]);
-    expect(result?.formattingProjection).toBe("atomic_collapse");
+
+    expect(
+      result?.targetFormattingRegions?.some(
+        ({ start, end }) => start === end,
+      ),
+    ).toBe(false);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
     expect(result?.valid).toBe(true);
   });
 
@@ -3326,7 +3492,7 @@ describe("crochet instruction phrasing", () => {
       "Attach the orange yarn to the FLO of the single crochet stitches worked in the BLO of Round 27 as shown in the image.",
     );
     expect(result?.translated).toContain(
-      "(ch 1, SL.ST into the next single crochet)*60.",
+      "(ch 1, sl st into the next single crochet)*60.",
     );
     expect(result?.translated).toContain(
       "At the end of the round, ch 1 and cut the yarn",
@@ -3409,7 +3575,7 @@ describe("crochet instruction phrasing", () => {
 
     expect(result?.translated).toBe(
       "53) Attach the orange yarn to the FLO of the single crochet stitches worked in the BLO of Round 27 as shown in the image. " +
-        "(ch 1, SL.ST into the next single crochet)*60. At the end of the round, ch 1 and cut the yarn.",
+        "(ch 1, sl st into the next single crochet)*60. At the end of the round, ch 1 and cut the yarn.",
     );
 
     expect(result?.valid).toBe(true);
@@ -3502,7 +3668,7 @@ describe("crochet instruction phrasing", () => {
       "(ch 3, 1sc in the next single crochet)*12",
     );
     expect(result?.translated).toContain(
-      "Work 12SL.ST (slip stitches).",
+      "Work 12sl st (slip stitches).",
     );
     expect(result?.translated).toContain(
       "Work 9sc in the BLO of the slip stitches.",
@@ -4327,9 +4493,9 @@ describe("materials translation profile with Canva formatting regions", () => {
     expect(result?.translated).toContain("Ch 20 and turn.");
     expect(result?.translated).toContain("work 18hdc");
     expect(result?.translated).toContain("skip 1sc");
-    expect(result?.translated).toContain("SL.ST into the next stitch");
+    expect(result?.translated).toContain("sl st into the next stitch");
     expect(result?.translated).toContain(
-      "then SL.ST into the following single crochet",
+      "then sl st into the following single crochet",
     );
     expect(result?.translated).toContain(
       "Continue in this way to the end of the round.",
@@ -4387,8 +4553,8 @@ describe("materials translation profile with Canva formatting regions", () => {
     expect(result?.translated).toContain("Ch 20 and turn.");
     expect(result?.translated).toContain("work 18hdc");
     expect(result?.translated).toContain("skip 1sc");
-    expect(result?.translated).toContain("SL.ST into the next stitch");
-    expect(result?.translated).toContain("SL.ST into the following single crochet");
+    expect(result?.translated).toContain("sl st into the next stitch");
+    expect(result?.translated).toContain("sl st into the following single crochet");
     expect(result?.translated).toContain(
       "Continue in this way to the end of the round.",
     );
@@ -4905,5 +5071,1544 @@ describe("Page 13 exact-live long buttonhole deterministic ownership", () => {
     );
 
     expect(provider.requests.length).toBeGreaterThan(0);
+  });
+});
+
+describe("mixed-span full-context regression", () => {
+  it("gives the provider the complete mixed instruction as prose context", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "İlk kolda 13x örüp kolun üzerine denk getirdim. " +
+      "Diğer kolda 9x ördüğümde denk geldi. " +
+      "Gerekirse 1-2 sık iğne eksik ya da fazla örün.";
+
+    await translateBlocks(
+      [{ id: "mixed-full-context", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests).toHaveLength(1);
+
+    const userPrompt = JSON.parse(
+      provider.requests[0]?.userPrompt ?? "{}",
+    ) as {
+      proseContext?: string;
+      spans?: Array<{ id: string; text: string }>;
+    };
+
+    expect(userPrompt.proseContext).toContain("13");
+    expect(userPrompt.proseContext).toContain("9");
+    expect(userPrompt.proseContext).toContain("1-2");
+
+    expect(userPrompt.proseContext).toContain("İlk kolda");
+    expect(userPrompt.proseContext).toContain("Diğer kolda");
+    expect(userPrompt.proseContext).toContain("denk geldi");
+
+    expect(userPrompt.spans?.length).toBeGreaterThan(1);
+  });
+});
+
+describe("Page 15 edge-finishing regression", () => {
+  it("keeps the edge-finishing sequence coherent through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "30) Görselde görüldüğü gibi dışa kıvırmak için ördüğümüz " +
+      "kısmın çevresini simli ip ile 1 zincir, sıradaki sık iğneye cc, " +
+      "yaparak dönüyoruz. Tüm çevreyi ördükten sonra 1 zincir çekip " +
+      "ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page15-edge-finishing", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("30)");
+    expect(result?.translated).toContain("1");
+    expect(result?.translated).toContain("sl st");
+    expect(result?.translated).toContain("cut the yarn");
+  });
+});
+
+describe("Page 15 other-arm paragraph regression", () => {
+  it("translates the complete other-arm alignment guidance deterministically", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "♦ Diğer kolu da aynı şekilde örüyoruz. " +
+      "(26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. " +
+      "Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. " +
+      "Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)";
+
+    const [result] = await translateBlocks(
+      [{ id: "page15-other-arm", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.translated).toBe(
+      "♦ Work the other arm in the same way. " +
+      "(In Round 26, on the first arm I worked 13sc to align with the top of the arm. " +
+      "On the other arm, it aligned after 9sc. " +
+      "Work 1-2 fewer or additional single crochet stitches as needed so that it aligns with the top of the arm.)",
+    );
+
+    expect(result?.translated).not.toMatch(/[çğıöşü]/iu);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 15 other-arm formatting regression", () => {
+  it("keeps the other-arm alignment guidance deterministic across a Canva formatting split", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "♦ Diğer kolu da aynı şekilde örüyoruz. " +
+      "(26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. " +
+      "Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. " +
+      "Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)";
+
+    const boundary =
+      source.indexOf("Sizde kolun üzerine denk gelecek şekilde") + 14;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page15-other-arm-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "♦ Work the other arm in the same way. " +
+      "(In Round 26, on the first arm I worked 13sc to align with the top of the arm. " +
+      "On the other arm, it aligned after 9sc. " +
+      "Work 1-2 fewer or additional single crochet stitches as needed so that it aligns with the top of the arm.)",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+    expect(result?.targetFormattingRegions).toBeDefined();
+  });
+});
+
+describe("Page 15 other-arm marker/body formatting regression", () => {
+  it("preserves the bullet/body formatting boundary for other-arm alignment guidance", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "♦ Diğer kolu da aynı şekilde örüyoruz. " +
+      "(26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. " +
+      "Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. " +
+      "Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)";
+
+    const bodyStart = source.indexOf("Diğer kolu");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page15-other-arm-bullet-body-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-bullet", start: 0, end: bodyStart },
+            { id: "fmt-body", start: bodyStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+    const translatedBodyStart = translated.indexOf("Work the other arm");
+
+    expect(translatedBodyStart).toBeGreaterThan(0);
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-bullet", start: 0, end: translatedBodyStart },
+      { id: "fmt-body", start: translatedBodyStart, end: translated.length },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 15 live other-arm marker regression", () => {
+  it("preserves the live ✦ marker and body formatting while translating other-arm guidance deterministically", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "✦ Diğer kolu da aynı şekilde örüyoruz. " +
+      "(26. sırada ilk kolda 13x örüp kolun üzerine denk getirmiştim. " +
+      "Diğer kolu örerken 9x ördüğümde kolun üzerine denk geldi. " +
+      "Sizde kolun üzerine denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örerek üst kısma gelin.)";
+
+    const bodyStart = source.indexOf("Diğer kolu");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page15-live-other-arm",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-marker", start: 0, end: bodyStart },
+            { id: "fmt-body", start: bodyStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+    const translatedBodyStart = translated.indexOf("Work the other arm");
+
+    expect(translated).toBe(
+      "✦ Work the other arm in the same way. " +
+      "(In Round 26, on the first arm I worked 13sc to align with the top of the arm. " +
+      "On the other arm, it aligned after 9sc. " +
+      "Work 1-2 fewer or additional single crochet stitches as needed so that it aligns with the top of the arm.)",
+    );
+
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-marker", start: 0, end: translatedBodyStart },
+      { id: "fmt-body", start: translatedBodyStart, end: translated.length },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 15 collar turning-row regression", () => {
+  it("preserves both turning instructions and uses row terminology through the full pipeline", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page15-collar-turning-row", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) Work 28sc, Ch 1 and turn. At the end of each row, ch 1 and turn.",
+    );
+
+    expect(result?.translated).not.toContain("Bütün");
+    expect(result?.translated).not.toContain("each round");
+    expect(result?.translated).toContain("Ch 1 and turn.");
+    expect(result?.translated).toContain(
+      "At the end of each row, ch 1 and turn.",
+    );
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+
+describe("Page 15 collar repeated-row count regression", () => {
+  it("keeps the later 3-7 count in row terminology after explicit repeated turning", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "♦ Yakanın ilk parçasını öreceğiz,\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page15-collar-repeated-rows", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "At the end of each row, ch 1 and turn.",
+    );
+    expect(result?.translated).toContain(
+      "16sc for 5 rows, ch 1 and cut the yarn.",
+    );
+    expect(result?.translated).not.toContain("16sc for 5 rounds");
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+  it("keeps the later collar count in row terminology when Canva formatting isolates that instruction", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "♦ Yakanın ilk parçasını öreceğiz,\n" +
+      "2) (1x, 1v)*5, 1sc = 16x\n" +
+      "3-7) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const countLineStart = source.indexOf("3-7)");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page15-collar-repeated-rows-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: countLineStart },
+            { id: "fmt-1", start: countLineStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "16sc for 5 rows, ch 1 and cut the yarn.",
+    );
+    expect(result?.translated).not.toContain("16sc for 5 rounds");
+
+    expect(result?.errors.map(({ code }) => code)).not.toContain(
+      "NUMBER_MISMATCH",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+
+    expect(result?.targetFormattingRegions).toBeDefined();
+  });
+
+  it("does not inherit turning-row context across a numbering reset into a new section", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. " +
+      "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n" +
+      "♦ Yeni bölüm\n" +
+      "1) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "row-context-numbering-reset", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "16sc for 5 rounds, ch 1 and cut the yarn.",
+    );
+    expect(result?.translated).not.toContain("16sc for 5 rows");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+});
+
+describe("Page 14 sleeve deterministic ownership", () => {
+  it("bypasses the provider for the complete sleeve setup instruction", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page14-sleeve-setup", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "attach the yarn from the back of the armhole",
+    );
+    expect(result?.translated).toContain("Work 20sc");
+    expect(result?.translated).toContain(
+      "place a stitch marker here",
+    );
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("bypasses the provider for the complete sleeve shaping instruction", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page14-sleeve-shaping", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "26) Work 13sc (we will crochet the section folded outward over the arm). " +
+      "As shown in the image, when I worked 13sc, it aligned exactly over the arm. " +
+      "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. " +
+      "Ch 1 and turn.",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("keeps sleeve shaping deterministic across a Canva formatting split", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    const boundary =
+      source.indexOf("Sizde kolun üst kısmına") + 12;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-sleeve-shaping-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundary },
+            { id: "fmt-1", start: boundary, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "when I worked 13sc",
+    );
+    expect(result?.translated).toContain(
+      "work 1-2 fewer or additional single crochet stitches",
+    );
+    expect(result?.translated).toContain("Ch 1 and turn.");
+    expect(provider.protectedTexts.join(" ")).not.toContain(
+      "kolun üzerindeki",
+    );
+    expect(provider.protectedTexts.join(" ")).not.toContain(
+      "when I worked 13sc",
+    );
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("keeps the sleeve shaping family on the provider path for Spanish", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    await translateBlocks(
+      [{ id: "page14-sleeve-shaping-es", text: source }],
+      "es",
+      { provider },
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Page 14 exact saved blocks", () => {
+  it("translates the complete saved Block 2 deterministically without provider exposure", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "2-25) 24 sıra 20x\n" +
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.\n" +
+      "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,\n" +
+      "3) 24x, 1 zincir, dön,\n" +
+      "4) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page14-exact-block-2", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "2-25) 20sc for 24 rounds",
+    );
+
+    expect(result?.translated).toContain(
+      "26) Work 13sc (we will crochet the section folded outward over the arm).",
+    );
+
+    expect(result?.translated).toContain(
+      "As shown in the image, when I worked 13sc, it aligned exactly over the arm.",
+    );
+
+    expect(result?.translated).toContain(
+      "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm.",
+    );
+
+    expect(result?.translated).toContain("Ch 1 and turn.");
+
+    expect(result?.translated).toContain(
+      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+    );
+
+    expect(result?.translated).toContain(
+      "3) 24sc, Ch 1 and turn,",
+    );
+
+    expect(result?.translated).toContain(
+      "4) 24sc. Ch 1 and cut the yarn.",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("preserves representative multi-style formatting across the complete saved Block 2", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "2-25) 24 sıra 20x\n" +
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.\n" +
+      "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,\n" +
+      "3) 24x, 1 zincir, dön,\n" +
+      "4) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const row26Start = source.indexOf("26)");
+    const row26ImageStart = source.indexOf("Görselde görüldüğü gibi ben");
+    const row26AdjustmentStart = source.indexOf("Sizde kolun üst");
+    const row26TurnStart = source.indexOf("1 zincir çekip dönüyoruz.");
+
+    const bloRowStart = source.indexOf("2) Bu sırayı");
+    const bloStitchStart = source.indexOf("2x, 1v", bloRowStart);
+    const bloTurnStart = source.indexOf("1 zincir, dön,", bloRowStart);
+
+    const row3Start = source.indexOf("3) 24x");
+    const row3TurnStart = source.indexOf("1 zincir, dön,", row3Start);
+
+    const row4Start = source.indexOf("4) 24x");
+    const row4CutStart = source.indexOf("1 zincir çekip", row4Start);
+
+    const formattingRegions = [
+      { id: "fmt-0", start: 0, end: row26Start },
+      { id: "fmt-1", start: row26Start, end: row26ImageStart },
+      {
+        id: "fmt-2",
+        start: row26ImageStart,
+        end: row26AdjustmentStart,
+      },
+      {
+        id: "fmt-3",
+        start: row26AdjustmentStart,
+        end: row26TurnStart,
+      },
+      { id: "fmt-4", start: row26TurnStart, end: bloRowStart },
+      { id: "fmt-5", start: bloRowStart, end: bloStitchStart },
+      { id: "fmt-6", start: bloStitchStart, end: bloTurnStart },
+      { id: "fmt-7", start: bloTurnStart, end: row3Start },
+      { id: "fmt-8", start: row3Start, end: row3TurnStart },
+      { id: "fmt-9", start: row3TurnStart, end: row4Start },
+      { id: "fmt-10", start: row4Start, end: row4CutStart },
+      { id: "fmt-11", start: row4CutStart, end: source.length },
+    ];
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-exact-block-2-multi-style",
+          text: source,
+          formattingRegions,
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+    const regions = result?.targetFormattingRegions ?? [];
+
+    expect(translated).toBe(
+      "2-25) 20sc for 24 rounds\n" +
+        "26) Work 13sc (we will crochet the section folded outward over the arm). " +
+        "As shown in the image, when I worked 13sc, it aligned exactly over the arm. " +
+        "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. " +
+        "Ch 1 and turn.\n" +
+        "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
+        "3) 24sc, Ch 1 and turn,\n" +
+        "4) 24sc. Ch 1 and cut the yarn.",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+
+    expect(new Set(regions.map(({ id }) => id))).toEqual(
+      new Set(formattingRegions.map(({ id }) => id)),
+    );
+
+    expect(
+      regions.some(({ start, end }) => start === end),
+    ).toBe(false);
+
+    expect(regions[0]?.start).toBe(0);
+    expect(regions.at(-1)?.end).toBe(translated.length);
+
+    for (let index = 1; index < regions.length; index++) {
+      expect(regions[index]?.start).toBe(regions[index - 1]?.end);
+    }
+
+    const ownerAt = (needle: string) => {
+      const offset = translated.indexOf(needle);
+
+      return regions.find(
+        ({ start, end }) => start <= offset && offset < end,
+      )?.id;
+    };
+
+    expect(ownerAt("20sc for 24 rounds")).toBe("fmt-0");
+    expect(ownerAt("Work 13sc")).toBe("fmt-1");
+    expect(ownerAt("when I worked 13sc")).toBe("fmt-2");
+    expect(ownerAt("1-2 fewer or additional")).toBe("fmt-3");
+    expect(ownerAt("Ch 1 and turn.\n2)")).toBe("fmt-4");
+    expect(ownerAt("Work this round in BLO")).toBe("fmt-5");
+    expect(ownerAt("2sc, 1inc")).toBe("fmt-6");
+
+    const bloTurnOffset = translated.indexOf(
+      "Ch 1 and turn,",
+      translated.indexOf("Work this round in BLO"),
+    );
+    expect(
+      regions.find(
+        ({ start, end }) =>
+          start <= bloTurnOffset && bloTurnOffset < end,
+      )?.id,
+    ).toBe("fmt-7");
+
+    expect(ownerAt("3) 24sc")).toBe("fmt-8");
+
+    const row3TurnOffset = translated.indexOf(
+      "Ch 1 and turn,",
+      translated.indexOf("3) 24sc"),
+    );
+    expect(
+      regions.find(
+        ({ start, end }) =>
+          start <= row3TurnOffset && row3TurnOffset < end,
+      )?.id,
+    ).toBe("fmt-9");
+
+    expect(ownerAt("4) 24sc")).toBe("fmt-10");
+    expect(ownerAt("Ch 1 and cut the yarn")).toBe("fmt-11");
+  });
+
+  it("preserves every critical instruction in the exact saved Block 1 row", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page14-exact-block-1-row", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) As shown in the image, attach the yarn from the back of the armhole. " +
+      "Work 20sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.translated).toContain("back of the armhole");
+    expect(result?.translated).toContain("20sc");
+    expect(result?.translated).toContain("stitch marker");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("keeps all Page 14 deterministic instructions away from the provider across formatting splits", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    const boundaryA = source.indexOf("Görselde görüldüğü gibi") + 9;
+    const boundaryB = source.indexOf("1-2 sık iğne") + 4;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-row26-multi-format",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: boundaryA },
+            { id: "fmt-1", start: boundaryA, end: boundaryB },
+            { id: "fmt-2", start: boundaryB, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain("when I worked 13sc");
+    expect(result?.translated).toContain(
+      "1-2 fewer or additional single crochet stitches",
+    );
+    expect(result?.translated).toContain("Ch 1 and turn.");
+
+    const providerText = provider.protectedTexts.join(" ");
+
+    expect(providerText).not.toContain("kolun üzerindeki");
+    expect(providerText).not.toContain("Görselde görüldüğü gibi ben");
+    expect(providerText).not.toContain("when I worked 13sc");
+    expect(providerText).not.toContain(
+      "1-2 fewer or additional single crochet stitches",
+    );
+    expect(providerText).not.toContain("Ch 1 and turn");
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 14 exact saved Block 1 including heading", () => {
+  it("keeps the sleeve instruction deterministic while allowing only the heading prose onto the provider path", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "Bluz kolu;\n" +
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const [result] = await translateBlocks(
+      [{ id: "page14-exact-block-1", text: source }],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toContain(
+      "1) As shown in the image, attach the yarn from the back of the armhole.",
+    );
+    expect(result?.translated).toContain("Work 20sc.");
+    expect(result?.translated).toContain(
+      "This will be the beginning of the round; place a stitch marker here.",
+    );
+
+    const providerText = provider.protectedTexts.join(" ");
+
+    expect(providerText).not.toContain("kol boşluğunun");
+    expect(providerText).not.toContain("20x örüyoruz");
+    expect(providerText).not.toContain("Başlangıç noktamız");
+
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("live Page 14 Block 1 formatting regression", () => {
+  it("preserves the real Canva heading, newline, marker, and body formatting boundaries", async () => {
+    const provider = new InspectingProvider();
+
+    const source =
+      "Bluz kolu;\n" +
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    expect(source.length).toBe(171);
+    expect(source.slice(0, 10)).toBe("Bluz kolu;");
+    expect(source.slice(10, 11)).toBe("\n");
+    expect(source.slice(11, 14)).toBe("1) ");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-live-block-1-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: 10 },
+            { id: "fmt-1", start: 10, end: 11 },
+            { id: "fmt-2", start: 11, end: 14 },
+            { id: "fmt-3", start: 14, end: 171 },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "Bluz kolu;\n" +
+        "1) As shown in the image, attach the yarn from the back of the armhole. " +
+        "Work 20sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+
+    expect(result?.targetFormattingRegions).toEqual([
+      { id: "fmt-0", start: 0, end: 10 },
+      { id: "fmt-1", start: 10, end: 11 },
+      { id: "fmt-2", start: 11, end: 14 },
+      { id: "fmt-3", start: 14, end: translated.length },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.protectedTexts).toContain("Bluz kolu;");
+    expect(provider.protectedTexts.join(" ")).not.toContain("kol boşluğunun");
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("semantic formatting projection across atomic reordering", () => {
+  it("projects atomic source styles onto reordered target semantic pieces instead of collapsing to the left style", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source = "2-11) 10 sıra 64x";
+    const markerEnd = source.indexOf("10 sıra");
+    const stitchStart = source.indexOf("64x");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "semantic-style-reorder",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: markerEnd },
+            { id: "fmt-1", start: markerEnd, end: stitchStart },
+            { id: "fmt-2", start: stitchStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe("2-11) 64sc for 10 rounds");
+    expect(provider.requests).toHaveLength(0);
+
+    const translated = result?.translated ?? "";
+    const stitchTargetStart = translated.indexOf("64sc");
+    const stitchTargetEnd = stitchTargetStart + "64sc".length;
+    const roundTargetStart = stitchTargetEnd;
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: stitchTargetStart,
+      },
+      {
+        id: "fmt-2",
+        start: stitchTargetStart,
+        end: stitchTargetEnd,
+      },
+      {
+        id: "fmt-1",
+        start: roundTargetStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+});
+
+describe("mixed zero-width provenance safety", () => {
+  it("does not let a later atomic collapse legitimize an empty ordinary translation unit", async () => {
+    const provider = new EmptyTranslationProvider();
+
+    const prose = "Bu açıklama çevrilsin.";
+    const round = "2-11) 10 sıra 64x";
+    const collapse = "4) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+    const source = `${prose}\n${round}\n${collapse}`;
+
+    const proseEnd = prose.length;
+    const roundStart = proseEnd + 1;
+    const roundStitchStart = source.indexOf("64x", roundStart);
+    const roundEnd = roundStart + round.length;
+    const collapseStart = roundEnd + 1;
+    const collapseSplit = source.indexOf("24x", collapseStart) + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "mixed-empty-prose-semantic-and-collapse",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-prose", start: 0, end: proseEnd },
+            { id: "fmt-gap-1", start: proseEnd, end: roundStart },
+            {
+              id: "fmt-round-a",
+              start: roundStart,
+              end: roundStitchStart,
+            },
+            {
+              id: "fmt-round-b",
+              start: roundStitchStart,
+              end: roundEnd,
+            },
+            { id: "fmt-gap-2", start: roundEnd, end: collapseStart },
+            {
+              id: "fmt-collapse-a",
+              start: collapseStart,
+              end: collapseSplit,
+            },
+            {
+              id: "fmt-collapse-b",
+              start: collapseSplit,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(provider.requests.length).toBeGreaterThan(0);
+
+    expect(result?.translated).toContain(
+      "2-11) 64sc for 10 rounds",
+    );
+    expect(result?.translated).toContain(
+      "4) 24sc. Ch 1 and cut the yarn.",
+    );
+
+    expect(result?.valid).toBe(false);
+    expect(result?.errors).toContainEqual(
+      expect.objectContaining({ code: "EMPTY_TRANSLATION" }),
+    );
+
+    // A zero-width ordinary prose region is not an absorbed legacy style.
+    // A later atomic-collapse elsewhere in the block must not make this
+    // projection structurally complete.
+    expect(result?.targetFormattingRegions).toBeUndefined();
+  });
+});
+
+describe("mixed semantic and atomic-collapse formatting projection", () => {
+  it("combines semantic target-order runs with a later legacy collapse in one block", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const firstLine = "2-11) 10 sıra 64x";
+    const secondLine = "4) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+    const source = `${firstLine}\n${secondLine}`;
+
+    const markerEnd = source.indexOf("10 sıra");
+    const stitchStart = source.indexOf("64x");
+    const secondLineStart = source.indexOf(secondLine);
+    const splitInsideSecondStitch =
+      source.indexOf("24x", secondLineStart) + 2;
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "mixed-semantic-and-collapse-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: markerEnd },
+            { id: "fmt-1", start: markerEnd, end: stitchStart },
+            {
+              id: "fmt-2",
+              start: stitchStart,
+              end: secondLineStart,
+            },
+            {
+              id: "fmt-3",
+              start: secondLineStart,
+              end: splitInsideSecondStitch,
+            },
+            {
+              id: "fmt-4",
+              start: splitInsideSecondStitch,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+    const expectedFirstLine = "2-11) 64sc for 10 rounds";
+    const expectedSecondLine = "4) 24sc. Ch 1 and cut the yarn.";
+    const expected = `${expectedFirstLine}\n${expectedSecondLine}`;
+
+    expect(translated).toBe(expected);
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+
+    const regions = result?.targetFormattingRegions ?? [];
+
+    const stitchTargetStart = translated.indexOf("64sc");
+    const stitchTargetEnd = stitchTargetStart + "64sc".length;
+    const secondTargetStart = translated.indexOf(expectedSecondLine);
+
+    expect(regions.slice(0, 4)).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: stitchTargetStart,
+      },
+      {
+        id: "fmt-2",
+        start: stitchTargetStart,
+        end: stitchTargetEnd,
+      },
+      {
+        id: "fmt-1",
+        start: stitchTargetEnd,
+        end: expectedFirstLine.length,
+      },
+      {
+        id: "fmt-2",
+        start: expectedFirstLine.length,
+        end: secondTargetStart,
+      },
+    ]);
+
+    expect(regions.slice(-2)).toEqual([
+      {
+        id: "fmt-3",
+        start: secondTargetStart,
+        end: translated.length,
+      },
+      {
+        id: "fmt-4",
+        start: translated.length,
+        end: translated.length,
+      },
+    ]);
+
+    const positiveWidth = regions.filter(({ start, end }) => start < end);
+
+    expect(positiveWidth[0]?.start).toBe(0);
+    expect(positiveWidth.at(-1)?.end).toBe(translated.length);
+
+    for (let index = 1; index < positiveWidth.length; index++) {
+      expect(positiveWidth[index]?.start).toBe(
+        positiveWidth[index - 1]?.end,
+      );
+    }
+
+    expect(new Set(regions.map(({ id }) => id))).toEqual(
+      new Set(["fmt-0", "fmt-1", "fmt-2", "fmt-3", "fmt-4"]),
+    );
+
+    expect(result?.absorbedFormattingRegionIds).toEqual(["fmt-4"]);
+
+    expect(
+      regions
+        .filter(({ start, end }) => start === end)
+        .map(({ id }) => id),
+    ).toEqual(result?.absorbedFormattingRegionIds);
+  });
+});
+
+describe("Page 14 semantic formatting projection", () => {
+  it("preserves separate styles across the complete sleeve setup instruction", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const stitchStart = source.indexOf("20x");
+    const markerStart = source.indexOf("Başlangıç noktamız");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-sleeve-setup-semantic-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: stitchStart },
+            { id: "fmt-1", start: stitchStart, end: markerStart },
+            { id: "fmt-2", start: markerStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "1) As shown in the image, attach the yarn from the back of the armhole. " +
+        "Work 20sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+
+    const translatedStitchStart = translated.indexOf("Work 20sc.");
+    const translatedMarkerStart = translated.indexOf(
+      "This will be the beginning of the round;",
+    );
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: translatedStitchStart,
+      },
+      {
+        id: "fmt-1",
+        start: translatedStitchStart,
+        end: translatedMarkerStart,
+      },
+      {
+        id: "fmt-2",
+        start: translatedMarkerStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("preserves sentence-level styles across the complete sleeve shaping instruction", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    const imageSentenceStart = source.indexOf("Görselde görüldüğü gibi");
+    const adjustmentSentenceStart = source.indexOf(
+      "Sizde kolun üst kısmına",
+    );
+    const turnSentenceStart = source.indexOf("1 zincir çekip dönüyoruz");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-sleeve-shaping-semantic-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: imageSentenceStart },
+            {
+              id: "fmt-1",
+              start: imageSentenceStart,
+              end: adjustmentSentenceStart,
+            },
+            {
+              id: "fmt-2",
+              start: adjustmentSentenceStart,
+              end: turnSentenceStart,
+            },
+            {
+              id: "fmt-3",
+              start: turnSentenceStart,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "26) Work 13sc (we will crochet the section folded outward over the arm). " +
+        "As shown in the image, when I worked 13sc, it aligned exactly over the arm. " +
+        "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. " +
+        "Ch 1 and turn.",
+    );
+
+    const translatedImageStart = translated.indexOf(
+      "As shown in the image",
+    );
+    const translatedAdjustmentStart = translated.indexOf(
+      "You can work 1-2",
+    );
+    const translatedTurnStart = translated.indexOf("Ch 1 and turn.");
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: translatedImageStart,
+      },
+      {
+        id: "fmt-1",
+        start: translatedImageStart,
+        end: translatedAdjustmentStart,
+      },
+      {
+        id: "fmt-2",
+        start: translatedAdjustmentStart,
+        end: translatedTurnStart,
+      },
+      {
+        id: "fmt-3",
+        start: translatedTurnStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+});
+
+describe("Page 14 compact-row semantic formatting projection", () => {
+  it("preserves BLO prose, stitch sequence, and turn-action styles separately", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,";
+
+    const stitchStart = source.indexOf("2x, 1v");
+    const turnStart = source.indexOf("1 zincir");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-blo-row-semantic-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: stitchStart },
+            { id: "fmt-1", start: stitchStart, end: turnStart },
+            { id: "fmt-2", start: turnStart, end: source.length },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+    );
+
+    const translatedStitchStart = translated.indexOf("2sc, 1inc");
+    const translatedTurnStart = translated.indexOf("Ch 1 and turn");
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: translatedStitchStart,
+      },
+      {
+        id: "fmt-1",
+        start: translatedStitchStart,
+        end: translatedTurnStart,
+      },
+      {
+        id: "fmt-2",
+        start: translatedTurnStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("preserves stitch and finishing-action styles when chain-and-cut becomes a new target sentence", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source = "4) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+    const finishingStart = source.indexOf("1 zincir");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-cut-row-semantic-formatting",
+          text: source,
+          formattingRegions: [
+            { id: "fmt-0", start: 0, end: finishingStart },
+            {
+              id: "fmt-1",
+              start: finishingStart,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "4) 24sc. Ch 1 and cut the yarn.",
+    );
+
+    const translatedFinishingStart = translated.indexOf("Ch 1");
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: translatedFinishingStart,
+      },
+      {
+        id: "fmt-1",
+        start: translatedFinishingStart,
+        end: translated.length,
+      },
+    ]);
+
+    expect(result?.formattingProjection).not.toBe("atomic_collapse");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+  it("falls back to atomic_collapse when a formatting boundary splits the compact stitch sequence", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,";
+
+    const splitInsideStitchSequence = source.indexOf("(4x,1v)");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-blo-row-split-stitch-fallback",
+          text: source,
+          formattingRegions: [
+            {
+              id: "fmt-0",
+              start: 0,
+              end: splitInsideStitchSequence,
+            },
+            {
+              id: "fmt-1",
+              start: splitInsideStitchSequence,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    const translated = result?.translated ?? "";
+
+    expect(translated).toBe(
+      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+    );
+
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: translated.length,
+      },
+      {
+        id: "fmt-1",
+        start: translated.length,
+        end: translated.length,
+      },
+    ]);
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.errors).toEqual([]);
+    expect(result?.valid).toBe(true);
+  });
+
+});
+
+describe("Page 14 sleeve semantic projection fallback safety", () => {
+  it("falls back to atomic_collapse when a formatting boundary splits a sleeve semantic clause", async () => {
+    const provider = new UnconditionalCorruptingProvider();
+
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. 20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    const splitInsideFirstClause = source.indexOf("kol boşluğunun");
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page14-sleeve-split-inside-clause",
+          text: source,
+          formattingRegions: [
+            {
+              id: "fmt-0",
+              start: 0,
+              end: splitInsideFirstClause,
+            },
+            {
+              id: "fmt-1",
+              start: splitInsideFirstClause,
+              end: source.length,
+            },
+          ],
+        },
+      ],
+      "en",
+      { provider },
+    );
+
+    expect(result?.translated).toBe(
+      "1) As shown in the image, attach the yarn from the back of the armhole. Work 20sc. This will be the beginning of the round; place a stitch marker here.",
+    );
+
+    expect(result?.formattingProjection).toBe("atomic_collapse");
+
+    expect(result?.targetFormattingRegions).toEqual([
+      {
+        id: "fmt-0",
+        start: 0,
+        end: result?.translated.length ?? 0,
+      },
+      {
+        id: "fmt-1",
+        start: result?.translated.length ?? 0,
+        end: result?.translated.length ?? 0,
+      },
+    ]);
+
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
+  });
+});
+
+describe("live Page 14 formatting regression", () => {
+  it("preserves real Canva marker/body formatting boundaries for the sleeve block", async () => {
+    const source =
+      "2-25) 24 sıra 20x\n" +
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. 1 zincir çekip dönüyoruz.\n" +
+      "27) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,\n" +
+      "28) 24x, 1 zincir, dön,\n" +
+      "29) 24x, 1 zincir çekip ipimizi kesiyoruz.";
+
+    const formattingRegions = [
+      { id: "fmt-0", start: 0, end: 6 },
+      { id: "fmt-1", start: 6, end: 18 },
+      { id: "fmt-2", start: 18, end: 22 },
+      { id: "fmt-3", start: 22, end: 283 },
+      { id: "fmt-4", start: 283, end: 287 },
+      { id: "fmt-5", start: 287, end: 359 },
+      { id: "fmt-6", start: 359, end: 363 },
+      { id: "fmt-7", start: 363, end: 383 },
+      { id: "fmt-8", start: 383, end: 387 },
+      { id: "fmt-9", start: 387, end: 425 },
+    ];
+
+    const provider = {
+      translate: vi.fn(async () => {
+        throw new Error("provider must not be called for this deterministic regression");
+      }),
+    };
+
+    const [result] = await translateBlocks(
+      [
+        {
+          id: "page-14-live-block-2",
+          text: source,
+          formattingRegions,
+        } as never,
+      ],
+      "en",
+      { provider: provider as never },
+    );
+
+    expect(provider.translate).not.toHaveBeenCalled();
+    expect(result).toBeDefined();
+
+    expect(result?.translated).toBe(
+      "2-25) 20sc for 24 rounds\n" +
+        "26) Work 13sc (we will crochet the section folded outward over the arm). As shown in the image, when I worked 13sc, it aligned exactly over the arm. You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. Ch 1 and turn.\n" +
+        "27) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
+        "28) 24sc, Ch 1 and turn,\n" +
+        "29) 24sc. Ch 1 and cut the yarn.",
+    );
+
+    const regions = result?.targetFormattingRegions ?? [];
+
+    expect(
+      regions.map(({ id, start, end }) => ({
+        id,
+        text: result?.translated.slice(start, end) ?? "",
+      })),
+    ).toEqual([
+      { id: "fmt-0", text: "2-25) " },
+      { id: "fmt-1", text: "20sc for 24 rounds\n" },
+      { id: "fmt-2", text: "26) " },
+      {
+        id: "fmt-3",
+        text:
+          "Work 13sc (we will crochet the section folded outward over the arm). As shown in the image, when I worked 13sc, it aligned exactly over the arm. You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. Ch 1 and turn.\n",
+      },
+      { id: "fmt-4", text: "27) " },
+      {
+        id: "fmt-5",
+        text:
+          "Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n",
+      },
+      { id: "fmt-6", text: "28) " },
+      { id: "fmt-7", text: "24sc, Ch 1 and turn,\n" },
+      { id: "fmt-8", text: "29) " },
+      { id: "fmt-9", text: "24sc. Ch 1 and cut the yarn." },
+    ]);
+
+    expect(result?.valid).toBe(true);
+    expect(result?.errors).toEqual([]);
   });
 });

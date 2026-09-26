@@ -256,3 +256,27 @@ describe("Page 13 exact-live buttonhole spelling regression", () => {
     ]);
   });
 });
+
+describe("Page 14 sleeve atomic families", () => {
+  it("keeps the complete sleeve setup instruction atomic", () => {
+    const source =
+      "1) Görselde görüldüğü gibi kol boşluğunun arka tarafından ipimizi sabitliyoruz. " +
+      "20x örüyoruz. Başlangıç noktamız burası olacak, işaretleyiciyi buraya takıyoruz.";
+
+    expect(extractSourceAtomicNaturalLanguageSpans(source)).toEqual([
+      { start: 0, end: source.length },
+    ]);
+  });
+
+  it("keeps the complete sleeve shaping instruction atomic", () => {
+    const source =
+      "26) 13x örüyoruz (kolun üzerindeki dışa doğru kıvırdığımız kısmı öreceğiz). " +
+      "Görselde görüldüğü gibi ben 13x ördüğümde tam kolun üzerine denk geldi. " +
+      "Sizde kolun üst kısmına denk gelecek şekilde 1-2 sık iğne eksik ya da fazla örebilirsiniz. " +
+      "1 zincir çekip dönüyoruz.";
+
+    expect(extractSourceAtomicNaturalLanguageSpans(source)).toEqual([
+      { start: 0, end: source.length },
+    ]);
+  });
+});
