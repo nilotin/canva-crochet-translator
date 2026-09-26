@@ -99,6 +99,9 @@ describe("frame parser shadow: production isolation", () => {
   it("is not imported by any production module", () => {
     const importers = productionFiles(sourceRoot)
       .filter((path) => !path.includes(parserDirectory))
+      // The shadow frame renderer consumes the IR; its own isolation test
+      // (renderer/__tests__/frame_renderer_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}renderer${sep}`))
       .filter((path) => /frame_parser|frame_ir/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);
