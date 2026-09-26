@@ -7,7 +7,7 @@ import {
   parseInvariantIssues,
   reconstructParse,
   type FrameParse,
-  type ParseNode,
+  type StitchCountFrame,
 } from "../frame_ir.js";
 import {
   STITCH_COUNT_CONCEPTS,
@@ -26,9 +26,10 @@ const exact = (source: string): FrameParse => {
 const shape = (source: string): [string, string][] =>
   exact(source).nodes.map((node) => [node.kind, node.span.raw]);
 
+/** The stitch_count frames of a parse (the family these tests cover). */
 const frames = (source: string) =>
   exact(source).nodes.filter(
-    (node): node is Extract<ParseNode, { kind: "frame" }> => node.kind === "frame",
+    (node): node is StitchCountFrame => node.kind === "frame" && node.action === "stitch_count",
   );
 
 const allOpaque = (source: string): void => {
@@ -76,7 +77,7 @@ describe("stitch_count: recognized clauses", () => {
       slots: {
         count: { span: { start: 0, end: 1, raw: "6" }, value: 6 },
         stitch: { span: { start: 1, end: 2, raw: "x" }, concept: "single_crochet" },
-        verb: { span: { start: 3, end: 11, raw: "örüyoruz" } },
+        verb: { span: { start: 3, end: 11, raw: "örüyoruz" }, form: "finite" },
       },
     });
   });
@@ -222,14 +223,19 @@ describe("frame IR invariants", () => {
         nodes: [{ kind: "opaque", span: { start: 0, end: 11, raw: "7x örüyoruz" } }, tail!],
       }),
     ).not.toEqual([]);
-    if (frame?.kind !== "frame") throw new Error("expected a frame");
+    if (frame?.kind !== "frame" || frame.action !== "stitch_count") {
+      throw new Error("expected a stitch_count frame");
+    }
     expect(
       parseInvariantIssues({
         ...parse,
         nodes: [
           {
             ...frame,
-            slots: { ...frame.slots, verb: { span: { start: 3, end: 12, raw: "örüyoruz." } } },
+            slots: {
+              ...frame.slots,
+              verb: { span: { start: 3, end: 12, raw: "örüyoruz." }, form: "finite" },
+            },
           },
           tail!,
         ],

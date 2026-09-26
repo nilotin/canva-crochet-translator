@@ -25,8 +25,24 @@ export type SourceSpan = {
   readonly raw: string;
 };
 
-/** Glossary concept ids (`PROJECT_NOTATION[].concept`) a stitch slot may name. */
+/** Glossary concept ids (`PROJECT_NOTATION[].concept`) a slot may name. */
 export type StitchConcept = string;
+
+/**
+ * How the verb token is used, read from the parser lexicon entry for the
+ * whole word (no morphology is split):
+ *  - `finite`: the clause's own verb ("örüyoruz", "dönüyoruz");
+ *  - `converb`: a linked verb ("çekip") whose clause continues with the next
+ *    frame. A converb frame never stands alone (see `parseInvariantIssues`).
+ */
+export type VerbForm = "finite" | "converb";
+
+export type VerbSlot<Form extends VerbForm = VerbForm> = {
+  readonly span: SourceSpan;
+  readonly form: Form;
+};
+
+type CountSlot = { readonly span: SourceSpan; readonly value: number };
 
 /** "N<stitch> örüyoruz": work N stitches of one stitch type. */
 export type StitchCountFrame = {
@@ -35,14 +51,35 @@ export type StitchCountFrame = {
   /** From the first count digit to the end of the verb. */
   readonly span: SourceSpan;
   readonly slots: {
-    readonly count: { readonly span: SourceSpan; readonly value: number };
+    readonly count: CountSlot;
     readonly stitch: { readonly span: SourceSpan; readonly concept: StitchConcept };
-    readonly verb: { readonly span: SourceSpan };
+    readonly verb: VerbSlot<"finite">;
   };
 };
 
+/** "N zincir çekip": make N chains, linked to the next frame. */
+export type ChainFrame = {
+  readonly kind: "frame";
+  readonly action: "chain";
+  /** From the first count digit to the end of the converb. */
+  readonly span: SourceSpan;
+  readonly slots: {
+    readonly count: CountSlot;
+    readonly unit: { readonly span: SourceSpan; readonly concept: StitchConcept };
+    readonly verb: VerbSlot<"converb">;
+  };
+};
+
+/** "dönüyoruz": turn the work. No direction and no row/round meaning. */
+export type TurnFrame = {
+  readonly kind: "frame";
+  readonly action: "turn";
+  readonly span: SourceSpan;
+  readonly slots: { readonly verb: VerbSlot<"finite"> };
+};
+
 /** One union member per migrated frame family. */
-export type Frame = StitchCountFrame;
+export type Frame = StitchCountFrame | ChainFrame | TurnFrame;
 
 export type Opaque = {
   readonly kind: "opaque";
@@ -59,10 +96,37 @@ export type FrameParse = {
 export const reconstructParse = (nodes: readonly ParseNode[]): string =>
   nodes.map(({ span }) => span.raw).join("");
 
-const slotSpans = (node: ParseNode): SourceSpan[] =>
-  node.kind === "frame"
-    ? [node.slots.count.span, node.slots.stitch.span, node.slots.verb.span]
-    : [];
+const slotSpans = (node: ParseNode): SourceSpan[] => {
+  if (node.kind === "opaque") return [];
+  switch (node.action) {
+    case "stitch_count":
+      return [node.slots.count.span, node.slots.stitch.span, node.slots.verb.span];
+    case "chain":
+      return [node.slots.count.span, node.slots.unit.span, node.slots.verb.span];
+    case "turn":
+      return [node.slots.verb.span];
+  }
+};
+
+/** Horizontal whitespace only: the lexer's `whitespace` token, never a line break. */
+const MEMBER_SEPARATOR = /^[^\S\n\r\u2028\u2029]+$/u;
+
+/**
+ * A converb frame is only half a clause. In this IR the one converb frame is
+ * `chain`, and its only admitted continuation is `turn`: the chain must be
+ * followed by one whitespace-only Opaque node and then that turn frame.
+ */
+const danglingConverbIssues = (nodes: readonly ParseNode[]): string[] =>
+  nodes.flatMap((node, index) => {
+    if (node.kind !== "frame" || node.slots.verb.form !== "converb") return [];
+    const separator = nodes[index + 1];
+    const linked = nodes[index + 2];
+    const separated =
+      separator?.kind === "opaque" && MEMBER_SEPARATOR.test(separator.span.raw);
+    return separated && linked?.kind === "frame" && linked.action === "turn"
+      ? []
+      : [`Node ${index} is a converb ${node.action} frame without its linked turn frame.`];
+  });
 
 const spanIssues = (source: string, span: SourceSpan, label: string): string[] => {
   const issues: string[] = [];
@@ -77,8 +141,9 @@ const spanIssues = (source: string, span: SourceSpan, label: string): string[] =
 
 /**
  * Structural problems of a parse against its source. Empty when every node is
- * exact, nodes tile the source, and every slot lies inside its own frame
- * without overlapping another slot.
+ * exact, nodes tile the source, every slot lies inside its own frame without
+ * overlapping another slot, and no converb frame is left without its linked
+ * frame.
  */
 export const parseInvariantIssues = (parse: FrameParse): string[] => {
   const { source, nodes } = parse;
@@ -109,5 +174,6 @@ export const parseInvariantIssues = (parse: FrameParse): string[] => {
   if (reconstructParse(nodes) !== source) {
     issues.push("Reconstruction from nodes differs from the source.");
   }
+  issues.push(...danglingConverbIssues(nodes));
   return issues;
 };

@@ -1,26 +1,32 @@
 /**
- * Turkish frame parser (Stage 1, Task 2: SHADOW ONLY, first family only).
+ * Turkish frame parser (Stage 1, Tasks 2-3: SHADOW ONLY).
  *
  * Consumes typed-lexer tokens and produces the Frame / Opaque IR
  * (`./frame_ir.ts`). No production module imports this yet; translation still
  * runs entirely through the existing normalizer, protection and mixed-segment
  * code.
  *
- * Mechanics: a token cursor tries each frame family at each token. A family
- * matcher looks at a small, bounded window of tokens and either returns one
- * frame (one action) or nothing. Tokens no family claims are gathered into
+ * Mechanics: a token cursor tries each matcher at each token. A matcher looks
+ * at a small, bounded window of tokens and returns either nothing or its
+ * nodes: one frame (one action), or, for the single linked pair, two frames
+ * with the exact whitespace between them. Tokens no matcher claims go into
  * maximal Opaque runs. There are no clause-level regexes and no calls into
  * the legacy normalizer or protection helpers.
  *
- * Implemented family: `stitch_count`, "N<stitch> örüyoruz" (work N stitches).
+ * Implemented:
+ *  - `stitch_count`, "N<stitch> örüyoruz" (work N stitches);
+ *  - one linked pair, `chain` (converb) + `turn` (finite):
+ *    "N zincir çekip dönüyoruz". Chain and turn are recognized ONLY as this
+ *    pair, never on their own.
  *
  * Lexicon:
- *  - The family admits glossary CONCEPT IDS (`STITCH_COUNT_CONCEPTS`). The
- *    Turkish spellings are read from `PROJECT_NOTATION`, never listed here, so
- *    the parser cannot drift from the glossary. A spelling must match the
- *    glossary form exactly (case included).
- *  - The finite verb forms (`STITCH_COUNT_VERBS`) are parser lexicon: the
- *    glossary has no verbs.
+ *  - Families admit glossary CONCEPT IDS (`STITCH_COUNT_CONCEPTS`,
+ *    `CHAIN_CONCEPT`). Abbreviation spellings are read from `PROJECT_NOTATION`,
+ *    never listed here, so the parser cannot drift from the glossary. A
+ *    spelling must match the glossary form exactly (case included).
+ *  - Full nouns (`zincir`) and verb forms (`örüyoruz`, `çekip`, `dönüyoruz`)
+ *    are parser lexicon, whole words only: the glossary has no verbs, and its
+ *    descriptions are never used as spellings.
  *
  * FIRST-SLICE ADMISSION RULES. The left and right boundary checks below are a
  * deliberately conservative admission policy for this first migrated slice,
@@ -28,7 +34,7 @@
  * adjunct ("ilk kolda 13x örüyoruz") or followed directly by another clause
  * ("66x örüyoruz ipimizi kesmeden ...") is perfectly meaningful; it simply
  * stays Opaque until a later task widens admission together with the context
- * it needs.
+ * it needs. For the linked pair the same rules apply outside the pair only.
  *
  * Import rules: `../lexer/typed_lexer.js`, `../glossary.js` and `./frame_ir.js`
  * only. No translator, normalizer, validator, provider or corpus code.
@@ -36,11 +42,13 @@
 import { PROJECT_NOTATION } from "../glossary.js";
 import { lexSource, type LexToken } from "../lexer/typed_lexer.js";
 import type {
+  ChainFrame,
   FrameParse,
   Opaque,
   ParseNode,
   SourceSpan,
   StitchCountFrame,
+  TurnFrame,
 } from "./frame_ir.js";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +73,27 @@ export const STITCH_COUNT_FORMS: ReadonlyMap<string, string> = new Map(
     (entry): [string, string] => [entry.tr.abbreviation, entry.concept],
   ),
 );
+
+/** The glossary concept a chain frame's unit names. */
+export const CHAIN_CONCEPT = "chain";
+
+/**
+ * Chain unit spellings -> concept id. The abbreviation (`zn`) is read from
+ * `PROJECT_NOTATION`; the noun `zincir` is parser lexicon, because glossary
+ * DESCRIPTIONS are never a source of spellings. Exact spelling only.
+ */
+export const CHAIN_UNIT_FORMS: ReadonlyMap<string, string> = new Map([
+  ...PROJECT_NOTATION.filter((entry) => entry.concept === CHAIN_CONCEPT).map(
+    (entry): [string, string] => [entry.tr.abbreviation, entry.concept],
+  ),
+  ["zincir", CHAIN_CONCEPT],
+]);
+
+/** Converb forms of "make chains" admitted in this task. */
+export const CHAIN_CONVERBS: ReadonlySet<string> = new Set(["çekip"]);
+
+/** Finite "we turn" forms admitted in this task. */
+export const TURN_FINITE_VERBS: ReadonlySet<string> = new Set(["dönüyoruz"]);
 
 // ---------------------------------------------------------------------------
 // First-slice admission rules (see the module comment)
@@ -101,7 +130,8 @@ const admitsRight = (token: LexToken | undefined): boolean =>
 // Families
 // ---------------------------------------------------------------------------
 
-type Match = { frame: StitchCountFrame; next: number };
+/** Nodes one matcher claims, starting at `start`, and the next token index. */
+type Match = { start: number; nodes: ParseNode[]; next: number };
 
 const spanOf = (source: string, start: number, end: number): SourceSpan => ({
   start,
@@ -116,6 +146,13 @@ const tokenSpan = (token: LexToken): SourceSpan => ({
 });
 
 const DIGITS_ONLY = /^[0-9]+$/;
+
+/** An integer count token, or undefined. */
+const countValue = (token: LexToken | undefined): number | undefined => {
+  if (token?.kind !== "number" || !DIGITS_ONLY.test(token.raw)) return undefined;
+  const value = Number(token.raw);
+  return Number.isSafeInteger(value) ? value : undefined;
+};
 
 /**
  * `stitch_count`: number, adjacent glossary stitch form, one whitespace run,
@@ -147,19 +184,79 @@ const matchStitchCount = (
   if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
   if (!admitsRight(nextSignificant(tokens, index + 3))) return undefined;
 
-  return {
-    frame: {
-      kind: "frame",
-      action: "stitch_count",
-      span: spanOf(source, count.start, verb.end),
-      slots: {
-        count: { span: tokenSpan(count), value },
-        stitch: { span: tokenSpan(stitch), concept },
-        verb: { span: tokenSpan(verb) },
-      },
+  const frame: StitchCountFrame = {
+    kind: "frame",
+    action: "stitch_count",
+    span: spanOf(source, count.start, verb.end),
+    slots: {
+      count: { span: tokenSpan(count), value },
+      stitch: { span: tokenSpan(stitch), concept },
+      verb: { span: tokenSpan(verb), form: "finite" },
     },
-    next: index + 4,
   };
+  return { start: count.start, nodes: [frame], next: index + 4 };
+};
+
+/**
+ * The one linked pair of this task: `chain` (converb) followed by `turn`
+ * (finite), "N zincir çekip dönüyoruz" / "N zn çekip dönüyoruz".
+ *
+ * Seven tokens: count, whitespace, unit, whitespace, converb, whitespace,
+ * finite verb. Both frames are emitted or neither is. The first-slice
+ * boundaries are checked only outside the pair (before the count, after the
+ * finite verb); the members are joined by exactly one whitespace token, which
+ * stays an exact Opaque node. This is a fixed two-member shape, not a general
+ * sequence or coordination matcher.
+ */
+const matchChainTurnPair = (
+  source: string,
+  tokens: readonly LexToken[],
+  index: number,
+): Match | undefined => {
+  const count = tokens[index];
+  const unit = tokens[index + 2];
+  const converb = tokens[index + 4];
+  const separator = tokens[index + 5];
+  const turn = tokens[index + 6];
+  const value = countValue(count);
+  if (
+    count === undefined ||
+    value === undefined ||
+    tokens[index + 1]?.kind !== "whitespace" ||
+    unit === undefined ||
+    (unit.kind !== "word" && unit.kind !== "abbreviation") ||
+    tokens[index + 3]?.kind !== "whitespace" ||
+    converb?.kind !== "word" ||
+    !CHAIN_CONVERBS.has(converb.raw) ||
+    separator?.kind !== "whitespace" ||
+    turn?.kind !== "word" ||
+    !TURN_FINITE_VERBS.has(turn.raw)
+  ) {
+    return undefined;
+  }
+  const concept = CHAIN_UNIT_FORMS.get(unit.raw);
+  if (concept === undefined) return undefined;
+  if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
+  if (!admitsRight(nextSignificant(tokens, index + 6))) return undefined;
+
+  const chain: ChainFrame = {
+    kind: "frame",
+    action: "chain",
+    span: spanOf(source, count.start, converb.end),
+    slots: {
+      count: { span: tokenSpan(count), value },
+      unit: { span: tokenSpan(unit), concept },
+      verb: { span: tokenSpan(converb), form: "converb" },
+    },
+  };
+  const between: Opaque = { kind: "opaque", span: tokenSpan(separator) };
+  const turnFrame: TurnFrame = {
+    kind: "frame",
+    action: "turn",
+    span: tokenSpan(turn),
+    slots: { verb: { span: tokenSpan(turn), form: "finite" } },
+  };
+  return { start: count.start, nodes: [chain, between, turnFrame], next: index + 7 };
 };
 
 // ---------------------------------------------------------------------------
@@ -185,10 +282,11 @@ export const parseFrames = (source: string): FrameParse => {
 
   let index = 0;
   while (index < tokens.length) {
-    const match = matchStitchCount(source, tokens, index);
+    const match =
+      matchStitchCount(source, tokens, index) ?? matchChainTurnPair(source, tokens, index);
     if (match !== undefined) {
-      flushOpaque(match.frame.span.start);
-      nodes.push(match.frame);
+      flushOpaque(match.start);
+      nodes.push(...match.nodes);
       index = match.next;
       continue;
     }
