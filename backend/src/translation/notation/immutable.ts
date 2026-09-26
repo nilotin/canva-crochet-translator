@@ -46,6 +46,10 @@ const placeholderCandidatePattern = /__XQ[^\s]*?QX__/gu;
 export const containsReservedPlaceholder = (text: string): boolean =>
   /__XQ[^\s]*?QX__/u.test(text);
 
+/** Every exact reserved placeholder in `text`, in order of appearance. */
+export const reservedPlaceholdersIn = (text: string): string[] =>
+  [...text.matchAll(exactPlaceholderPattern)].map((match) => match[0]);
+
 /**
  * The canonical reserved placeholder for a 0-based token index:
  * `__XQ` + four base-26 letters + `QX__`. Shared by every layer that hides

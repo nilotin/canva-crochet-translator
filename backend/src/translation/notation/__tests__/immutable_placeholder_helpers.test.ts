@@ -11,6 +11,7 @@ import {
   placeholderIntegrityErrors,
   protectImmutablePattern,
   reservedPlaceholder,
+  reservedPlaceholdersIn,
   restoreImmutablePattern,
 } from "../immutable.js";
 
@@ -116,5 +117,28 @@ describe("restoreImmutablePattern after the extraction", () => {
       valid: true,
       errors: [],
     });
+  });
+});
+
+describe("reservedPlaceholdersIn", () => {
+  it("returns every exact reserved placeholder in textual order, duplicates kept", () => {
+    const [a, b] = [reservedPlaceholder(0), reservedPlaceholder(1)];
+    expect(reservedPlaceholdersIn(`${b} x ${a}, ${b}`)).toEqual([b, a, b]);
+  });
+
+  it("ignores placeholder-shaped text that is not exact", () => {
+    expect(reservedPlaceholdersIn("__XQaaaaQX__ __XQAAAQX__ plain")).toEqual([]);
+  });
+
+  it("matches exactly what protectImmutablePattern inserted, in order", () => {
+    const protectedText = protectImmutablePattern("26) 20x, 6v = 26x", 3);
+    expect(reservedPlaceholdersIn(protectedText.text)).toEqual(
+      protectedText.tokens.map(({ placeholder }) => placeholder),
+    );
+  });
+
+  it("is repeatable (no shared regex state)", () => {
+    const text = `${reservedPlaceholder(4)} ${reservedPlaceholder(2)}`;
+    expect(reservedPlaceholdersIn(text)).toEqual(reservedPlaceholdersIn(text));
   });
 });

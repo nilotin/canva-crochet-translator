@@ -10,6 +10,13 @@
  *   (provider translates the carrier; NOT done here)
  *   restoreFrames(output, frames) output -> restored text + provenance pieces
  *
+ * When the carrier also holds another layer's placeholders (immutable
+ * protection runs on the frame carrier with `startIndex = tokens.length`),
+ * `carrierPlaceholderErrors` checks the output against the union of all
+ * carrier placeholders, and `substituteFramesAfterIntegrity` replaces only the
+ * frame placeholders, leaving the rest for the unchanged
+ * `restoreImmutablePattern`. `restoreFrames` stays strict (frames only).
+ *
  * No provider is called and no production module imports this yet.
  *
  * Reuse, not a second grammar:
@@ -35,6 +42,7 @@ import {
   containsReservedPlaceholder,
   placeholderIntegrityErrors,
   reservedPlaceholder,
+  reservedPlaceholdersIn,
 } from "../notation/immutable.js";
 import type { PlaceholderIntegrityDiagnostic } from "../notation/types.js";
 import type { MixedSegmentProjectionPiece } from "../mixed_segment.js";
@@ -162,22 +170,13 @@ export const protectFrames = (
 };
 
 /**
- * Checks placeholder integrity with the canonical rules, then replaces each
- * frame placeholder with its canonical meaning. On success it emits one
- * provenance piece per unit: the unit's exact source span and the UTF-16
- * range its text occupies in the restored output. Any integrity error makes
- * the result invalid, returns the output unchanged and emits no pieces.
+ * Replaces each frame placeholder, in token order, with its canonical
+ * meaning, and records one piece per unit. Callers have already proven
+ * integrity, so each placeholder occurs exactly once and in order. Text that
+ * is not a frame placeholder (provider text, other layers' placeholders) is
+ * copied unchanged.
  */
-export const restoreFrames = (
-  translated: string,
-  frames: ProtectedFrames,
-): RestoredFrames => {
-  const errors = placeholderIntegrityErrors(
-    translated,
-    frames.tokens.map(({ placeholder }) => placeholder),
-  );
-  if (errors.length > 0) return { text: translated, valid: false, errors, pieces: [] };
-
+const substituteFrames = (translated: string, frames: ProtectedFrames): RestoredFrames => {
   let text = "";
   let cursor = 0;
   const pieces: FramePiece[] = [];
@@ -195,4 +194,78 @@ export const restoreFrames = (
   }
   text += translated.slice(cursor);
   return { text, valid: true, errors: [], pieces };
+};
+
+/**
+ * Checks placeholder integrity with the canonical rules, then replaces each
+ * frame placeholder with its canonical meaning. On success it emits one
+ * provenance piece per unit: the unit's exact source span and the UTF-16
+ * range its text occupies in the restored output. Any integrity error makes
+ * the result invalid, returns the output unchanged and emits no pieces.
+ *
+ * This checks the FRAME placeholders only: any other reserved placeholder is
+ * UNEXPECTED. For a carrier that also holds another layer's placeholders, use
+ * `substituteFramesAfterIntegrity`.
+ */
+export const restoreFrames = (
+  translated: string,
+  frames: ProtectedFrames,
+): RestoredFrames => {
+  const errors = placeholderIntegrityErrors(
+    translated,
+    frames.tokens.map(({ placeholder }) => placeholder),
+  );
+  if (errors.length > 0) return { text: translated, valid: false, errors, pieces: [] };
+  return substituteFrames(translated, frames);
+};
+
+// ---------------------------------------------------------------------------
+// Combined carriers (frame placeholders + another layer's placeholders)
+// ---------------------------------------------------------------------------
+
+/**
+ * Integrity of provider output against EVERY reserved placeholder of the
+ * carrier that was sent, whichever layer created it. The expected list is the
+ * carrier's placeholders in their textual order: frame and immutable
+ * placeholders interleave in the text, so their numeric or per-layer order is
+ * not the order the output must reproduce.
+ */
+export const carrierPlaceholderErrors = (
+  output: string,
+  carrier: string,
+): PlaceholderIntegrityDiagnostic[] =>
+  placeholderIntegrityErrors(output, reservedPlaceholdersIn(carrier));
+
+/**
+ * Combined-carrier flow, frame step. First checks `output` against every
+ * placeholder of `carrier` (`carrierPlaceholderErrors`); on any error the
+ * result is invalid, the output is returned unchanged and nothing is
+ * substituted. Otherwise only the frame placeholders are replaced by their
+ * canonical meanings; every other placeholder is left for its own layer's
+ * restore (for immutable content, the unchanged `restoreImmutablePattern`).
+ *
+ * The pieces locate each frame in THIS intermediate text. A later layer's
+ * restore can change lengths before a frame, so these offsets are not final
+ * output offsets; mapping them through that restore is not done here.
+ *
+ * Throws `FrameProtectionError` if `carrier` does not contain each frame
+ * placeholder exactly once, in token order: that carrier was not built from
+ * these frames.
+ */
+export const substituteFramesAfterIntegrity = (
+  output: string,
+  frames: ProtectedFrames,
+  carrier: string,
+): RestoredFrames => {
+  const inCarrier = reservedPlaceholdersIn(carrier);
+  const framePlaceholders = frames.tokens.map(({ placeholder }) => placeholder);
+  const frameOrderInCarrier = inCarrier.filter((placeholder) => framePlaceholders.includes(placeholder));
+  if (frameOrderInCarrier.join("\n") !== framePlaceholders.join("\n")) {
+    throw new FrameProtectionError(
+      "The carrier does not contain each frame placeholder exactly once, in order.",
+    );
+  }
+  const errors = carrierPlaceholderErrors(output, carrier);
+  if (errors.length > 0) return { text: output, valid: false, errors, pieces: [] };
+  return substituteFrames(output, frames);
 };
