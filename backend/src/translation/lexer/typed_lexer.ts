@@ -121,7 +121,7 @@ const MARKERS = new Set([
  * (3-stitch decrease) is the one case-sensitive form: `m` stays a word,
  * because it is also a length unit.
  */
-const CASE_SENSITIVE_FORMS = new Set(
+const CASE_SENSITIVE_FORMS = new Set<string>(
   PROJECT_NOTATION.map((entry) => entry.tr.abbreviation).filter(
     (form) => form === "M",
   ),
