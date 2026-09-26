@@ -257,6 +257,9 @@ describe("typed lexer shadow: production isolation", () => {
   it("is not imported by any production module", () => {
     const importers = productionFiles(sourceRoot)
       .filter((path) => !path.endsWith(`${sep}lexer${sep}typed_lexer.ts`))
+      // The shadow frame parser consumes the lexer; its own isolation test
+      // (parser/__tests__/frame_parser_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}parser${sep}`))
       .filter((path) => /typed_lexer/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);
