@@ -8,6 +8,7 @@ import {
   reconstructMixedSource,
   validateMixedProseSpans,
   type LexedMixedSegment,
+  type MixedSegmentToken,
 } from "../mixed_segment.js";
 import { extractLeadingInstruction } from "../instruction_marker.js";
 import { normalizeSourceNaturalLanguageDetailed } from "../natural_language/normalizer.js";
@@ -397,7 +398,14 @@ describe("mixed lexer: reserved placeholders never collide with immutable number
     const source = `${P1} 20x, ${P0} 6v ve ${P2}.`;
     const lexed = lexWith(source, [P2, P0, P1]);
     expectExactTiling(source, lexed);
-    expect(lexed.tokens.filter(({ kind }) => kind === "reserved_placeholder").map(({ text }) => text)).toEqual([
+    expect(
+      lexed.tokens
+        .filter(
+          (token): token is Extract<MixedSegmentToken, { kind: "reserved_placeholder" }> =>
+            token.kind === "reserved_placeholder",
+        )
+        .map((token) => token.text),
+    ).toEqual([
       P1,
       P0,
       P2,
