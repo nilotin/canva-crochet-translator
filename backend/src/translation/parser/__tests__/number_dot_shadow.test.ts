@@ -41,7 +41,8 @@ const compare = (source: string): Comparison[] =>
     production: productionKind(source, decision.span.start),
   }));
 
-const disagreements = (comparisons: readonly Comparison[]) =>
+/** Keeps the caller's element type, so corpus comparisons keep their `caseId`. */
+const disagreements = <T extends Comparison>(comparisons: readonly T[]): T[] =>
   comparisons.filter(({ decision, production }) => decision.kind !== production);
 
 const cases = loadCorpus().cases;
