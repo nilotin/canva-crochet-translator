@@ -18,8 +18,16 @@
  *    `lastInstruction`. Ranges are taken literally (no ordering or length
  *    checks), so `0)`, `1)` and `1.` always reset.
  *  - course_end_turn: `COURSE_END_POLICY` (Policy B). `every` establishes
- *    row; `plural` and `single` change nothing.
- *  - course_count: read only, through `courseKindAt`.
+ *    row, but only on a numbered line (a leading `N)` / `A-B)` marker on the
+ *    same line, `numberedLine`): production ignores turn evidence on
+ *    unnumbered and `N.` lines. `plural` and `single` change nothing.
+ *  - course_reset (Task 9): a blank line or a yarn-cut line ends the
+ *    construction, as production's inference stops looking back there. The
+ *    course kind, its evidence and the last marker are all cleared, so the
+ *    next marker cannot continue across the boundary.
+ *  - course_count: read only, through `readCourseKind`: the kind applies only
+ *    on a numbered line whose marker is the latest one, and never from turn
+ *    evidence on that same line (production reads earlier lines only).
  *
  * `unknown` never means round. Round is not set by any first-slice event; it
  * is part of the type so a later explicit-round event can use it.
@@ -31,7 +39,13 @@
  * translator, normalizer, validator, provider or corpus code.
  */
 import type { CourseEndScope, SourceSpan } from "../parser/frame_ir.js";
-import { patternEventsOf, type CourseCountEvent, type PatternEvent } from "./pattern_events.js";
+import {
+  contextEventsOf,
+  type CourseCountEvent,
+  type CourseResetEvent,
+  type DecisionEvent,
+  type PatternEvent,
+} from "./pattern_events.js";
 
 export type CourseKind = "row" | "round" | "unknown";
 
@@ -47,6 +61,8 @@ export type PatternContext = {
     readonly blockIndex: number;
     readonly span: SourceSpan;
     readonly scope: CourseEndScope;
+    /** The evidence's line within its block. */
+    readonly line: number;
   };
 };
 
@@ -82,13 +98,15 @@ export const applyPatternEvent = (
     }
     case "course_end_turn": {
       const established = COURSE_END_POLICY[event.scope];
-      if (established === undefined) return context;
+      if (established === undefined || !event.numberedLine) return context;
       return {
         ...context,
         courseKind: established,
-        evidence: { blockIndex, span: event.span, scope: event.scope },
+        evidence: { blockIndex, span: event.span, scope: event.scope, line: event.line },
       };
     }
+    case "course_reset":
+      return initialPatternContext;
     case "course_count":
       return context;
   }
@@ -107,6 +125,25 @@ export const courseKindAt = (context: PatternContext, blockIndex: number, line: 
     ? context.courseKind
     : "unknown";
 
+/**
+ * The course kind a course_count event in block `blockIndex` reads: unknown
+ * unless its line is numbered, its marker is the latest one
+ * (`courseKindAt`), and the evidence is not on that same line. Never round
+ * from uncertainty.
+ */
+export const readCourseKind = (
+  context: PatternContext,
+  event: CourseCountEvent,
+  blockIndex: number,
+): CourseKind => {
+  if (!event.numberedLine) return "unknown";
+  const evidence = context.evidence;
+  if (evidence !== undefined && evidence.blockIndex === blockIndex && evidence.line === event.line) {
+    return "unknown";
+  }
+  return courseKindAt(context, blockIndex, event.line);
+};
+
 export type CourseCountRead = {
   readonly event: CourseCountEvent;
   readonly courseKind: CourseKind;
@@ -114,7 +151,10 @@ export type CourseCountRead = {
 
 export type BlockTrace = {
   readonly blockIndex: number;
-  readonly events: readonly PatternEvent[];
+  /** The block's marker and frame events (`patternEventsOf`). */
+  readonly events: readonly DecisionEvent[];
+  /** The block's course-reset events (`courseResetEventsOf`), folded in source order with `events`. */
+  readonly resets: readonly CourseResetEvent[];
   readonly before: PatternContext;
   readonly after: PatternContext;
   readonly reads: readonly CourseCountRead[];
@@ -122,7 +162,8 @@ export type BlockTrace = {
 
 /**
  * Folds the context over `blocks` in the given order (the caller's order is
- * authoritative), starting from `initial`. For each block: its events, the
+ * authoritative), starting from `initial`. For each block: its marker and
+ * frame events, its reset events (all folded together in source order), the
  * context before and after, and what each course_count read. Pure.
  */
 export const foldPatternContext = (
@@ -132,16 +173,23 @@ export const foldPatternContext = (
   const traces: BlockTrace[] = [];
   let context = initial;
   blocks.forEach((block, blockIndex) => {
-    const events = patternEventsOf(block);
+    const events = contextEventsOf(block);
     const before = context;
     const reads: CourseCountRead[] = [];
     for (const event of events) {
       if (event.type === "course_count") {
-        reads.push({ event, courseKind: courseKindAt(context, blockIndex, event.line) });
+        reads.push({ event, courseKind: readCourseKind(context, event, blockIndex) });
       }
       context = applyPatternEvent(context, event, blockIndex);
     }
-    traces.push({ blockIndex, events, before, after: context, reads });
+    traces.push({
+      blockIndex,
+      events: events.filter((event): event is DecisionEvent => event.type !== "course_reset"),
+      resets: events.filter((event): event is CourseResetEvent => event.type === "course_reset"),
+      before,
+      after: context,
+      reads,
+    });
   });
   return traces;
 };

@@ -137,10 +137,11 @@ describe("course unit wiring: same-block behavior is unchanged", () => {
       "12) 3x\nBütün sıra sonlarında 1 zincir çekip dönüyoruz.\n13) 5 sıra 16x",
       "12) 3sc\nAt the end of each row, ch 1 and turn.\n13) 16sc for 5 rounds",
     ],
-  ])("disagreement (%s): legacy round wins and output is today's", async (_label, text, expected) => {
+  ])("former disagreement (%s): typed is now unknown, legacy round stays and output is today's", async (_label, text, expected) => {
     const results = await translate([{ id: "b", text }]);
     expect(texts(results)).toEqual([{ translated: expected, valid: true, errors: [] }]);
-    expect(harness.calls.some(({ reason }) => reason === "typed_disagrees_with_legacy")).toBe(true);
+    expect(harness.calls.some(({ reason }) => reason === "unknown_decision")).toBe(true);
+    expect(harness.calls.some(({ reason }) => reason === "typed_disagrees_with_legacy")).toBe(false);
     expect(harness.calls.some(({ source }) => source === "typed")).toBe(false);
   });
 

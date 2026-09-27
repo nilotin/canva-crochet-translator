@@ -31,12 +31,13 @@ const courseEnd = (scope: CourseEndScope): CourseEndTurnEvent => ({
   scope,
   span: span(4, "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"),
   line: 0,
+  numberedLine: true,
 });
 
 const row = (last: number, first = last): PatternContext => ({
   courseKind: "row",
   lastInstruction: { first, last, blockIndex: 0, line: 0 },
-  evidence: { blockIndex: 0, span: span(4, "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"), scope: "every" },
+  evidence: { blockIndex: 0, span: span(4, "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"), scope: "every", line: 0 },
 });
 
 /** [type, summary] per event. */
@@ -196,7 +197,7 @@ describe("COURSE_END_POLICY (Policy B)", () => {
     const event = courseEnd("every");
     expect(applyPatternEvent(initialPatternContext, event, 2)).toEqual({
       courseKind: "row",
-      evidence: { blockIndex: 2, span: event.span, scope: "every" },
+      evidence: { blockIndex: 2, span: event.span, scope: "every", line: 0 },
     });
   });
 
@@ -271,9 +272,12 @@ describe("foldPatternContext", () => {
   });
 
   it("starts from the given initial context and records before/after per block", () => {
-    const traces = foldPatternContext(["13) 5 sıra 16x"], row(12));
+    // Evidence carried in from before the first folded block (block index -1), so it
+    // is never on the reading course_count's own line.
+    const initial: PatternContext = { ...row(12), evidence: { ...row(12).evidence!, blockIndex: -1 } };
+    const traces = foldPatternContext(["13) 5 sıra 16x"], initial);
     expect(traces).toHaveLength(1);
-    expect(traces[0]?.before).toEqual(row(12));
+    expect(traces[0]?.before).toEqual(initial);
     expect(traces[0]?.after.lastInstruction).toEqual({ first: 13, last: 13, blockIndex: 0, line: 0 });
     expect(traces[0]?.reads).toEqual([
       { event: traces[0]?.events[1], courseKind: "row" },

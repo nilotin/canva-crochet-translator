@@ -5,8 +5,9 @@
  * A typed unit takes effect only where the legacy inference agrees, so the
  * resolver's answer always equals legacy's. Unknown, missing, ambiguous and
  * unsupported lookups fall back with a named reason; a typed/legacy
- * disagreement falls back with `typed_disagrees_with_legacy`. The three known
- * disagreement shapes are carried debt for a later reset-parity task.
+ * disagreement falls back with `typed_disagrees_with_legacy`. The three
+ * former disagreement shapes (Task 8 debt) are closed by reset parity
+ * (Task 9): the typed decision is now unknown there, like legacy's round.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -29,7 +30,7 @@ const TURN = "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
 const R3_BLOCK_2 = "13) 5 sıra 16x";
 const SAME_BLOCK_ROW = `${TURN}\n${R3_BLOCK_2}`;
 
-/** The three shapes where the typed same-block decision is row and legacy is round. */
+/** The three shapes where the typed decision was row and legacy round until reset parity (Task 9). */
 const DISAGREEMENT_SHAPES = [
   ["a blank line between the turn and the count", `${TURN}\n\n${R3_BLOCK_2}`],
   ["a yarn cut between the turn and the count", `${TURN}\nipimizi kesiyoruz\n${R3_BLOCK_2}`],
@@ -85,19 +86,30 @@ describe("course unit resolution: agreement", () => {
   });
 });
 
-describe("course unit resolution: typed/legacy disagreements (carried debt)", () => {
-  it.each(DISAGREEMENT_SHAPES)("%s: typed row, legacy round, effective round", (_label, text) => {
+describe("course unit resolution: former disagreements closed by reset parity (Task 9)", () => {
+  it.each(DISAGREEMENT_SHAPES)("%s: typed unknown, legacy round, effective round", (_label, text) => {
     const position = lastLineStart(text);
     const lookup = lookupTypedCourseUnit(single(text), "b", text, position);
-    expect(lookup).toMatchObject({ kind: "typed", unit: "row" });
+    expect(lookup).toEqual({ kind: "fallback", reason: "unknown_decision" });
     expect(legacyCourseUnitResolver(text, position)).toBe("round");
-    expect(resolveAt(text, position)).toEqual({
+    expect(resolveAt(text, position)).toEqual({ unit: "round", source: "fallback", reason: "unknown_decision" });
+    expect(courseUnitResolverForBlock(single(text), "b")(text, position)).toBe("round");
+  });
+});
+
+describe("course unit resolution: the agreement gate stays", () => {
+  it("a typed answer that legacy contradicts still falls back with typed_disagrees_with_legacy", () => {
+    const text = R3_BLOCK_2;
+    const prepass = handBuilt(text, [
+      { lineIndex: 0, sourceSpan: { start: 4, end: 14, raw: "5 sıra 16x" }, courseKind: "row" },
+    ]);
+    expect(legacyCourseUnitResolver(text, 0)).toBe("round");
+    expect(resolveCourseUnitWithReason(prepass, "b", text, 0)).toEqual({
       unit: "round",
       source: "fallback",
       reason: "typed_disagrees_with_legacy",
       typedUnit: "row",
     });
-    expect(courseUnitResolverForBlock(single(text), "b")(text, position)).toBe("round");
   });
 });
 

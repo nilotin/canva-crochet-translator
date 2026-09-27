@@ -8,6 +8,11 @@
  * PatternContext reads there (row / round / unknown), plus the evidence span
  * when the kind is known. `unknown` is kept as is; it never means round.
  *
+ * Line model guard (Task 9): the typed lexer also breaks lines at U+2028 and
+ * U+2029, which production's numbered-line inference does not, so the two
+ * would disagree about which markers lead a line. A block containing either
+ * separator gets only unknown decisions.
+ *
  * The block's lexical line starts are kept with its decisions so a consumer
  * can map an offset in the block's exact text to a line without re-lexing or
  * guessing. Nothing here decides a unit for anything that is not a parsed
@@ -24,11 +29,11 @@ import { lexSource } from "../lexer/typed_lexer.js";
 import type { SourceSpan } from "../parser/frame_ir.js";
 import {
   applyPatternEvent,
-  courseKindAt,
   initialPatternContext,
+  readCourseKind,
   type CourseKind,
 } from "./pattern_context.js";
-import { patternEventsOf } from "./pattern_events.js";
+import { contextEventsOf } from "./pattern_events.js";
 
 export type CourseDecision = {
   readonly blockId: string;
@@ -75,19 +80,19 @@ const disabled = (
   Object.freeze({ status: "disabled", reason, blocks: new Map(), decisions: new Map() });
 
 /** One block, analyzed on its own: a fresh PatternContext, discarded afterwards. */
+/** Line breaks production's inference also treats as line breaks. */
+const SHARED_LINE_BREAKS: ReadonlySet<string> = new Set(["\n", "\r", "\r\n"]);
+
 const analyzeBlock = (block: CourseDecisionBlock): BlockCourseAnalysis => {
-  const lineStarts = [
-    0,
-    ...lexSource(block.text)
-      .filter(({ kind }) => kind === "line_break")
-      .map(({ end }) => end),
-  ];
+  const lineBreaks = lexSource(block.text).filter(({ kind }) => kind === "line_break");
+  const lineStarts = [0, ...lineBreaks.map(({ end }) => end)];
+  const sharedLineModel = lineBreaks.every(({ raw }) => SHARED_LINE_BREAKS.has(raw));
   const decisions: CourseDecision[] = [];
   let context = initialPatternContext;
-  for (const event of patternEventsOf(block.text)) {
+  for (const event of contextEventsOf(block.text)) {
     if (event.type === "course_count") {
       // Block index 0: each block is its own single-block fold.
-      const courseKind = courseKindAt(context, 0, event.line);
+      const courseKind = sharedLineModel ? readCourseKind(context, event, 0) : "unknown";
       const evidence = courseKind === "unknown" ? undefined : context.evidence;
       decisions.push(
         Object.freeze({
@@ -141,12 +146,14 @@ export const prepareCourseDecisions = (
 /**
  * The lexical line of `position` in the analyzed block text: the number of
  * line breaks that end at or before it, so an offset on a line break belongs
- * to the line the break ends. Undefined outside 0..text.length.
+ * to the line the break ends. Undefined outside 0..text.length, and between
+ * the two halves of a CRLF, which production's line split puts in no line.
  */
 export const lineIndexAt = (analysis: BlockCourseAnalysis, position: number): number | undefined => {
   if (!Number.isSafeInteger(position) || position < 0 || position > analysis.text.length) {
     return undefined;
   }
+  if (analysis.text[position - 1] === "\r" && analysis.text[position] === "\n") return undefined;
   let line = 0;
   while (line + 1 < analysis.lineStarts.length && analysis.lineStarts[line + 1]! <= position) {
     line += 1;
