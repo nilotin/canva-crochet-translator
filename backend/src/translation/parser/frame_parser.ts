@@ -1,9 +1,11 @@
 /**
- * Turkish frame parser (Stage 1, Tasks 2-3: SHADOW ONLY).
+ * Turkish frame parser (Stage 1, Tasks 2-3).
  *
  * Consumes typed-lexer tokens and produces the Frame / Opaque IR
- * (`./frame_ir.ts`). No production module imports this yet; translation still
- * runs entirely through the existing normalizer, protection and mixed-segment
+ * (`./frame_ir.ts`). Its only production use is the same-block course-decision
+ * pre-pass (`context/course_decisions.ts`, next-stage Task 8), which decides
+ * nothing unless the legacy unit inference agrees; translated text is still
+ * produced entirely by the existing normalizer, protection and mixed-segment
  * code.
  *
  * Mechanics: a token cursor tries each matcher at each token. A matcher looks

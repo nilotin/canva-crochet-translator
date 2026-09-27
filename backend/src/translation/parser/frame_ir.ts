@@ -1,6 +1,7 @@
 /**
- * Frame / Opaque IR for the Turkish frame parser (Stage 1, Task 2: SHADOW
- * ONLY). No production module imports this yet.
+ * Frame / Opaque IR for the Turkish frame parser (Stage 1, Task 2). Its only
+ * production use is the same-block course-decision pre-pass
+ * (`context/course_decisions.ts`, next-stage Task 8).
  *
  * A parse is a gap-free, overlap-free sequence of nodes over the source:
  *  - `Frame`: ONE recognized action with typed slots. A frame carries source

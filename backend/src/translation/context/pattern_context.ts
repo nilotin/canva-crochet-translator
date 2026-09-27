@@ -1,5 +1,7 @@
 /**
- * PatternContext (Stage 2, Task 5: SHADOW ONLY).
+ * PatternContext (Stage 2, Task 5; in production since next-stage Task 8 only
+ * through the same-block course-decision pre-pass, `./course_decisions.ts`,
+ * whose decisions take effect only where the legacy unit inference agrees).
  *
  * Cross-block course state for one translation request, carried by a pure,
  * immutable reducer over typed `PatternEvent`s. It owns exactly one semantic

@@ -1,5 +1,6 @@
 /**
- * `N)` / `A-B)` marker ownership (Stage 2, Task 3: SHADOW ONLY).
+ * `N)` / `A-B)` marker ownership (Stage 2, Task 3; in production only through
+ * the course-decision pre-pass since next-stage Task 8).
  *
  * The typed lexer emits `12)` as a `number` and a `bracket`, and `2-25)` as
  * `number`, `dash`, `number`, `bracket`. This module is the typed-path owner of
@@ -13,7 +14,8 @@
  *
  * It classifies only. Continuity (does 13 follow 12?), resets, range ordering
  * and row/round meaning belong to a later PatternContext. Nothing here
- * translates or routes; no production module imports it, and production still
+ * translates or routes; its only production use is the course-decision
+ * pre-pass (`context/course_decisions.ts`), and production still
  * uses `extractLeadingInstruction` (single markers at a segment start) and
  * the unit inference's numbered-line rule (which also accepts ranges).
  *

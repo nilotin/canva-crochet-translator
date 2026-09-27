@@ -1,5 +1,6 @@
 /**
- * Typed pattern events (Stage 2, Task 5: SHADOW ONLY).
+ * Typed pattern events (Stage 2, Task 5; in production since next-stage Task 8
+ * only through the course-decision pre-pass, `./course_decisions.ts`).
  *
  * The only input to PatternContext. Each event is a normalized view of a
  * typed-path decision that already exists; nothing here reads Turkish text:

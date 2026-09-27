@@ -1,9 +1,12 @@
 /**
- * Typed lexer (Stage 1, Task 1: SHADOW ONLY).
+ * Typed lexer (Stage 1, Task 1; in production since next-stage Task 8 only
+ * through the course-decision pre-pass).
  *
  * Splits a source string into a gap-free, overlap-free sequence of small,
- * purely LEXICAL tokens. It is not used by the translation pipeline yet: no
- * production module imports it, and today's owners
+ * purely LEXICAL tokens. Its only production use is the same-block
+ * course-decision pre-pass (`context/course_decisions.ts`, reached from the
+ * translator through `course_unit_resolution.ts`), whose decisions take effect
+ * only where the legacy unit inference agrees. Today's owners
  * (`protectImmutablePattern`, `lexMixedSegment`, `extractLeadingInstruction`,
  * the notation tokenizer, round-reference and measurement extraction) are
  * unchanged. Tests compare it against them.

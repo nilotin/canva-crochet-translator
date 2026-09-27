@@ -4,6 +4,14 @@ import { extractSourceAtomicNaturalLanguageSpans } from "./natural_language/atom
 import { normalizeSourceNaturalLanguageDetailed } from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
+  legacyCourseUnitResolver,
+  type CourseUnitResolver,
+} from "./natural_language/bare_round_count.js";
+import {
+  courseUnitResolverForBlock,
+  prepareCourseDecisions,
+} from "./course_unit_resolution.js";
+import {
   containsReservedPlaceholder,
   isPatternOnlyProtectedText,
   protectImmutablePattern,
@@ -134,18 +142,25 @@ const isDeterministicallyResolvedForTargetLanguage = (
   source: string,
   targetLanguage: TargetLanguage,
   contentKind: TranslationContentKind,
+  resolveCourseUnit: CourseUnitResolver,
 ): boolean => {
   const resolvedA = normalizeTranslationStyle(
     source,
     DETERMINISTIC_RESOLUTION_PROBE_A,
     targetLanguage,
     contentKind,
+    source,
+    0,
+    { resolveCourseUnit },
   );
   const resolvedB = normalizeTranslationStyle(
     source,
     DETERMINISTIC_RESOLUTION_PROBE_B,
     targetLanguage,
     contentKind,
+    source,
+    0,
+    { resolveCourseUnit },
   );
   return (
     resolvedA === resolvedB &&
@@ -162,6 +177,7 @@ const translateSegment = async (
   contentKind: TranslationContentKind = "pattern",
   sourceContext: string = block.text,
   sourceStart = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ) => {
   const instruction =
     contentKind === "pattern"
@@ -177,6 +193,7 @@ const translateSegment = async (
     contentKind,
     sourceContext,
     sourceBodyStart,
+    { resolveCourseUnit },
   );
   // Checked against the raw source (before normalization may have already
   // rewritten a recognized clause into target-language text) so the atomic
@@ -197,6 +214,7 @@ const translateSegment = async (
       sourceBody,
       targetLanguage,
       contentKind,
+      resolveCourseUnit,
     );
   const skipsProviderTranslation =
     normalization.fullyResolved || isFullyAtomicSource;
@@ -423,6 +441,7 @@ const translateSegment = async (
           contentKind,
           sourceContext,
           sourceStart,
+          { resolveCourseUnit },
         )
       : restored;
   const validation =
@@ -436,6 +455,7 @@ const translateSegment = async (
             contentKind,
             sourceContext,
             sourceStart,
+            resolveCourseUnit,
           },
         )
       : {
@@ -489,6 +509,7 @@ const translateFormattingUnits = async (
   targetLanguage: TargetLanguage,
   provider: TranslationProvider,
   contentKind: TranslationContentKind = "pattern",
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): Promise<TranslationResult | undefined> => {
   // Measurements and round references retain the existing whole-block
   // fallback when bisected. Natural-language atomic spans can instead become
@@ -732,6 +753,7 @@ const translateFormattingUnits = async (
         contentKind,
         block.text,
         unit.start + leadingWhitespace.length + segment.start,
+        resolveCourseUnit,
       );
 
       translatedSegments.push(result.translated);
@@ -816,6 +838,7 @@ const translateFormattingUnits = async (
     {
         notationCaseInsensitive: true,
         contentKind,
+        resolveCourseUnit,
       },
   );
 
@@ -854,13 +877,23 @@ export const translateBlocks = async (
   const provider = options.provider ?? createTranslationProvider();
   const contentKind = options.contentKind ?? "pattern";
   const results: TranslationResult[] = [];
+  // Same-block typed course decisions for the whole request, computed before
+  // any translation. Each block gets its own resolver; nothing carries from
+  // one block to the next, and a typed unit only takes effect where the
+  // legacy inference agrees (see course_unit_resolution.ts).
+  const courseDecisions = prepareCourseDecisions(blocks);
 
   for (const block of blocks) {
+    const resolveCourseUnit = courseUnitResolverForBlock(
+      courseDecisions,
+      block.id,
+    );
     const formattedResult = await translateFormattingUnits(
       block,
       targetLanguage,
       provider,
       contentKind,
+      resolveCourseUnit,
     );
 
     if (formattedResult) {
@@ -899,6 +932,7 @@ export const translateBlocks = async (
         contentKind,
         block.text,
         segment.start,
+        resolveCourseUnit,
       );
       translatedSegments.push(result.translated);
       segmentErrors.push(...result.errors);
@@ -917,6 +951,7 @@ export const translateBlocks = async (
       {
         notationCaseInsensitive: true,
         contentKind,
+        resolveCourseUnit,
       },
     );
     const errors = uniqueDiagnostics([

@@ -1,5 +1,6 @@
 /**
- * `N.` ownership decision (Stage 1, Task 11: SHADOW ONLY).
+ * `N.` ownership decision (Stage 1, Task 11; in production only through the
+ * course-decision pre-pass since next-stage Task 8).
  *
  * The typed lexer deliberately emits `7.` as two lexical facts, a `number`
  * and a `punctuation` token, and leaves open whether it is a list marker or an
