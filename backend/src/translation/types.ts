@@ -13,6 +13,12 @@ export const translationBlockSchema = z
     id: z.string().trim().min(1).max(200),
     text: z.string().max(20_000),
     formattingRegions: z.array(formattingRegionSchema).optional(),
+    // Optional page-local semantic reading order from the frontend
+    // (next stage, Task 10). Accepted as opaque metadata so that malformed
+    // values never fail a translation; `validatedReadingOrder`
+    // (reading_order.ts) is the only reader. Translation still follows the
+    // array order.
+    readingOrder: z.unknown().optional(),
   })
   .superRefine(({ text, formattingRegions }, context) => {
     for (const [index, region] of (formattingRegions ?? []).entries()) {

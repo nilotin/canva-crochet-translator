@@ -53,6 +53,9 @@ const translationBlocksForPage = (
     localId: block.id,
     sourceText: block.sourceText,
     order: block.order,
+    ...(block.readingOrder === undefined
+      ? {}
+      : { readingOrder: block.readingOrder }),
   }));
 
 const formattingSnapshotsForPage = (
@@ -102,17 +105,21 @@ const requestTranslation = async (
         sourceLanguage: "tr",
         targetLanguage: language,
         contentKind,
-        blocks: blocksToTranslate.map(({ localId, sourceText }) => ({
-          id: localId,
-          text: sourceText,
-          formattingRegions: formattingSnapshots
-            .get(localId)
-            ?.map(({ index, length }, regionIndex) => ({
-              id: `fmt-${regionIndex}`,
-              start: index,
-              end: index + length,
-            })),
-        })),
+        blocks: blocksToTranslate.map(
+          ({ localId, sourceText, readingOrder }) => ({
+            id: localId,
+            text: sourceText,
+            formattingRegions: formattingSnapshots
+              .get(localId)
+              ?.map(({ index, length }, regionIndex) => ({
+                id: `fmt-${regionIndex}`,
+                start: index,
+                end: index + length,
+              })),
+            // Metadata only: the array order stays the translation order.
+            ...(readingOrder === undefined ? {} : { readingOrder }),
+          }),
+        ),
         ...templateCandidateHint,
       }),
     },

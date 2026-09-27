@@ -33,6 +33,10 @@ export type CanvaTranslationBlock = {
   localId: string;
   sourceText: string;
   order: number;
+  // Semantic page-local reading order (reading_order.ts), only when trusted.
+  // The current-page review path reads richtext ranges, which carry no
+  // geometry, so it never sets this (fails closed).
+  readingOrder?: number;
 };
 
 export type ReviewBlock = {
