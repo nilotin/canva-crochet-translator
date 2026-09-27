@@ -212,6 +212,9 @@ describe("N. ownership: production isolation", () => {
   it("is not imported by any production module", () => {
     const importers = productionFiles(sourceRoot)
       .filter((path) => !path.includes(parserDirectory))
+      // Shadow PatternContext consumes this module; its own isolation test
+      // (context/__tests__/pattern_context_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}context${sep}`))
       .filter((path) => /number_dot/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);

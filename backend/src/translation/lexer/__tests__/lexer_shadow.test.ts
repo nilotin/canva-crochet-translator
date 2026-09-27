@@ -260,6 +260,9 @@ describe("typed lexer shadow: production isolation", () => {
       // The shadow frame parser consumes the lexer; its own isolation test
       // (parser/__tests__/frame_parser_shadow.test.ts) keeps it out of production.
       .filter((path) => !path.includes(`${sep}translation${sep}parser${sep}`))
+      // Shadow PatternContext consumes this module; its own isolation test
+      // (context/__tests__/pattern_context_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}context${sep}`))
       .filter((path) => /typed_lexer/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(importers).toEqual([]);
