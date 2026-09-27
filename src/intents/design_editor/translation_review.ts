@@ -13,6 +13,7 @@ import type { DesignRole } from "./target_context";
 import type { PageIdentity } from "./page_identity";
 import { normalizePageReviewSeverity } from "./review_severity";
 import { formattingRegionSignature } from "./formatting_freshness";
+import { reconcileReviewReadingOrder } from "./review_reading_order";
 import {
   buildStaticTemplateTranslationResponse,
   isProtectedPage2Candidate,
@@ -92,6 +93,14 @@ type Dependencies = {
 
 type CurrentPageTemplateContext = {
   page: WholeDocumentInventory["pages"][number];
+  /**
+   * Live current-page blocks augmented with inventory readingOrder only when
+   * exact unique content+formatting correspondence was proven.
+   *
+   * This is request metadata only. Template recognition continues to use
+   * `page` and keeps its existing tolerant live-vs-inventory behavior.
+   */
+  translationBlocks: readonly CanvaTranslationBlock[];
   documentContext: {
     totalPages: number;
     firstPage?: WholeDocumentInventory["pages"][number];
@@ -396,6 +405,12 @@ const currentPageTemplateContext = async (
       (left, right) => left.order - right.order,
     );
 
+    const translationBlocks = reconcileReviewReadingOrder(
+      blocks,
+      formattingSnapshots,
+      inventoryPage.blocks,
+    );
+
     return {
       page: {
         ...inventoryPage,
@@ -406,6 +421,7 @@ const currentPageTemplateContext = async (
           formattingRegions: formattingSnapshots.get(localId) ?? [],
         })),
       },
+      translationBlocks,
       documentContext: {
         totalPages: inventory.pages.length + inventory.skippedPages.length,
         firstPage: inventory.pages.find(({ discoveryIndex }) => discoveryIndex === 0),
@@ -441,7 +457,7 @@ const requestCurrentPageTranslation = async (
         sourceLanguage: "tr",
         targetLanguage: language,
         ...(contentKind ? { contentKind } : {}),
-        blocks: blocks.map(({ localId, sourceText }) => ({
+        blocks: blocks.map(({ localId, sourceText, readingOrder }) => ({
           id: localId,
           text: sourceText,
           formattingRegions: formattingSnapshots
@@ -451,6 +467,7 @@ const requestCurrentPageTranslation = async (
               start: index,
               end: index + length,
             })),
+          ...(readingOrder === undefined ? {} : { readingOrder }),
         })),
       }),
     },
@@ -549,7 +566,7 @@ export const translateCurrentPage = async (
     result = await requestCurrentPageTranslation(
       dependencies,
       language,
-      blocks,
+      templateContext?.translationBlocks ?? blocks,
       formattingSnapshots,
     );
   }

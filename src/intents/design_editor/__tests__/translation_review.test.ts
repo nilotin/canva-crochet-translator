@@ -20,6 +20,7 @@ import {
   INSTRUCTIONS_TR,
   MATERIALS_HEADING,
 } from "../static_template_translation";
+import type { WholeDocumentInventory } from "../whole_document_inventory";
 
 const range = (text: string, deleted = false) => ({
   deleted,
@@ -51,7 +52,11 @@ const translationAuth = {
   getUserToken: (async () => "user-jwt") as never,
 };
 
-const inventoryBlock = (id: string, sourceText: string, order: number) => ({
+const inventoryBlock = (
+  id: string,
+  sourceText: string,
+  order: number,
+): WholeDocumentInventory["pages"][number]["blocks"][number] => ({
   id,
   sourceText,
   order,
@@ -72,7 +77,7 @@ const pageInventory = (
   pageId: string,
   discoveryIndex: number,
   texts: readonly string[],
-) => ({
+): WholeDocumentInventory["pages"][number] => ({
   pageId,
   discoveryIndex,
   locked: false,
@@ -85,7 +90,11 @@ const backendTranslations = (fetcher: jest.Mock) => {
   const request = fetcher.mock.calls[0]?.[1];
   return JSON.parse(String(request?.body)) as {
     contentKind?: string;
-    blocks: { id: string; text: string }[];
+    blocks: {
+      id: string;
+      text: string;
+      readingOrder?: number;
+    }[];
   };
 };
 
@@ -2396,5 +2405,231 @@ describe("semantic target-ordered formatting runs", () => {
         color: "#00ff00",
       }),
     );
+  });
+});
+
+
+describe("review readingOrder propagation", () => {
+  const requiredBlock = <T,>(blocks: readonly T[], index: number): T => {
+    const block = blocks[index];
+    if (block === undefined) {
+      throw new Error(`Expected block at index ${index}.`);
+    }
+    return block;
+  };
+
+  const ordinaryResponse = (
+    blocks: readonly { id: string; text: string }[],
+  ) => ({
+    ok: true,
+    json: async () => ({
+      translations: blocks.map(({ id, text }) => ({
+        id,
+        source: text,
+        translated: `EN: ${text}`,
+        valid: true,
+        errors: [],
+        warnings: [],
+      })),
+    }),
+  });
+
+  it("forwards reconciled trusted readingOrder on an ordinary full-page request", async () => {
+    const turn = "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+    const count = "13) 5 sıra 16x";
+    const texts = [count, turn];
+
+    const page = pageInventory("ordinary-page", 3, texts);
+    page.blocks[0] = {
+      ...requiredBlock(page.blocks, 0),
+      readingOrder: 1,
+    };
+    page.blocks[1] = {
+      ...requiredBlock(page.blocks, 1),
+      readingOrder: 0,
+    };
+
+    const fetcher = jest.fn(async (_url, init) => {
+      const request = JSON.parse(String(init?.body)) as {
+        blocks: { id: string; text: string }[];
+      };
+      return ordinaryResponse(request.blocks);
+    });
+
+    await translateCurrentPage("en", "review-reading-order", {
+      queryCurrentPage: currentPageQuery(texts) as never,
+      getPageMetadata: (async () => ({
+        type: "absolute",
+        id: "ordinary-page",
+      })) as never,
+      readInventory: (async () => ({
+        pages: [page],
+        skippedPages: [],
+      })) as never,
+      fetch: fetcher as never,
+      ...translationAuth,
+    });
+
+    expect(backendTranslations(fetcher).blocks).toMatchObject([
+      {
+        id: "local-block-1",
+        text: count,
+        readingOrder: 1,
+      },
+      {
+        id: "local-block-2",
+        text: turn,
+        readingOrder: 0,
+      },
+    ]);
+  });
+
+  it("maps readingOrder by unique content+formatting rather than inventory array position", async () => {
+    const texts = ["A", "B"];
+    const page = pageInventory("ordinary-page", 3, texts);
+
+    page.blocks = [
+      { ...requiredBlock(page.blocks, 1), readingOrder: 0 },
+      { ...requiredBlock(page.blocks, 0), readingOrder: 1 },
+    ];
+
+    const fetcher = jest.fn(async (_url, init) => {
+      const request = JSON.parse(String(init?.body)) as {
+        blocks: { id: string; text: string }[];
+      };
+      return ordinaryResponse(request.blocks);
+    });
+
+    await translateCurrentPage("en", "review-reading-order-array-order", {
+      queryCurrentPage: currentPageQuery(texts) as never,
+      getPageMetadata: (async () => ({
+        type: "absolute",
+        id: "ordinary-page",
+      })) as never,
+      readInventory: (async () => ({
+        pages: [page],
+        skippedPages: [],
+      })) as never,
+      fetch: fetcher as never,
+      ...translationAuth,
+    });
+
+    expect(backendTranslations(fetcher).blocks).toMatchObject([
+      {
+        id: "local-block-1",
+        text: "A",
+        readingOrder: 1,
+      },
+      {
+        id: "local-block-2",
+        text: "B",
+        readingOrder: 0,
+      },
+    ]);
+  });
+
+  it("omits all readingOrder metadata when correspondence is ambiguous", async () => {
+    const texts = ["Turn.", "Turn."];
+    const page = pageInventory("ordinary-page", 3, texts);
+
+    page.blocks[0] = {
+      ...requiredBlock(page.blocks, 0),
+      readingOrder: 0,
+    };
+    page.blocks[1] = {
+      ...requiredBlock(page.blocks, 1),
+      readingOrder: 1,
+    };
+
+    const fetcher = jest.fn(async (_url, init) => {
+      const request = JSON.parse(String(init?.body)) as {
+        blocks: { id: string; text: string }[];
+      };
+      return ordinaryResponse(request.blocks);
+    });
+
+    await translateCurrentPage("en", "review-reading-order-ambiguous", {
+      queryCurrentPage: currentPageQuery(texts) as never,
+      getPageMetadata: (async () => ({
+        type: "absolute",
+        id: "ordinary-page",
+      })) as never,
+      readInventory: (async () => ({
+        pages: [page],
+        skippedPages: [],
+      })) as never,
+      fetch: fetcher as never,
+      ...translationAuth,
+    });
+
+    expect(
+      backendTranslations(fetcher).blocks.map((block) => "readingOrder" in block),
+    ).toEqual([false, false]);
+  });
+
+  it("keeps Page 2 materials-only requests free of readingOrder metadata", async () => {
+    const materials = "✦ Generic yarn\n✦ 2.20 mm tığ";
+    const glossary =
+      "✦ ydcv: ydc arttırma\n" +
+      "✦ zn: zincir\n" +
+      "✦ x: sık iğne";
+
+    const texts = [
+      "MALZEMELER",
+      "TERİMLER",
+      "AÇIKLAMALARI",
+      materials,
+      glossary,
+      INSTRUCTIONS_TR,
+    ];
+
+    const page = pageInventory("materials-page", 1, texts);
+    page.blocks = page.blocks.map((block, index) => ({
+      ...block,
+      readingOrder: index,
+    }));
+
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        translations: [
+          {
+            id: "local-block-4",
+            source: materials,
+            translated: "translated materials",
+            valid: true,
+            errors: [],
+            warnings: [],
+          },
+        ],
+      }),
+    }));
+
+    await translateCurrentPage("en", "review-reading-order-materials", {
+      queryCurrentPage: currentPageQuery(texts) as never,
+      getPageMetadata: (async () => ({
+        type: "absolute",
+        id: "materials-page",
+      })) as never,
+      readInventory: (async () => ({
+        pages: [
+          pageInventory("front-page", 0, ["DOLL", FRONT_NOTICE_TR]),
+          page,
+        ],
+        skippedPages: [],
+      })) as never,
+      fetch: fetcher as never,
+      ...translationAuth,
+    });
+
+    const body = backendTranslations(fetcher);
+
+    expect(body.contentKind).toBe("materials");
+    expect(body.blocks).toHaveLength(1);
+    expect(body.blocks[0]).toMatchObject({
+      id: "local-block-4",
+      text: materials,
+    });
+    expect("readingOrder" in requiredBlock(body.blocks, 0)).toBe(false);
   });
 });
