@@ -49,9 +49,16 @@ import type { MixedSegmentProjectionPiece } from "../mixed_segment.js";
 import type { FrameParse } from "../parser/frame_ir.js";
 import type { RenderUnit } from "../renderer/frame_renderer.js";
 
+/**
+ * What protection needs from a rendered unit: its exact source span and its
+ * canonical text. Structural, so both `RenderUnit` and the context-aware
+ * `CourseCountRenderUnit` can pass through the same carrier path.
+ */
+export type ProtectableUnit = Pick<RenderUnit, "sourceSpan" | "text">;
+
 export type FrameToken = {
   readonly placeholder: string;
-  readonly unit: RenderUnit;
+  readonly unit: ProtectableUnit;
   /** Canonical rendered text the placeholder stands for (`unit.text`). */
   readonly meaning: string;
 };
@@ -91,7 +98,7 @@ export class FrameProtectionError extends Error {
  * starts where a frame starts and ends where a frame ends, and everything in
  * between is either a frame or the whitespace joining a linked pair.
  */
-const assertUnitCoversFrames = (parse: FrameParse, unit: RenderUnit, index: number): void => {
+const assertUnitCoversFrames = (parse: FrameParse, unit: ProtectableUnit, index: number): void => {
   const { nodes } = parse;
   const first = nodes.findIndex(
     (node) => node.kind === "frame" && node.span.start === unit.sourceSpan.start,
@@ -114,7 +121,7 @@ const assertUnitCoversFrames = (parse: FrameParse, unit: RenderUnit, index: numb
   }
 };
 
-const validateUnits = (parse: FrameParse, units: readonly RenderUnit[], startIndex: number): void => {
+const validateUnits = (parse: FrameParse, units: readonly ProtectableUnit[], startIndex: number): void => {
   const { source } = parse;
   if (!Number.isSafeInteger(startIndex) || startIndex < 0) {
     throw new FrameProtectionError(`startIndex must be a non-negative integer, got ${startIndex}.`);
@@ -149,7 +156,7 @@ const validateUnits = (parse: FrameParse, units: readonly RenderUnit[], startInd
  */
 export const protectFrames = (
   parse: FrameParse,
-  units: readonly RenderUnit[],
+  units: readonly ProtectableUnit[],
   startIndex = 0,
 ): ProtectedFrames => {
   validateUnits(parse, units, startIndex);

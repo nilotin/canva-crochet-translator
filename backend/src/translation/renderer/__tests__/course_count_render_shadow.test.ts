@@ -210,6 +210,9 @@ describe("course_count rendering shadow: production isolation", () => {
   it("no module outside the renderer uses renderCourseCount", () => {
     const users = productionFiles(sourceRoot)
       .filter((path) => !path.includes(rendererDirectory))
+      // Shadow assembly (frame protection, placement) consumes these types; its own
+      // isolation test (assembly/__tests__/placement_shadow.test.ts) keeps it out of production.
+      .filter((path) => !path.includes(`${sep}translation${sep}assembly${sep}`))
       .filter((path) => /renderCourseCount|CourseCountRenderUnit|RenderPiece/.test(readFileSync(path, "utf8")))
       .map((path) => relative(sourceRoot, path));
     expect(users).toEqual([]);
