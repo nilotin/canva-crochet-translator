@@ -124,6 +124,24 @@ describe("frame renderer: never renders chain or turn on its own", () => {
   );
 });
 
+describe("frame renderer: course_end_turn is not rendered yet", () => {
+  it.each([
+    "Bütün sıra sonlarında 1 zincir çekip dönüyoruz.",
+    "Sıra sonlarında 1 zincir çekip dönüyoruz.",
+    "Sıra sonunda 1 zincir çekip dönüyoruz.",
+    "12) Bütün sıra sonlarında 2 zn çekip dönüyoruz.",
+  ])("%j yields zero units", (source) => {
+    expect(parseFrames(source).nodes.some((node) => node.kind === "frame" && node.action === "course_end_turn")).toBe(
+      true,
+    );
+    expect(render(source)).toEqual([]);
+  });
+
+  it("still renders the stitch_count before a course-end clause, and nothing for the clause", () => {
+    expect(texts("1) 28x örüyoruz. Bütün sıra sonlarında 1 zincir çekip dönüyoruz.")).toEqual(["work 28sc"]);
+  });
+});
+
 describe("frame renderer: scope", () => {
   it("produces no units for languages other than English", () => {
     expect(renderUnits(parseFrames("20x örüyoruz. 1 zincir çekip dönüyoruz."), "es")).toEqual([]);

@@ -62,6 +62,13 @@ describe("frame parser shadow: corpus source blocks", () => {
           expect(node.slots.verb.form).toBe("finite");
           expect(node.span).toEqual(node.slots.verb.span);
           break;
+        case "course_end_turn":
+          expect(node.slots.verb.form).toBe("finite");
+          expect(node.slots.converb.form).toBe("converb");
+          expect(node.slots.unit.concept).toBe(CHAIN_CONCEPT);
+          expect(node.slots.count.value).toBe(Number(node.slots.count.span.raw));
+          expect(node.span.start).toBe(node.slots.scope.span.start);
+          break;
       }
     }
   });
@@ -72,6 +79,10 @@ describe("frame parser shadow: corpus source blocks", () => {
 
   it("recognizes chain and turn only as linked pairs", () => {
     expect(countOf("chain")).toBe(countOf("turn"));
+  });
+
+  it("keeps the 4 chain/turn pairs and adds 4 course_end_turn frames, without counting their slots as pairs", () => {
+    expect([countOf("chain"), countOf("turn"), countOf("course_end_turn")]).toEqual([4, 4, 4]);
   });
 
   it(`[diagnostic] ${countOf("chain")} chain + ${countOf("turn")} turn frame(s) recognized across the corpus (not frozen)`, () => {

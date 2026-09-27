@@ -204,12 +204,24 @@ describe("stitch_count: outside the FIRST migrated slice (admission rule, not gr
 describe("ordinal repros stay unresolved", () => {
   const repros = loadCorpus().cases.filter(({ value }) => value.lane === "repro");
 
+  // Stage 2 admits the course-end signal ("... sıra sonlarında|sonunda N zincir
+  // çekip dönüyoruz") in R2-R4. Nothing else in a repro may become a frame.
   it.each(repros.map(({ caseId, value }) => [caseId, value.request.blocks] as const))(
-    "%s: every block is Opaque",
+    "%s: every block is Opaque apart from course_end_turn signals",
     (_caseId, blocks) => {
-      for (const block of blocks) allOpaque(block.text);
+      for (const block of blocks) {
+        for (const node of exact(block.text).nodes) {
+          if (node.kind === "frame") expect(node.action).toBe("course_end_turn");
+        }
+      }
     },
   );
+
+  it("R1 (the block-leading ordinal) stays fully Opaque", () => {
+    const r1 = repros.find(({ value }) => value.labels.hazards.includes("ordinal-at-block-start"));
+    expect(r1).toBeDefined();
+    for (const block of r1!.value.request.blocks) allOpaque(block.text);
+  });
 });
 
 describe("frame IR invariants", () => {

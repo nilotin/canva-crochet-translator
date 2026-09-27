@@ -17,7 +17,10 @@
  *  - `stitch_count`, "N<stitch> örüyoruz" (work N stitches);
  *  - one linked pair, `chain` (converb) + `turn` (finite):
  *    "N zincir çekip dönüyoruz". Chain and turn are recognized ONLY as this
- *    pair, never on their own.
+ *    pair, never on their own;
+ *  - `course_end_turn` (Stage 2): an exact course-end phrase followed by the
+ *    same pair window, "[Bütün] sıra sonlarında|sonunda N zincir çekip
+ *    dönüyoruz", as one flat frame. It records the phrase's `scope` only.
  *
  * Lexicon:
  *  - Families admit glossary CONCEPT IDS (`STITCH_COUNT_CONCEPTS`,
@@ -26,7 +29,8 @@
  *    spelling must match the glossary form exactly (case included).
  *  - Full nouns (`zincir`) and verb forms (`örüyoruz`, `çekip`, `dönüyoruz`)
  *    are parser lexicon, whole words only: the glossary has no verbs, and its
- *    descriptions are never used as spellings.
+ *    descriptions are never used as spellings. So are the course-end phrase
+ *    words (`COURSE_END_PHRASES`).
  *
  * FIRST-SLICE ADMISSION RULES. The left and right boundary checks below are a
  * deliberately conservative admission policy for this first migrated slice,
@@ -43,6 +47,8 @@ import { PROJECT_NOTATION } from "../glossary.js";
 import { lexSource, type LexToken } from "../lexer/typed_lexer.js";
 import type {
   ChainFrame,
+  CourseEndScope,
+  CourseEndTurnFrame,
   FrameParse,
   Opaque,
   ParseNode,
@@ -94,6 +100,23 @@ export const CHAIN_CONVERBS: ReadonlySet<string> = new Set(["çekip"]);
 
 /** Finite "we turn" forms admitted in this task. */
 export const TURN_FINITE_VERBS: ReadonlySet<string> = new Set(["dönüyoruz"]);
+
+/**
+ * Course-end phrases before a chain -> turn pair, word by word. Exact finite
+ * spellings only; the phrase-initial word may be capitalized. No stems, no
+ * other inflections, no other quantifiers.
+ */
+export const COURSE_END_PHRASES: readonly {
+  readonly words: readonly ReadonlySet<string>[];
+  readonly scope: CourseEndScope;
+}[] = [
+  {
+    words: [new Set(["Bütün", "bütün"]), new Set(["sıra"]), new Set(["sonlarında"])],
+    scope: "every",
+  },
+  { words: [new Set(["Sıra", "sıra"]), new Set(["sonlarında"])], scope: "plural" },
+  { words: [new Set(["Sıra", "sıra"]), new Set(["sonunda"])], scope: "single" },
+];
 
 // ---------------------------------------------------------------------------
 // First-slice admission rules (see the module comment)
@@ -197,22 +220,23 @@ const matchStitchCount = (
   return { start: count.start, nodes: [frame], next: index + 4 };
 };
 
+/** The exact tokens of one chain(converb) -> turn(finite) pair, before boundary checks. */
+type ChainTurnCore = {
+  readonly count: LexToken;
+  readonly value: number;
+  readonly unit: LexToken;
+  readonly concept: string;
+  readonly converb: LexToken;
+  readonly separator: LexToken;
+  readonly turn: LexToken;
+};
+
 /**
- * The one linked pair of this task: `chain` (converb) followed by `turn`
- * (finite), "N zincir çekip dönüyoruz" / "N zn çekip dönüyoruz".
- *
- * Seven tokens: count, whitespace, unit, whitespace, converb, whitespace,
- * finite verb. Both frames are emitted or neither is. The first-slice
- * boundaries are checked only outside the pair (before the count, after the
- * finite verb); the members are joined by exactly one whitespace token, which
- * stays an exact Opaque node. This is a fixed two-member shape, not a general
- * sequence or coordination matcher.
+ * The exact seven-token pair window starting at `index`: count, whitespace,
+ * unit, whitespace, converb, whitespace, finite verb. No boundary checks: the
+ * standalone pair and `course_end_turn` add their own.
  */
-const matchChainTurnPair = (
-  source: string,
-  tokens: readonly LexToken[],
-  index: number,
-): Match | undefined => {
+const chainTurnCore = (tokens: readonly LexToken[], index: number): ChainTurnCore | undefined => {
   const count = tokens[index];
   const unit = tokens[index + 2];
   const converb = tokens[index + 4];
@@ -236,8 +260,33 @@ const matchChainTurnPair = (
   }
   const concept = CHAIN_UNIT_FORMS.get(unit.raw);
   if (concept === undefined) return undefined;
+  return { count, value, unit, concept, converb, separator, turn };
+};
+
+/** Tokens in one chain -> turn pair window. */
+const CHAIN_TURN_TOKENS = 7;
+
+/**
+ * The one linked pair of this task: `chain` (converb) followed by `turn`
+ * (finite), "N zincir çekip dönüyoruz" / "N zn çekip dönüyoruz".
+ *
+ * Seven tokens: count, whitespace, unit, whitespace, converb, whitespace,
+ * finite verb. Both frames are emitted or neither is. The first-slice
+ * boundaries are checked only outside the pair (before the count, after the
+ * finite verb); the members are joined by exactly one whitespace token, which
+ * stays an exact Opaque node. This is a fixed two-member shape, not a general
+ * sequence or coordination matcher.
+ */
+const matchChainTurnPair = (
+  source: string,
+  tokens: readonly LexToken[],
+  index: number,
+): Match | undefined => {
+  const core = chainTurnCore(tokens, index);
+  if (core === undefined) return undefined;
   if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
-  if (!admitsRight(nextSignificant(tokens, index + 6))) return undefined;
+  if (!admitsRight(nextSignificant(tokens, index + CHAIN_TURN_TOKENS - 1))) return undefined;
+  const { count, value, unit, concept, converb, separator, turn } = core;
 
   const chain: ChainFrame = {
     kind: "frame",
@@ -256,7 +305,57 @@ const matchChainTurnPair = (
     span: tokenSpan(turn),
     slots: { verb: { span: tokenSpan(turn), form: "finite" } },
   };
-  return { start: count.start, nodes: [chain, between, turnFrame], next: index + 7 };
+  return { start: count.start, nodes: [chain, between, turnFrame], next: index + CHAIN_TURN_TOKENS };
+};
+
+/**
+ * `course_end_turn`: one exact course-end phrase (`COURSE_END_PHRASES`), one
+ * whitespace token, then the exact chain -> turn pair window. One flat frame;
+ * the pair's parts become slots, so no standalone chain or turn is emitted.
+ * The first-slice boundaries apply before the first phrase word and after the
+ * finite verb. The phrase only records what the Turkish says (`scope`); it
+ * decides no row or round meaning.
+ */
+const matchCourseEndTurn = (
+  source: string,
+  tokens: readonly LexToken[],
+  index: number,
+): Match | undefined => {
+  for (const phrase of COURSE_END_PHRASES) {
+    const last = index + (phrase.words.length - 1) * 2;
+    const words = phrase.words.every((spellings, offset) => {
+      const word = tokens[index + offset * 2];
+      const gap = tokens[index + offset * 2 + 1];
+      return (
+        word?.kind === "word" &&
+        spellings.has(word.raw) &&
+        (offset === phrase.words.length - 1 || gap?.kind === "whitespace")
+      );
+    });
+    if (!words || tokens[last + 1]?.kind !== "whitespace") continue;
+    const core = chainTurnCore(tokens, last + 2);
+    if (core === undefined) continue;
+    if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
+    if (!admitsRight(nextSignificant(tokens, last + 2 + CHAIN_TURN_TOKENS - 1))) return undefined;
+
+    const first = tokens[index]!;
+    const scopeEnd = tokens[last]!;
+    const { value, count, unit, concept, converb, turn } = core;
+    const frame: CourseEndTurnFrame = {
+      kind: "frame",
+      action: "course_end_turn",
+      span: spanOf(source, first.start, turn.end),
+      slots: {
+        scope: { span: spanOf(source, first.start, scopeEnd.end), value: phrase.scope },
+        count: { span: tokenSpan(count), value },
+        unit: { span: tokenSpan(unit), concept },
+        converb: { span: tokenSpan(converb), form: "converb" },
+        verb: { span: tokenSpan(turn), form: "finite" },
+      },
+    };
+    return { start: first.start, nodes: [frame], next: last + 2 + CHAIN_TURN_TOKENS };
+  }
+  return undefined;
 };
 
 // ---------------------------------------------------------------------------
@@ -283,7 +382,9 @@ export const parseFrames = (source: string): FrameParse => {
   let index = 0;
   while (index < tokens.length) {
     const match =
-      matchStitchCount(source, tokens, index) ?? matchChainTurnPair(source, tokens, index);
+      matchStitchCount(source, tokens, index) ??
+      matchChainTurnPair(source, tokens, index) ??
+      matchCourseEndTurn(source, tokens, index);
     if (match !== undefined) {
       flushOpaque(match.start);
       nodes.push(...match.nodes);

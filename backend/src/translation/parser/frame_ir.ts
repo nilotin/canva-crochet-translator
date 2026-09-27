@@ -78,8 +78,36 @@ export type TurnFrame = {
   readonly slots: { readonly verb: VerbSlot<"finite"> };
 };
 
+/**
+ * What the Turkish course-end phrase literally says, and nothing more:
+ *  - `every`:  "bütün sıra sonlarında" (quantifier + plural "at the ends");
+ *  - `plural`: "sıra sonlarında" (plural, no quantifier);
+ *  - `single`: "sıra sonunda" (singular "at the end").
+ * It carries no row/round meaning; that is a later PatternContext policy.
+ */
+export type CourseEndScope = "every" | "plural" | "single";
+
+/**
+ * "[Bütün] sıra sonlarında|sonunda N zincir çekip dönüyoruz": at the course
+ * end(s), make N chains and turn. One flat frame: its chain and turn parts are
+ * slots, never child frames, and it is not rendered yet.
+ */
+export type CourseEndTurnFrame = {
+  readonly kind: "frame";
+  readonly action: "course_end_turn";
+  /** From the first scope word to the end of the finite verb. */
+  readonly span: SourceSpan;
+  readonly slots: {
+    readonly scope: { readonly span: SourceSpan; readonly value: CourseEndScope };
+    readonly count: CountSlot;
+    readonly unit: { readonly span: SourceSpan; readonly concept: StitchConcept };
+    readonly converb: VerbSlot<"converb">;
+    readonly verb: VerbSlot<"finite">;
+  };
+};
+
 /** One union member per migrated frame family. */
-export type Frame = StitchCountFrame | ChainFrame | TurnFrame;
+export type Frame = StitchCountFrame | ChainFrame | TurnFrame | CourseEndTurnFrame;
 
 export type Opaque = {
   readonly kind: "opaque";
@@ -105,6 +133,14 @@ const slotSpans = (node: ParseNode): SourceSpan[] => {
       return [node.slots.count.span, node.slots.unit.span, node.slots.verb.span];
     case "turn":
       return [node.slots.verb.span];
+    case "course_end_turn":
+      return [
+        node.slots.scope.span,
+        node.slots.count.span,
+        node.slots.unit.span,
+        node.slots.converb.span,
+        node.slots.verb.span,
+      ];
   }
 };
 

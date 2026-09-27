@@ -142,8 +142,6 @@ describe("chain(converb) -> turn(finite): stays Opaque", () => {
     ["İkinci bacaktan 3 zincir ile birleştiriyoruz.", "chain as instrument"],
     ["6 zincir atlıyoruz (düğme iliği oluşturuyoruz.)", "chain as object of skip"],
     ["zincir üzerine üçüncü zincirden itibaren", "chain as reference"],
-    ["Sıra sonunda 1 zincir çekip dönüyoruz.", "pair after an adjunct"],
-    ["Bütün sıra sonlarında 1 zincir çekip dönüyoruz.", "pair after an adjunct"],
     ["1 zincir çekip.", "dangling converb chain"],
     ["1 zincir çekip", "dangling converb chain at end of text"],
     ["dönüyoruz.", "standalone turn"],
@@ -164,6 +162,17 @@ describe("chain(converb) -> turn(finite): stays Opaque", () => {
     ["2 adet Catania TR263 - ten rengi\n1 adet Catania 110 - siyah", "materials text"],
   ])("%j (%s)", (source) => {
     allOpaque(source);
+  });
+
+  it.each([
+    ["Sıra sonunda 1 zincir çekip dönüyoruz.", "course_end_turn", "."],
+    ["Bütün sıra sonlarında 1 zincir çekip dönüyoruz.", "course_end_turn", "."],
+  ])("%j: a pair after a course-end phrase is one %s frame, never a standalone pair", (source, action, tail) => {
+    expect(shape(source)).toEqual([
+      [action, source.slice(0, -tail.length)],
+      ["opaque", tail],
+    ]);
+    expect(chainOrTurn(source)).toEqual([]);
   });
 
   it("does not admit a pair after a comma, while the stitch_count before it is unchanged", () => {
@@ -209,10 +218,33 @@ describe("converb invariant", () => {
 describe("repro guard", () => {
   const repros = loadCorpus().cases.filter(({ value }) => value.lane === "repro");
 
+  // Repros admit only the course-end signal: no stitch_count and no standalone
+  // chain or turn. (Render units stay empty: frame_renderer_shadow.test.ts.)
   it.each(repros.map(({ caseId, value }) => [caseId, value.request.blocks] as const))(
-    "%s: every block stays fully Opaque",
+    "%s: no frame other than course_end_turn",
     (_caseId, blocks) => {
-      for (const block of blocks) allOpaque(block.text);
+      for (const block of blocks) {
+        for (const node of exact(block.text).nodes) {
+          if (node.kind === "frame") expect(node.action).toBe("course_end_turn");
+        }
+      }
     },
   );
+
+  it("admits the course-end signal exactly where the repro text has it", () => {
+    const found = repros.flatMap(({ caseId, value }) =>
+      value.request.blocks.flatMap((block) =>
+        exact(block.text).nodes.flatMap((node) =>
+          node.kind === "frame" && node.action === "course_end_turn"
+            ? [[caseId, block.id, node.slots.scope.value, node.span.raw]]
+            : [],
+        ),
+      ),
+    );
+    expect(found).toEqual([
+      ["r-0b3aaf317b-cross-block-row-context", "local-block-1", "every", "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"],
+      ["r-7f044c15ff-ordinal-mid-block", "local-block-1", "every", "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"],
+      ["r-9fd3d972ce-unit-drift-turning", "local-block-1", "single", "Sıra sonunda 1 zincir çekip dönüyoruz"],
+    ]);
+  });
 });
