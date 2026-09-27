@@ -1,13 +1,14 @@
 /**
- * Request reading order (next stage, Task 10).
+ * Request reading order.
  *
- * `readingOrder` is optional, opaque request metadata: the schema accepts any
- * value (a malformed one never fails a translation), `validatedReadingOrder`
- * is its only reader, and translation ignores it entirely: the array order
- * stays the translation order and outputs are unchanged, R3 included.
+ * `readingOrder` remains optional and schema-opaque: malformed metadata never
+ * fails translation. `validatedReadingOrder` preserves the lenient Task 10
+ * accessor contract, while `pageReadingOrder` is the stricter production gate
+ * for trusted cross-block course context. Request-array/result order is never
+ * changed; only the semantic pre-pass may use trusted page order.
  */
 import { describe, expect, it } from "vitest";
-import { validatedReadingOrder } from "../reading_order.js";
+import { pageReadingOrder, validatedReadingOrder } from "../reading_order.js";
 import { translateBlocks } from "../translator.js";
 import { translateRequestSchema, translationBlockSchema } from "../types.js";
 import type { TranslationProvider } from "../providers/provider.js";
@@ -100,8 +101,8 @@ const R3 = [
   { id: "local-block-2", text: "13) 5 sıra 16x" },
 ];
 
-describe("translateBlocks ignores readingOrder", () => {
-  it("never reads the field", async () => {
+describe("translateBlocks readingOrder integration", () => {
+  it("a readingOrder getter that throws never fails translation", async () => {
     const trapped = R3.map((block) =>
       Object.defineProperty({ ...block }, "readingOrder", {
         enumerable: true,
@@ -110,30 +111,80 @@ describe("translateBlocks ignores readingOrder", () => {
         },
       }),
     );
+
     const results = await translateBlocks(trapped, "en", { provider: new EchoProvider() });
+
     expect(results.map(({ translated }) => translated)).toEqual([
       "12) At the end of each row, ch 1 and turn.",
       "13) 16sc for 5 rounds",
     ]);
   });
 
+  it("uses complete dense page order for the intended R3 correction", async () => {
+    const provider = new EchoProvider();
+
+    const results = await translateBlocks(
+      R3.map((block, index) => ({ ...block, readingOrder: index })),
+      "en",
+      { provider },
+    );
+
+    expect(results.map(({ id }) => id)).toEqual([
+      "local-block-1",
+      "local-block-2",
+    ]);
+    expect(results[1]?.translated).toBe("13) 16sc for 5 rows");
+    expect(results[1]?.valid).toBe(true);
+    expect(results[1]?.errors).toEqual([]);
+  });
+
   it.each([
-    ["in reading order", [0, 1]],
-    ["reversed", [1, 0]],
+    ["semantic order reversed", [1, 0]],
     ["malformed", [-1, "x"]],
     ["duplicated", [3, 3]],
-  ] as const)("gives identical results and provider prompts with readingOrder %s (R3 stays rounds)", async (_label, orders) => {
-    const plainProvider = new EchoProvider();
-    const plain = await translateBlocks(R3, "en", { provider: plainProvider });
-    const taggedProvider = new EchoProvider();
-    const tagged = await translateBlocks(
-      R3.map((block, index) => ({ ...block, readingOrder: orders[index] })),
-      "en",
-      { provider: taggedProvider },
-    );
-    expect(tagged).toEqual(plain);
-    expect(taggedProvider.texts).toEqual(plainProvider.texts);
-    expect(tagged.map(({ id }) => id)).toEqual(["local-block-1", "local-block-2"]);
-    expect(tagged[1]?.translated).toBe("13) 16sc for 5 rounds");
+    ["gapped", [0, 2]],
+  ] as const)(
+    "falls back byte-for-byte for readingOrder %s",
+    async (_label, orders) => {
+      const plainProvider = new EchoProvider();
+      const plain = await translateBlocks(R3, "en", { provider: plainProvider });
+
+      const taggedProvider = new EchoProvider();
+      const tagged = await translateBlocks(
+        R3.map((block, index) => ({
+          ...block,
+          readingOrder: orders[index],
+        })),
+        "en",
+        { provider: taggedProvider },
+      );
+
+      expect(tagged).toEqual(plain);
+      expect(taggedProvider.texts).toEqual(plainProvider.texts);
+      expect(tagged[1]?.translated).toBe("13) 16sc for 5 rounds");
+    },
+  );
+});
+
+describe("pageReadingOrder", () => {
+  it("accepts exactly one dense page-local rank set", () => {
+    expect(pageReadingOrder(blocks(1, 0))).toEqual(["b1", "b0"]);
+  });
+
+  it.each([
+    ["gap", blocks(0, 2)],
+    ["does not start at zero", blocks(1, 2)],
+    ["single block", blocks(0)],
+    ["two concatenated page rank sets", blocks(0, 1, 0, 1)],
+    [
+      "ranked page plus unranked block",
+      [
+        { id: "b0", readingOrder: 0 },
+        { id: "b1", readingOrder: 1 },
+        { id: "b2" },
+      ],
+    ],
+  ])("rejects %s", (_label, input) => {
+    expect(pageReadingOrder(input)).toBeUndefined();
   });
 });

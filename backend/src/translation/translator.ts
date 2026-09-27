@@ -10,7 +10,9 @@ import {
 import {
   courseUnitResolverForBlock,
   prepareCourseDecisions,
+  prepareCrossBlockCourseDecisions,
 } from "./course_unit_resolution.js";
+import { pageReadingOrder } from "./reading_order.js";
 import {
   containsReservedPlaceholder,
   isPatternOnlyProtectedText,
@@ -877,16 +879,30 @@ export const translateBlocks = async (
   const provider = options.provider ?? createTranslationProvider();
   const contentKind = options.contentKind ?? "pattern";
   const results: TranslationResult[] = [];
-  // Same-block typed course decisions for the whole request, computed before
-  // any translation. Each block gets its own resolver; nothing carries from
-  // one block to the next, and a typed unit only takes effect where the
-  // legacy inference agrees (see course_unit_resolution.ts).
+  // Same-block typed decisions remain the first authority for every request.
+  // When pattern blocks also carry one trusted dense page reading order, a
+  // second immutable pre-pass may carry course context across block boundaries
+  // under the stricter joined-legacy agreement gate.
   const courseDecisions = prepareCourseDecisions(blocks);
+
+  // readingOrder affects only the immutable semantic pre-pass. Translation,
+  // provider calls and returned results remain in request-array order.
+  const orderedIds =
+    contentKind === "pattern" && courseDecisions.status === "enabled"
+      ? pageReadingOrder(blocks)
+      : undefined;
+
+  const crossBlockCourseDecisions =
+    orderedIds === undefined
+      ? undefined
+      : prepareCrossBlockCourseDecisions(blocks, orderedIds);
 
   for (const block of blocks) {
     const resolveCourseUnit = courseUnitResolverForBlock(
       courseDecisions,
       block.id,
+      legacyCourseUnitResolver,
+      crossBlockCourseDecisions,
     );
     const formattedResult = await translateFormattingUnits(
       block,

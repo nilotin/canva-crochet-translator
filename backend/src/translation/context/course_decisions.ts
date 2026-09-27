@@ -143,6 +143,197 @@ export const prepareCourseDecisions = (
   }
 };
 
+
+export type CourseDecisionScope = "same_block" | "cross_block";
+
+export type CrossBlockCourseDecision = CourseDecision & {
+  readonly scope: CourseDecisionScope;
+};
+
+export type CrossBlockBlockCourseAnalysis = Omit<BlockCourseAnalysis, "decisions"> & {
+  readonly decisions: readonly CrossBlockCourseDecision[];
+};
+
+export type CrossBlockCourseDecisionPrepass =
+  | {
+      readonly status: "enabled";
+      readonly blocks: ReadonlyMap<string, CrossBlockBlockCourseAnalysis>;
+      readonly decisions: ReadonlyMap<string, readonly CrossBlockCourseDecision[]>;
+      /** Block texts in trusted reading order, separated by exactly one LF. */
+      readonly joinedText: string;
+      /** Start offset of each exact block text inside `joinedText`. */
+      readonly blockStarts: ReadonlyMap<string, number>;
+    }
+  | {
+      readonly status: "disabled";
+      readonly reason:
+        | "missing_block_id"
+        | "duplicate_block_id"
+        | "invalid_reading_order"
+        | "prepass_error";
+      readonly blocks: ReadonlyMap<string, CrossBlockBlockCourseAnalysis>;
+      readonly decisions: ReadonlyMap<string, readonly CrossBlockCourseDecision[]>;
+    };
+
+const disabledCrossBlock = (
+  reason:
+    | "missing_block_id"
+    | "duplicate_block_id"
+    | "invalid_reading_order"
+    | "prepass_error",
+): CrossBlockCourseDecisionPrepass =>
+  Object.freeze({
+    status: "disabled",
+    reason,
+    blocks: new Map(),
+    decisions: new Map(),
+  });
+
+/**
+ * Cross-block course decisions for one already-validated page reading order.
+ *
+ * This is additive to `prepareCourseDecisions`: the existing same-block
+ * pre-pass remains unchanged and remains the first authority in production.
+ * The caller supplies the trusted order; this function never sorts request
+ * blocks and never mutates its inputs.
+ */
+export const prepareCrossBlockCourseDecisions = (
+  blocks: readonly CourseDecisionBlock[],
+  orderedIds: readonly string[],
+): CrossBlockCourseDecisionPrepass => {
+  try {
+    if (blocks.length < 2 || orderedIds.length !== blocks.length) {
+      return disabledCrossBlock("invalid_reading_order");
+    }
+
+    const byId = new Map<string, CourseDecisionBlock>();
+    for (const block of blocks) {
+      if (typeof block.id !== "string" || block.id.length === 0) {
+        return disabledCrossBlock("missing_block_id");
+      }
+      if (byId.has(block.id)) {
+        return disabledCrossBlock("duplicate_block_id");
+      }
+      byId.set(block.id, block);
+    }
+
+    const orderedBlocks: CourseDecisionBlock[] = [];
+    const orderedSeen = new Set<string>();
+    for (const id of orderedIds) {
+      if (orderedSeen.has(id)) return disabledCrossBlock("invalid_reading_order");
+      const block = byId.get(id);
+      if (block === undefined) return disabledCrossBlock("invalid_reading_order");
+      orderedSeen.add(id);
+      orderedBlocks.push(block);
+    }
+
+    if (orderedSeen.size !== blocks.length) {
+      return disabledCrossBlock("invalid_reading_order");
+    }
+
+    const joinedParts: string[] = [];
+    const blockStarts = new Map<string, number>();
+    let joinedOffset = 0;
+
+    orderedBlocks.forEach((block, index) => {
+      blockStarts.set(block.id, joinedOffset);
+      joinedParts.push(block.text);
+      joinedOffset += block.text.length;
+      if (index + 1 < orderedBlocks.length) joinedOffset += 1;
+    });
+
+    const analyses = new Map<string, CrossBlockBlockCourseAnalysis>();
+    const decisions = new Map<string, readonly CrossBlockCourseDecision[]>();
+    let context = initialPatternContext;
+
+    orderedBlocks.forEach((block, blockIndex) => {
+      const lineBreaks = lexSource(block.text).filter(({ kind }) => kind === "line_break");
+      const lineStarts = [0, ...lineBreaks.map(({ end }) => end)];
+      const sharedLineModel = lineBreaks.every(({ raw }) => SHARED_LINE_BREAKS.has(raw));
+
+      if (!sharedLineModel) {
+        // Typed and legacy line models disagree in this block. Break context on
+        // both sides and retain only unknown decisions for this block.
+        context = initialPatternContext;
+        const isolated = analyzeBlock(block);
+        const scoped = isolated.decisions.map(
+          (decision): CrossBlockCourseDecision =>
+            Object.freeze({ ...decision, courseKind: "unknown", evidence: undefined, scope: "same_block" }),
+        );
+
+        const analysis: CrossBlockBlockCourseAnalysis = Object.freeze({
+          blockId: block.id,
+          text: block.text,
+          lineStarts: Object.freeze(lineStarts),
+          decisions: Object.freeze(scoped),
+        });
+
+        analyses.set(block.id, analysis);
+        decisions.set(block.id, analysis.decisions);
+        context = initialPatternContext;
+        return;
+      }
+
+      const blockDecisions: CrossBlockCourseDecision[] = [];
+
+      for (const event of contextEventsOf(block.text)) {
+        if (event.type === "course_count") {
+          const courseKind = readCourseKind(context, event, blockIndex);
+          const evidence = courseKind === "unknown" ? undefined : context.evidence;
+
+          let evidenceValue: CourseDecision["evidence"] | undefined;
+          let scope: CourseDecisionScope = "same_block";
+
+          if (evidence !== undefined) {
+            const evidenceBlock = orderedBlocks[evidence.blockIndex];
+            if (evidenceBlock !== undefined) {
+              evidenceValue = Object.freeze({
+                blockId: evidenceBlock.id,
+                sourceSpan: evidence.span,
+              });
+              if (evidence.blockIndex !== blockIndex) scope = "cross_block";
+            }
+          }
+
+          blockDecisions.push(
+            Object.freeze({
+              blockId: block.id,
+              lineIndex: event.line,
+              sourceSpan: event.span,
+              courseKind,
+              ...(evidenceValue === undefined ? {} : { evidence: evidenceValue }),
+              scope,
+            }),
+          );
+        }
+
+        context = applyPatternEvent(context, event, blockIndex);
+      }
+
+      const analysis: CrossBlockBlockCourseAnalysis = Object.freeze({
+        blockId: block.id,
+        text: block.text,
+        lineStarts: Object.freeze(lineStarts),
+        decisions: Object.freeze(blockDecisions),
+      });
+
+      analyses.set(block.id, analysis);
+      decisions.set(block.id, analysis.decisions);
+    });
+
+    return Object.freeze({
+      status: "enabled",
+      blocks: analyses,
+      decisions,
+      joinedText: joinedParts.join("\n"),
+      blockStarts,
+    });
+  } catch {
+    return disabledCrossBlock("prepass_error");
+  }
+};
+
+
 /**
  * The lexical line of `position` in the analyzed block text: the number of
  * line breaks that end at or before it, so an offset on a line break belongs
