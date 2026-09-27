@@ -142,6 +142,17 @@ describe("frame renderer: course_end_turn is not rendered yet", () => {
   });
 });
 
+describe("frame renderer: course_count is not rendered yet", () => {
+  it.each(["5 sıra 16x", "13) 5 sıra 16x", "2-25) 24 sıra 20x.", "5 sıra 16hdc,"])("%j yields zero units", (source) => {
+    expect(parseFrames(source).nodes.some((node) => node.kind === "frame" && node.action === "course_count")).toBe(true);
+    expect(render(source)).toEqual([]);
+  });
+
+  it("still renders a stitch_count on another line, and nothing for the course count", () => {
+    expect(texts("2-11) 10 sıra 64x\n4) 24x örüyoruz.")).toEqual(["work 24sc"]);
+  });
+});
+
 describe("frame renderer: scope", () => {
   it("produces no units for languages other than English", () => {
     expect(renderUnits(parseFrames("20x örüyoruz. 1 zincir çekip dönüyoruz."), "es")).toEqual([]);

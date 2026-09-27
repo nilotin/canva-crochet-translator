@@ -106,8 +106,31 @@ export type CourseEndTurnFrame = {
   };
 };
 
+/**
+ * "N sıra Mx": work M stitches of one type for N courses. `sıra` is the course
+ * noun only: the frame carries no row/round meaning (a later PatternContext
+ * decides that). It has no verb slot.
+ */
+export type CourseCountFrame = {
+  readonly kind: "frame";
+  readonly action: "course_count";
+  /** From the course count to the end of the stitch abbreviation. */
+  readonly span: SourceSpan;
+  readonly slots: {
+    readonly courses: CountSlot;
+    readonly course: { readonly span: SourceSpan };
+    readonly count: CountSlot;
+    readonly stitch: { readonly span: SourceSpan; readonly concept: StitchConcept };
+  };
+};
+
 /** One union member per migrated frame family. */
-export type Frame = StitchCountFrame | ChainFrame | TurnFrame | CourseEndTurnFrame;
+export type Frame =
+  | StitchCountFrame
+  | ChainFrame
+  | TurnFrame
+  | CourseEndTurnFrame
+  | CourseCountFrame;
 
 export type Opaque = {
   readonly kind: "opaque";
@@ -141,6 +164,13 @@ const slotSpans = (node: ParseNode): SourceSpan[] => {
         node.slots.converb.span,
         node.slots.verb.span,
       ];
+    case "course_count":
+      return [
+        node.slots.courses.span,
+        node.slots.course.span,
+        node.slots.count.span,
+        node.slots.stitch.span,
+      ];
   }
 };
 
@@ -154,7 +184,8 @@ const MEMBER_SEPARATOR = /^[^\S\n\r\u2028\u2029]+$/u;
  */
 const danglingConverbIssues = (nodes: readonly ParseNode[]): string[] =>
   nodes.flatMap((node, index) => {
-    if (node.kind !== "frame" || node.slots.verb.form !== "converb") return [];
+    // Only `chain` has a converb verb slot; verb-less frames have nothing to link.
+    if (node.kind !== "frame" || node.action !== "chain" || node.slots.verb.form !== "converb") return [];
     const separator = nodes[index + 1];
     const linked = nodes[index + 2];
     const separated =

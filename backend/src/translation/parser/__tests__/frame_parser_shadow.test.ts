@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadCorpus } from "../../__tests__/corpus/load_corpus.js";
 import { parseInvariantIssues, reconstructParse, type Frame } from "../frame_ir.js";
-import { CHAIN_CONCEPT, STITCH_COUNT_CONCEPTS, parseFrames } from "../frame_parser.js";
+import { CHAIN_CONCEPT, COURSE_WORDS, STITCH_COUNT_CONCEPTS, parseFrames } from "../frame_parser.js";
 
 const corpusBlocks = loadCorpus().cases.flatMap(({ caseId, value }) =>
   value.request.blocks.map((block) => ({ caseId, blockId: block.id, text: block.text })),
@@ -44,15 +44,16 @@ describe("frame parser shadow: corpus source blocks", () => {
   it.each(labelled)("%s: every frame is one well-formed action", (_label, text) => {
     for (const node of parseFrames(text).nodes) {
       if (node.kind !== "frame") continue;
-      expect(node.span.end).toBe(node.slots.verb.span.end);
       switch (node.action) {
         case "stitch_count":
+          expect(node.span.end).toBe(node.slots.verb.span.end);
           expect(node.slots.verb.form).toBe("finite");
           expect(STITCH_COUNT_CONCEPTS).toContain(node.slots.stitch.concept);
           expect(node.slots.count.value).toBe(Number(node.slots.count.span.raw));
           expect(node.span.start).toBe(node.slots.count.span.start);
           break;
         case "chain":
+          expect(node.span.end).toBe(node.slots.verb.span.end);
           expect(node.slots.verb.form).toBe("converb");
           expect(node.slots.unit.concept).toBe(CHAIN_CONCEPT);
           expect(node.slots.count.value).toBe(Number(node.slots.count.span.raw));
@@ -63,11 +64,20 @@ describe("frame parser shadow: corpus source blocks", () => {
           expect(node.span).toEqual(node.slots.verb.span);
           break;
         case "course_end_turn":
+          expect(node.span.end).toBe(node.slots.verb.span.end);
           expect(node.slots.verb.form).toBe("finite");
           expect(node.slots.converb.form).toBe("converb");
           expect(node.slots.unit.concept).toBe(CHAIN_CONCEPT);
           expect(node.slots.count.value).toBe(Number(node.slots.count.span.raw));
           expect(node.span.start).toBe(node.slots.scope.span.start);
+          break;
+        case "course_count":
+          expect(COURSE_WORDS.has(node.slots.course.span.raw)).toBe(true);
+          expect(STITCH_COUNT_CONCEPTS).toContain(node.slots.stitch.concept);
+          expect(node.slots.courses.value).toBe(Number(node.slots.courses.span.raw));
+          expect(node.slots.count.value).toBe(Number(node.slots.count.span.raw));
+          expect(node.span.start).toBe(node.slots.courses.span.start);
+          expect(node.span.end).toBe(node.slots.stitch.span.end);
           break;
       }
     }
@@ -83,6 +93,13 @@ describe("frame parser shadow: corpus source blocks", () => {
 
   it("keeps the 4 chain/turn pairs and adds 4 course_end_turn frames, without counting their slots as pairs", () => {
     expect([countOf("chain"), countOf("turn"), countOf("course_end_turn")]).toEqual([4, 4, 4]);
+  });
+
+  it("adds 6 course_count frames without changing any other count", () => {
+    expect(countOf("course_count")).toBe(6);
+    expect([countOf("stitch_count"), countOf("chain"), countOf("turn"), countOf("course_end_turn")]).toEqual([
+      7, 4, 4, 4,
+    ]);
   });
 
   it(`[diagnostic] ${countOf("chain")} chain + ${countOf("turn")} turn frame(s) recognized across the corpus (not frozen)`, () => {

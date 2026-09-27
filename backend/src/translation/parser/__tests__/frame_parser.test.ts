@@ -205,13 +205,14 @@ describe("ordinal repros stay unresolved", () => {
   const repros = loadCorpus().cases.filter(({ value }) => value.lane === "repro");
 
   // Stage 2 admits the course-end signal ("... sıra sonlarında|sonunda N zincir
-  // çekip dönüyoruz") in R2-R4. Nothing else in a repro may become a frame.
+  // çekip dönüyoruz") in R2-R4 and the course count ("5 sıra 16x") in R3
+  // block 2. Nothing else in a repro may become a frame.
   it.each(repros.map(({ caseId, value }) => [caseId, value.request.blocks] as const))(
-    "%s: every block is Opaque apart from course_end_turn signals",
+    "%s: every block is Opaque apart from course_end_turn and course_count signals",
     (_caseId, blocks) => {
       for (const block of blocks) {
         for (const node of exact(block.text).nodes) {
-          if (node.kind === "frame") expect(node.action).toBe("course_end_turn");
+          if (node.kind === "frame") expect(["course_end_turn", "course_count"]).toContain(node.action);
         }
       }
     },

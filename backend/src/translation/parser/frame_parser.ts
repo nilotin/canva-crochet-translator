@@ -20,7 +20,9 @@
  *    pair, never on their own;
  *  - `course_end_turn` (Stage 2): an exact course-end phrase followed by the
  *    same pair window, "[Bütün] sıra sonlarında|sonunda N zincir çekip
- *    dönüyoruz", as one flat frame. It records the phrase's `scope` only.
+ *    dönüyoruz", as one flat frame. It records the phrase's `scope` only;
+ *  - `course_count` (Stage 2): "N sıra Mx", work M stitches for N courses. It
+ *    records the course noun's span only, never row or round.
  *
  * Lexicon:
  *  - Families admit glossary CONCEPT IDS (`STITCH_COUNT_CONCEPTS`,
@@ -30,7 +32,7 @@
  *  - Full nouns (`zincir`) and verb forms (`örüyoruz`, `çekip`, `dönüyoruz`)
  *    are parser lexicon, whole words only: the glossary has no verbs, and its
  *    descriptions are never used as spellings. So are the course-end phrase
- *    words (`COURSE_END_PHRASES`).
+ *    words (`COURSE_END_PHRASES`) and the course noun (`COURSE_WORDS`).
  *
  * FIRST-SLICE ADMISSION RULES. The left and right boundary checks below are a
  * deliberately conservative admission policy for this first migrated slice,
@@ -47,6 +49,7 @@ import { PROJECT_NOTATION } from "../glossary.js";
 import { lexSource, type LexToken } from "../lexer/typed_lexer.js";
 import type {
   ChainFrame,
+  CourseCountFrame,
   CourseEndScope,
   CourseEndTurnFrame,
   FrameParse,
@@ -100,6 +103,9 @@ export const CHAIN_CONVERBS: ReadonlySet<string> = new Set(["çekip"]);
 
 /** Finite "we turn" forms admitted in this task. */
 export const TURN_FINITE_VERBS: ReadonlySet<string> = new Set(["dönüyoruz"]);
+
+/** Course nouns for `course_count`. Exact lowercase only; no row/round meaning. */
+export const COURSE_WORDS: ReadonlySet<string> = new Set(["sıra"]);
 
 /**
  * Course-end phrases before a chain -> turn pair, word by word. Exact finite
@@ -358,6 +364,56 @@ const matchCourseEndTurn = (
   return undefined;
 };
 
+/**
+ * `course_count`: "N sıra Mx", work M stitches of one type for N courses.
+ * Six tokens: course count, whitespace, course noun, whitespace, stitch count,
+ * attached glossary stitch form (the `stitch_count` spellings). Markers such as
+ * `13)` or `2-25)` stay outside the frame. No verb, and no row/round meaning.
+ */
+const matchCourseCount = (
+  source: string,
+  tokens: readonly LexToken[],
+  index: number,
+): Match | undefined => {
+  const courses = tokens[index];
+  const course = tokens[index + 2];
+  const count = tokens[index + 4];
+  const stitch = tokens[index + 5];
+  const coursesValue = countValue(courses);
+  const stitchCountValue = countValue(count);
+  if (
+    courses === undefined ||
+    coursesValue === undefined ||
+    tokens[index + 1]?.kind !== "whitespace" ||
+    course?.kind !== "word" ||
+    !COURSE_WORDS.has(course.raw) ||
+    tokens[index + 3]?.kind !== "whitespace" ||
+    count === undefined ||
+    stitchCountValue === undefined ||
+    stitch?.kind !== "abbreviation" ||
+    stitch.start !== count.end
+  ) {
+    return undefined;
+  }
+  const concept = STITCH_COUNT_FORMS.get(stitch.raw);
+  if (concept === undefined) return undefined;
+  if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
+  if (!admitsRight(nextSignificant(tokens, index + 5))) return undefined;
+
+  const frame: CourseCountFrame = {
+    kind: "frame",
+    action: "course_count",
+    span: spanOf(source, courses.start, stitch.end),
+    slots: {
+      courses: { span: tokenSpan(courses), value: coursesValue },
+      course: { span: tokenSpan(course) },
+      count: { span: tokenSpan(count), value: stitchCountValue },
+      stitch: { span: tokenSpan(stitch), concept },
+    },
+  };
+  return { start: courses.start, nodes: [frame], next: index + 6 };
+};
+
 // ---------------------------------------------------------------------------
 // Parser
 // ---------------------------------------------------------------------------
@@ -384,7 +440,8 @@ export const parseFrames = (source: string): FrameParse => {
     const match =
       matchStitchCount(source, tokens, index) ??
       matchChainTurnPair(source, tokens, index) ??
-      matchCourseEndTurn(source, tokens, index);
+      matchCourseEndTurn(source, tokens, index) ??
+      matchCourseCount(source, tokens, index);
     if (match !== undefined) {
       flushOpaque(match.start);
       nodes.push(...match.nodes);

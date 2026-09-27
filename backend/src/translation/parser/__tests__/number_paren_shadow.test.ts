@@ -156,7 +156,7 @@ describe("N) ownership: R3 (typed characterization; production unchanged)", () =
     expect(signals.map(({ slots }) => slots.scope.value)).toEqual(["every"]);
   });
 
-  it("block 2: marker 13 and still no frame for the course count", () => {
+  it("block 2: marker 13 and the course_count frame, outside the marker", () => {
     expect(second?.text).toBe("13) 5 sıra 16x");
     expect(classifyNumberParens(second!.text)).toEqual([
       {
@@ -168,7 +168,20 @@ describe("N) ownership: R3 (typed characterization; production unchanged)", () =
         index: 0,
       },
     ]);
-    expect(parseFrames(second!.text).nodes.every(({ kind }) => kind === "opaque")).toBe(true);
+    expect(parseFrames(second!.text).nodes).toEqual([
+      { kind: "opaque", span: { start: 0, end: 4, raw: "13) " } },
+      {
+        kind: "frame",
+        action: "course_count",
+        span: { start: 4, end: 14, raw: "5 sıra 16x" },
+        slots: {
+          courses: { span: { start: 4, end: 5, raw: "5" }, value: 5 },
+          course: { span: { start: 6, end: 10, raw: "sıra" } },
+          count: { span: { start: 11, end: 13, raw: "16" }, value: 16 },
+          stitch: { span: { start: 13, end: 14, raw: "x" }, concept: "single_crochet" },
+        },
+      },
+    ]);
   });
 
   it("stays known-bad with its recorded production output", () => {

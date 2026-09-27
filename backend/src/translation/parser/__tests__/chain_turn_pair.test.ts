@@ -218,18 +218,30 @@ describe("converb invariant", () => {
 describe("repro guard", () => {
   const repros = loadCorpus().cases.filter(({ value }) => value.lane === "repro");
 
-  // Repros admit only the course-end signal: no stitch_count and no standalone
-  // chain or turn. (Render units stay empty: frame_renderer_shadow.test.ts.)
+  // Repros admit only the Stage 2 signals (course_end_turn, and course_count
+  // in R3 block 2): no stitch_count and no standalone chain or turn.
+  // (Render units stay empty: frame_renderer_shadow.test.ts.)
   it.each(repros.map(({ caseId, value }) => [caseId, value.request.blocks] as const))(
-    "%s: no frame other than course_end_turn",
+    "%s: no frame other than course_end_turn or course_count",
     (_caseId, blocks) => {
       for (const block of blocks) {
         for (const node of exact(block.text).nodes) {
-          if (node.kind === "frame") expect(node.action).toBe("course_end_turn");
+          if (node.kind === "frame") expect(["course_end_turn", "course_count"]).toContain(node.action);
         }
       }
     },
   );
+
+  it("admits course_count exactly where the repro text has it", () => {
+    const found = repros.flatMap(({ caseId, value }) =>
+      value.request.blocks.flatMap((block) =>
+        exact(block.text).nodes.flatMap((node) =>
+          node.kind === "frame" && node.action === "course_count" ? [[caseId, block.id, node.span.raw]] : [],
+        ),
+      ),
+    );
+    expect(found).toEqual([["r-0b3aaf317b-cross-block-row-context", "local-block-2", "5 sıra 16x"]]);
+  });
 
   it("admits the course-end signal exactly where the repro text has it", () => {
     const found = repros.flatMap(({ caseId, value }) =>
