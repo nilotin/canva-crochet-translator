@@ -20,11 +20,18 @@
  *  - casing, sentence punctuation and joining with neighbouring text ("Work",
  *    "Ch", ", then", "."): assembly;
  *  - Opaque text: provider or later frame families;
- *  - row/round wording: PatternContext (no current frame needs it);
+ *  - deciding row/round: PatternContext (`renderCourseCount` only receives it);
  *  - languages other than English: no unit is produced.
  *
  * Target abbreviations are read from `PROJECT_NOTATION` by concept id; a
  * concept with no English abbreviation produces no unit.
+ *
+ * Context-aware rendering (next stage, Task 2: SHADOW ONLY, opt-in): the
+ * `course_count` frame needs a row/round decision that only PatternContext
+ * can make, so it is never produced by `renderUnits`. `renderCourseCount`
+ * takes that decision as a plain argument (this module never imports
+ * PatternContext) and returns a unit with piece-level provenance, because its
+ * target reorders the source ("5 sıra 16x" -> "16sc for 5 rows").
  *
  * Import rules: `../glossary.js`, and types only from `../parser/frame_ir.js`
  * and `../types.js`. No parser, lexer, translator, normalizer, validator,
@@ -33,6 +40,7 @@
 import { PROJECT_NOTATION } from "../glossary.js";
 import type {
   ChainFrame,
+  CourseCountFrame,
   FrameParse,
   ParseNode,
   SourceSpan,
@@ -124,4 +132,95 @@ export const renderUnits = (
     // A turn frame is rendered only as the second half of its chain pair.
   }
   return units;
+};
+
+// ---------------------------------------------------------------------------
+// Context-aware course_count rendering (shadow, opt-in; not part of renderUnits)
+// ---------------------------------------------------------------------------
+
+/**
+ * One piece of a rendered unit's provenance: the exact source span it comes
+ * from (original parsed-source coordinates) and the target range it produces
+ * (UTF-16 offsets local to the unit's `text`). A unit's pieces partition both
+ * its source span and its text; their target order may differ from their
+ * source order.
+ */
+export type RenderPiece = {
+  readonly sourceSpan: SourceSpan;
+  readonly targetStart: number;
+  readonly targetEnd: number;
+};
+
+export type CourseCountRenderUnit = {
+  readonly kind: "course_count";
+  /** Exactly the frame span, e.g. `5 sıra 16x`; markers and punctuation stay outside. */
+  readonly sourceSpan: SourceSpan;
+  /** Canonical lowercase target text, e.g. `16sc for 5 rows`. */
+  readonly text: string;
+  /** Two pieces, in target order: the stitch part, then the course part. */
+  readonly pieces: readonly RenderPiece[];
+};
+
+/** English course nouns by course kind: [singular, plural]. */
+const ENGLISH_COURSE_WORDS = {
+  row: ["row", "rows"],
+  round: ["round", "rounds"],
+} as const;
+
+/** A sub-span of `frame`, sliced from the frame's own raw text (no re-parsing). */
+const frameSubSpan = (frame: CourseCountFrame, start: number, end: number): SourceSpan => ({
+  start,
+  end,
+  raw: frame.span.raw.slice(start - frame.span.start, end - frame.span.start),
+});
+
+/**
+ * Renders a `course_count` frame for a course kind decided by the caller
+ * (PatternContext). English only, like `renderUnits`. Returns undefined for
+ * `unknown` (never guesses round), for other languages, and for a stitch
+ * concept with no English abbreviation. Pure.
+ *
+ * "N sıra M<stitch>" becomes "M<abbr> for N row(s)|round(s)" (singular when
+ * N is 1). Two pieces, in target order:
+ *  1. stitch part: source from the stitch count to the end of the stitch
+ *     ("16x") -> target "16sc";
+ *  2. course part: source from the course count to the start of the stitch
+ *     count ("5 sıra ", its trailing whitespace included) -> target
+ *     " for 5 rows" (its leading space included).
+ * This is the same split production's bare round-count formatting projection
+ * uses, so formatting runs can follow the reordered pieces.
+ */
+export const renderCourseCount = (
+  frame: CourseCountFrame,
+  courseKind: "row" | "round" | "unknown",
+  targetLanguage: TargetLanguage,
+): CourseCountRenderUnit | undefined => {
+  if (targetLanguage !== "en" || courseKind === "unknown") return undefined;
+  const stitch = englishAbbreviation(frame.slots.stitch.concept);
+  if (stitch === undefined) return undefined;
+
+  const courses = frame.slots.courses.value;
+  const [singular, plural] = ENGLISH_COURSE_WORDS[courseKind];
+  const stitchText = `${frame.slots.count.value}${stitch}`;
+  const courseText = ` for ${courses} ${courses === 1 ? singular : plural}`;
+  const text = stitchText + courseText;
+
+  const countStart = frame.slots.count.span.start;
+  return {
+    kind: "course_count",
+    sourceSpan: frame.span,
+    text,
+    pieces: [
+      {
+        sourceSpan: frameSubSpan(frame, countStart, frame.slots.stitch.span.end),
+        targetStart: 0,
+        targetEnd: stitchText.length,
+      },
+      {
+        sourceSpan: frameSubSpan(frame, frame.slots.courses.span.start, countStart),
+        targetStart: stitchText.length,
+        targetEnd: text.length,
+      },
+    ],
+  };
 };
