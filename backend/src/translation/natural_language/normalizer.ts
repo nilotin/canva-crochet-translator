@@ -1,6 +1,6 @@
 import type { TargetLanguage } from "../types.js";
 import {
-  inferCrochetCountUnitAtSourcePosition,
+  legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
   renderEnglishBareRoundCountLine,
   renderEnglishRoundCountTrailingActionSpan,
@@ -8,6 +8,7 @@ import {
   scanRoundCountTrailingActionSourceSpans,
   scanRoundCountYarnCutSourceSpans,
   splitLogicalLines,
+  type CourseUnitResolver,
 } from "./bare_round_count.js";
 import {
   translateTurkishYarnColor,
@@ -78,6 +79,7 @@ const normalizeEnglishRoundCountStructures = (
   source: string,
   sourceContext: string,
   sourceOffset: number,
+  resolveCourseUnit: CourseUnitResolver,
 ): string => {
   const replacements: OriginalSourceReplacement[] = [];
 
@@ -88,7 +90,7 @@ const normalizeEnglishRoundCountStructures = (
       text: renderEnglishRoundCountTrailingActionSpan(
         span,
         "x",
-        inferCrochetCountUnitAtSourcePosition(
+        resolveCourseUnit(
           sourceContext,
           sourceOffset + span.start,
         ),
@@ -103,7 +105,7 @@ const normalizeEnglishRoundCountStructures = (
       text: renderEnglishRoundCountYarnCutSpan(
         span,
         "x",
-        inferCrochetCountUnitAtSourcePosition(
+        resolveCourseUnit(
           sourceContext,
           sourceOffset + span.start,
         ),
@@ -121,7 +123,7 @@ const normalizeEnglishRoundCountStructures = (
       text: renderEnglishBareRoundCountLine(
         parsed,
         "x",
-        inferCrochetCountUnitAtSourcePosition(
+        resolveCourseUnit(
           sourceContext,
           sourceOffset + line.start,
         ),
@@ -169,6 +171,7 @@ const normalizeEnglishCrochetStructures = (
   targetLanguage: TargetLanguage,
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string => {
   if (targetLanguage !== "en") return source;
 
@@ -176,6 +179,7 @@ const normalizeEnglishCrochetStructures = (
     source,
     sourceContext,
     sourceOffset,
+    resolveCourseUnit,
   )
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
@@ -1281,6 +1285,7 @@ const normalizeSourceNaturalLanguageBase = (
   contentKind: "pattern" | "materials" = "pattern",
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string =>
   normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
@@ -1290,6 +1295,7 @@ const normalizeSourceNaturalLanguageBase = (
           targetLanguage,
           sourceContext,
           sourceOffset,
+          resolveCourseUnit,
         ),
         targetLanguage,
       ),
@@ -1452,12 +1458,19 @@ const normalizeSourceNaturalLanguageBase = (
     );
 
 
+/** Options shared by the source normalizers. */
+export type SourceNormalizationOptions = {
+  /** Row/round authority for course counts; defaults to `legacyCourseUnitResolver`. */
+  readonly resolveCourseUnit?: CourseUnitResolver;
+};
+
 export const normalizeSourceNaturalLanguage = (
   source: string,
   targetLanguage: TargetLanguage,
   contentKind: "pattern" | "materials" = "pattern",
   sourceContext: string = source,
   sourceOffset = 0,
+  options: SourceNormalizationOptions = {},
 ): string => {
   if (contentKind === "pattern" && targetLanguage === "en") {
     const sleeve = renderEnglishSleeveInstruction(source);
@@ -1473,6 +1486,7 @@ export const normalizeSourceNaturalLanguage = (
     contentKind,
     sourceContext,
     sourceOffset,
+    options.resolveCourseUnit,
   );
 };
 
@@ -1503,6 +1517,7 @@ export const normalizeSourceNaturalLanguageDetailed = (
   contentKind: "pattern" | "materials" = "pattern",
   sourceContext: string = source,
   sourceOffset = 0,
+  options: SourceNormalizationOptions = {},
 ): SourceNaturalLanguageNormalization => {
   const normalized = normalizeSourceNaturalLanguage(
     source,
@@ -1510,6 +1525,7 @@ export const normalizeSourceNaturalLanguageDetailed = (
     contentKind,
     sourceContext,
     sourceOffset,
+    options,
   );
 
   const trimmedSource = source.trim();

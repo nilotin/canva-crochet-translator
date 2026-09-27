@@ -1,12 +1,13 @@
 import type { TargetLanguage } from "../types.js";
 import {
-  inferCrochetCountUnitAtSourcePosition,
+  legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
   renderEnglishBareRoundCountLine,
   renderEnglishRoundCountTrailingActionSpan,
   renderEnglishRoundCountYarnCutSpan,
   scanRoundCountTrailingActionSourceSpans,
   scanRoundCountYarnCutSourceSpans,
+  type CourseUnitResolver,
 } from "./bare_round_count.js";
 import {
   translateTurkishYarnColor,
@@ -164,6 +165,7 @@ const normalizeEnglishCrochetInstructionLine = (
   translated: string,
   sourceContext: string = source,
   sourceStart = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string => {
   const roundCountTrailingActionSpans =
     scanRoundCountTrailingActionSourceSpans(source);
@@ -178,7 +180,7 @@ const normalizeEnglishCrochetInstructionLine = (
     return renderEnglishRoundCountTrailingActionSpan(
       roundCountTrailingActionSpan,
       "sc",
-      inferCrochetCountUnitAtSourcePosition(
+      resolveCourseUnit(
         sourceContext,
         sourceStart + roundCountTrailingActionSpan.start,
       ),
@@ -196,7 +198,7 @@ const normalizeEnglishCrochetInstructionLine = (
     return renderEnglishRoundCountYarnCutSpan(
       roundCountYarnCutSpan,
       "sc",
-      inferCrochetCountUnitAtSourcePosition(
+      resolveCourseUnit(
         sourceContext,
         sourceStart + roundCountYarnCutSpan.start,
       ),
@@ -212,6 +214,7 @@ const normalizeEnglishCrochetInstructionLine = (
       translatedPrefix,
       sourceContext,
       sourceStart,
+      resolveCourseUnit,
     );
 
     if (translatedClauses || normalizedPrefix !== translatedPrefix) {
@@ -615,7 +618,7 @@ const normalizeEnglishCrochetInstructionLine = (
     return renderEnglishBareRoundCountLine(
       roundCount,
       "sc",
-      inferCrochetCountUnitAtSourcePosition(
+      resolveCourseUnit(
         sourceContext,
         sourceStart,
       ),
@@ -730,12 +733,35 @@ const normalizeEnglishCrochetInstructionLine = (
   return translated;
 };
 
+/**
+ * True when the line rebuild decides this source line's row/round wording
+ * through the course-unit resolver: a bare course-count line, or a line that is
+ * exactly one course-count trailing-action or cut-yarn span. The segment-wide
+ * wording rewrite leaves such lines to that rebuild, so it is never a second
+ * authority for them.
+ */
+const isResolverOwnedCourseCountLine = (source: string): boolean => {
+  if (parseBareRoundCountSourceLine(source) !== undefined) return true;
+  const wholeLine = (spans: readonly { start: number; end: number }[]): boolean =>
+    spans.length === 1 &&
+    source.slice(0, spans[0]!.start).trim() === "" &&
+    source.slice(spans[0]!.end).trim() === "";
+  return (
+    wholeLine(scanRoundCountTrailingActionSourceSpans(source)) ||
+    wholeLine(scanRoundCountYarnCutSourceSpans(source))
+  );
+};
+
+const toRoundWording = (text: string): string =>
+  text.replace(/\brows\b/giu, "rounds").replace(/\brow\b/giu, "round");
+
 const normalizeEnglishCrochetInstructions = (
   source: string,
   translated: string,
   targetLanguage: TargetLanguage,
   sourceContext: string = source,
   sourceStart = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string => {
   if (targetLanguage !== "en") return translated;
   const sourceLines = source.split("\n");
@@ -746,14 +772,19 @@ const normalizeEnglishCrochetInstructions = (
     ) ||
     /\b\d+\s+zincir(?:\s+çekip)?\s+dön(?:üyoruz)?\b/iu.test(source);
 
-  const crochetTerminology =
-    /(?<!\p{L})sıra\p{L}*/iu.test(source) && !usesTurningRows
-      ? translated
-          .replace(/\brows\b/giu, "rounds")
-          .replace(/\brow\b/giu, "round")
-      : translated;
-  const translatedLines = crochetTerminology.split("\n");
-  if (sourceLines.length !== translatedLines.length) return crochetTerminology;
+  // Segment-wide wording rule for text the resolver does not own. Lines whose
+  // unit the resolver decides (below, in the line rebuild) are left alone.
+  const roundWording =
+    /(?<!\p{L})sıra\p{L}*/iu.test(source) && !usesTurningRows;
+  const rawTranslatedLines = translated.split("\n");
+  if (sourceLines.length !== rawTranslatedLines.length) {
+    return roundWording ? toRoundWording(translated) : translated;
+  }
+  const translatedLines = rawTranslatedLines.map((line, index) =>
+    roundWording && !isResolverOwnedCourseCountLine(sourceLines[index] ?? "")
+      ? toRoundWording(line)
+      : line,
+  );
   let lineStart = 0;
 
   return sourceLines
@@ -763,6 +794,7 @@ const normalizeEnglishCrochetInstructions = (
         translatedLines[index] ?? "",
         sourceContext,
         sourceStart + lineStart,
+        resolveCourseUnit,
       );
 
       lineStart += sourceLine.length + (index < sourceLines.length - 1 ? 1 : 0);
@@ -865,6 +897,12 @@ const normalizeMaterialsSafetyEyes = (
     .join("\n");
 };
 
+/** Options for `normalizeTranslationStyle`. */
+export type StyleNormalizationOptions = {
+  /** Row/round authority for course counts; defaults to `legacyCourseUnitResolver`. */
+  readonly resolveCourseUnit?: CourseUnitResolver;
+};
+
 export const normalizeTranslationStyle = (
   source: string,
   translated: string,
@@ -872,6 +910,7 @@ export const normalizeTranslationStyle = (
   contentKind: "pattern" | "materials" = "pattern",
   sourceContext: string = source,
   sourceStart = 0,
+  options: StyleNormalizationOptions = {},
 ): string => {
   const magicRingOpening = normalizeMagicRingOpening(
     source,
@@ -894,6 +933,7 @@ export const normalizeTranslationStyle = (
     targetLanguage,
     sourceContext,
     sourceStart,
+    options.resolveCourseUnit,
   );
   const floBlo = normalizeSimpleFloBlo(
     source,

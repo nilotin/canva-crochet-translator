@@ -16,7 +16,7 @@ import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
 import {
-  inferCrochetCountUnitAtSourcePosition,
+  legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
   parseBareRoundCountTargetLine,
   scanRoundCountTrailingActionSourceSpans,
@@ -24,6 +24,7 @@ import {
   scanRoundCountYarnCutSourceSpans,
   scanRoundCountYarnCutTargetSpans,
   splitLogicalLines,
+  type CourseUnitResolver,
 } from "./natural_language/bare_round_count.js";
 import type {
   BlockValidation,
@@ -93,11 +94,9 @@ const expectedCrochetCountUnitWord = (
   count: string,
   sourceContext: string,
   sourcePosition: number,
+  resolveCourseUnit: CourseUnitResolver,
 ): "round" | "rounds" | "row" | "rows" => {
-  const unit = inferCrochetCountUnitAtSourcePosition(
-    sourceContext,
-    sourcePosition,
-  );
+  const unit = resolveCourseUnit(sourceContext, sourcePosition);
 
   if (Number(count) === 1) return unit;
   return unit === "row" ? "rows" : "rounds";
@@ -108,6 +107,7 @@ const hasValidBareCrochetCountUnits = (
   translated: string,
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): boolean => {
   const sourceLines = splitLogicalLines(source);
   const translatedLines = splitLogicalLines(translated);
@@ -121,6 +121,7 @@ const hasValidBareCrochetCountUnits = (
       sourceMatch.rounds,
       sourceContext,
       sourceOffset + sourceLine.start,
+      resolveCourseUnit,
     );
 
     let translatedLineIndex: number | undefined;
@@ -195,6 +196,7 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
   translated: string,
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string[] | undefined => {
   const sourceLines = splitLogicalLines(source);
   const translatedLines = splitLogicalLines(translated);
@@ -213,6 +215,7 @@ const comparableSourceNumbersWithVerifiedBareRoundCountSwaps = (
               sourceMatch.rounds,
               sourceContext,
               sourceOffset + sourceLine.start,
+              resolveCourseUnit,
             )
           : undefined;
 
@@ -239,6 +242,7 @@ const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
   translated: string,
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string[] | undefined => {
   const sourceSpans = scanRoundCountTrailingActionSourceSpans(source);
   const targetSpans = scanRoundCountTrailingActionTargetSpans(translated);
@@ -258,6 +262,7 @@ const comparableSourceNumbersWithVerifiedTrailingActionSwaps = (
       sourceSpan.rounds,
       sourceContext,
       sourceOffset + sourceSpan.start,
+      resolveCourseUnit,
     );
 
     if (
@@ -310,6 +315,7 @@ const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
   translated: string,
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string[] | undefined => {
   const sourceSpans = scanRoundCountYarnCutSourceSpans(source);
   const targetSpans = scanRoundCountYarnCutTargetSpans(translated);
@@ -328,6 +334,7 @@ const comparableSourceNumbersWithVerifiedYarnCutSwaps = (
       sourceSpan.rounds,
       sourceContext,
       sourceOffset + sourceSpan.start,
+      resolveCourseUnit,
     );
 
     if (
@@ -541,6 +548,8 @@ export const validateTranslation = (
     contentKind?: "pattern" | "materials";
     sourceContext?: string;
     sourceStart?: number;
+    /** Row/round authority for course counts; defaults to `legacyCourseUnitResolver`. */
+    resolveCourseUnit?: CourseUnitResolver;
   } = {},
 ): BlockValidation => {
   const errors: ValidationDiagnostic<ValidationCode>[] = [];
@@ -596,6 +605,7 @@ export const validateTranslation = (
           translated,
           options.sourceContext ?? source,
           options.sourceStart ?? 0,
+          options.resolveCourseUnit,
         ) ?? [],
         translatedNumbers,
       )) ||
@@ -606,6 +616,7 @@ export const validateTranslation = (
           translated,
           options.sourceContext ?? source,
           options.sourceStart ?? 0,
+          options.resolveCourseUnit,
         ) ?? [],
         translatedNumbers,
       )) ||
@@ -616,6 +627,7 @@ export const validateTranslation = (
           translated,
           options.sourceContext ?? source,
           options.sourceStart ?? 0,
+          options.resolveCourseUnit,
         ) ?? [],
         translatedNumbers,
       ));
@@ -628,6 +640,7 @@ export const validateTranslation = (
       translated,
       options.sourceContext ?? source,
       options.sourceStart ?? 0,
+      options.resolveCourseUnit,
     );
 
   if (!numericSequenceMatches || !bareCountUnitsValid) {

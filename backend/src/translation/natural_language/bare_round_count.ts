@@ -356,11 +356,24 @@ export const inferCrochetCountUnitAtSourcePosition = (
   return "round";
 };
 
+/**
+ * The one authority for a course-count unit (row or round) at `position` in
+ * `sourceContext`. Every row/round decision in the normalizer, the style
+ * normalizer and the validator asks a resolver; callers that pass none get
+ * `legacyCourseUnitResolver`, the existing numbered-instruction inference, so
+ * behavior is unchanged. A later layer can supply another resolver without
+ * this module depending on it.
+ */
+export type CourseUnitResolver = (sourceContext: string, position: number) => CrochetCountUnit;
+
+export const legacyCourseUnitResolver: CourseUnitResolver = inferCrochetCountUnitAtSourcePosition;
+
 export const normalizeRoundCountTrailingActionSourceSpans = (
   source: string,
   stitchNotation: "x" | "sc",
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string => {
   const spans = scanRoundCountTrailingActionSourceSpans(source);
   let normalized = source;
@@ -371,7 +384,7 @@ export const normalizeRoundCountTrailingActionSourceSpans = (
       renderEnglishRoundCountTrailingActionSpan(
         span,
         stitchNotation,
-        inferCrochetCountUnitAtSourcePosition(
+        resolveCourseUnit(
           sourceContext,
           sourceOffset + span.start,
         ),
@@ -396,6 +409,7 @@ export const normalizeRoundCountYarnCutSourceSpans = (
   stitchNotation: "x" | "sc",
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string => {
   const spans = scanRoundCountYarnCutSourceSpans(source);
   let normalized = source;
@@ -405,7 +419,7 @@ export const normalizeRoundCountYarnCutSourceSpans = (
       renderEnglishRoundCountYarnCutSpan(
         span,
         stitchNotation,
-        inferCrochetCountUnitAtSourcePosition(
+        resolveCourseUnit(
           sourceContext,
           sourceOffset + span.start,
         ),
@@ -451,6 +465,7 @@ export const normalizeBareRoundCountSourceLines = (
   stitchNotation: "x" | "sc",
   sourceContext: string = source,
   sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
 ): string =>
   splitLogicalLines(source)
     .map((line) => {
@@ -459,7 +474,7 @@ export const normalizeBareRoundCountSourceLines = (
         ? renderEnglishBareRoundCountLine(
             parsed,
             stitchNotation,
-            inferCrochetCountUnitAtSourcePosition(
+            resolveCourseUnit(
               sourceContext,
               sourceOffset + line.start,
             ),
