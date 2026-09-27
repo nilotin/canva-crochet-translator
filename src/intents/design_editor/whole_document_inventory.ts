@@ -90,33 +90,47 @@ const geometryOf = (element: unknown): Geometry => {
 // (or anything is missing), the child has no usable geometry, so a wrong
 // coordinate assumption can only make the page untrusted, never misordered.
 const groupChildGeometry = (group: Geometry, child: Geometry): Geometry => {
-  const values = [group.top, group.left, group.width, group.height];
-  const offsets = [child.top, child.left, child.width, child.height];
+  const {
+    top: groupTop,
+    left: groupLeft,
+    width: groupWidth,
+    height: groupHeight,
+  } = group;
+  const {
+    top: childTop,
+    left: childLeft,
+    width: childWidth,
+    height: childHeight,
+  } = child;
 
   if (
-    values.some((value) => value === undefined) ||
-    offsets.some((value) => value === undefined)
+    groupTop === undefined ||
+    groupLeft === undefined ||
+    groupWidth === undefined ||
+    groupHeight === undefined ||
+    childTop === undefined ||
+    childLeft === undefined ||
+    childWidth === undefined ||
+    childHeight === undefined
   ) {
     return {};
   }
 
-  const top = group.top! + child.top!;
-  const left = group.left! + child.left!;
+  const top = groupTop + childTop;
+  const left = groupLeft + childLeft;
   const fits =
-    top >= group.top! - GROUP_BOUNDS_TOLERANCE &&
-    left >= group.left! - GROUP_BOUNDS_TOLERANCE &&
-    top + child.height! <=
-      group.top! + group.height! + GROUP_BOUNDS_TOLERANCE &&
-    left + child.width! <=
-      group.left! + group.width! + GROUP_BOUNDS_TOLERANCE;
+    top >= groupTop - GROUP_BOUNDS_TOLERANCE &&
+    left >= groupLeft - GROUP_BOUNDS_TOLERANCE &&
+    top + childHeight <= groupTop + groupHeight + GROUP_BOUNDS_TOLERANCE &&
+    left + childWidth <= groupLeft + groupWidth + GROUP_BOUNDS_TOLERANCE;
 
   if (!fits) return {};
 
   return {
     top,
     left,
-    width: child.width,
-    height: child.height,
+    width: childWidth,
+    height: childHeight,
     rotation:
       (group.rotation ?? 0) !== 0 ? group.rotation : child.rotation,
   };

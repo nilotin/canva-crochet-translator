@@ -74,6 +74,11 @@ describe("bulk translation: readingOrder request metadata", () => {
         { id: "d", text: "Burun", formattingRegions: [] },
       ],
     ]);
-    expect(bodies[1]!.blocks.some((block) => "readingOrder" in block)).toBe(false);
+    expect(
+      bodies.map(({ blocks }) => blocks.map((block) => "readingOrder" in block)),
+    ).toEqual([
+      [true, true],
+      [false, false],
+    ]);
   });
 });

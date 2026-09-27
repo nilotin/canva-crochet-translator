@@ -43,6 +43,8 @@ export type ReadingOrderResult =
     };
 
 type Box = {
+  /** Index of the box in the input array. */
+  position: number;
   originalIndex: number;
   top: number;
   bottom: number;
@@ -94,6 +96,7 @@ export const computeReadingOrder = (
     }
 
     measured.push({
+      position: measured.length,
       originalIndex: box.originalIndex,
       top,
       bottom: top + height,
@@ -101,9 +104,9 @@ export const computeReadingOrder = (
     });
   }
 
-  for (let first = 0; first < measured.length; first += 1) {
-    for (let second = first + 1; second < measured.length; second += 1) {
-      if (!verticallySeparable(measured[first]!, measured[second]!)) {
+  for (const [index, first] of measured.entries()) {
+    for (const second of measured.slice(index + 1)) {
+      if (!verticallySeparable(first, second)) {
         return { trusted: false, reason: "ambiguous_layout" };
       }
     }
@@ -115,12 +118,11 @@ export const computeReadingOrder = (
     (left, right) =>
       left.top - right.top || left.originalIndex - right.originalIndex,
   );
-  const rankByIndex = new Map(
-    ranked.map(({ originalIndex }, rank) => [originalIndex, rank]),
-  );
+  const readingOrder = measured.map(() => 0);
 
-  return {
-    trusted: true,
-    readingOrder: boxes.map(({ originalIndex }) => rankByIndex.get(originalIndex)!),
-  };
+  ranked.forEach(({ position }, rank) => {
+    readingOrder[position] = rank;
+  });
+
+  return { trusted: true, readingOrder };
 };

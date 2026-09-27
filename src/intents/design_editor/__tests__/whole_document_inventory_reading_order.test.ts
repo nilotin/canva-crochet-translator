@@ -45,12 +45,15 @@ const readPage = async (elements: unknown[]) => {
   const inventory = await readWholeDocumentInventory({
     openDesign: openDesign as never,
   });
-  return inventory.pages[0]!.blocks.map(({ id, sourceText, order, readingOrder }) => ({
-    id,
-    sourceText,
-    order,
-    readingOrder,
-  }));
+  expect(inventory.pages).toHaveLength(1);
+  return inventory.pages.flatMap(({ blocks }) =>
+    blocks.map(({ id, sourceText, order, readingOrder }) => ({
+      id,
+      sourceText,
+      order,
+      readingOrder,
+    })),
+  );
 };
 
 const column = (top: number, height = 40) => ({ top, left: 20, width: 500, height });
