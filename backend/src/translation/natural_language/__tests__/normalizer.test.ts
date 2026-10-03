@@ -4,6 +4,8 @@ import {
   normalizeSourceNaturalLanguage,
   normalizeSourceNaturalLanguageDetailed,
 } from "../normalizer.js";
+import { normalizeTranslationStyle } from "../style_normalizer.js";
+import { validateTranslation } from "../../validator.js";
 
 describe("normalizeSourceNaturalLanguage", () => {
 
@@ -129,7 +131,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "Bu sırayı FLO’dan örüyoruz, 6x",
         "en",
       ),
-    ).toBe("Work this round in FLO, 6x");
+    ).toBe("Work in FLO, 6x");
   });
 
   it("accepts apostrophe and spacing variants in conditional loop instructions", () => {
@@ -149,7 +151,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "2.20 mm tığ ile bu sırayı FLO’dan örüyoruz",
         "en",
       ),
-    ).toBe("2.20 mm tığ ile Work this round in FLO");
+    ).toBe("2.20 mm tığ ile Work in FLO");
   });
 
   it("does not rewrite an unsupported conditional technique unsafely", () => {
@@ -157,7 +159,7 @@ describe("normalizeSourceNaturalLanguage", () => {
       "Bu sırayı FLO’dan örüyoruz (farklı bir teknik kullananlar, BLO’dan örecekler)";
 
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(
-      "Work this round in FLO (farklı bir teknik kullananlar, BLO’dan örecekler)",
+      "Work in FLO (farklı bir teknik kullananlar, BLO’dan örecekler)",
     );
   });
 
@@ -1377,10 +1379,48 @@ describe("normalizeSourceNaturalLanguage", () => {
   // sırayı" ("this round"), so the round should be named in the output.
   // Bare "BLO’dan örüyoruz" (without "bu sırayı") is untouched by this
   // rule and keeps its own plain "Work in BLO" phrasing elsewhere.
-  it("names the round for an explicit \"bu sırayı\" simple loop instruction", () => {
-    expect(
-      normalizeSourceNaturalLanguage("Bu sırayı Blo’dan örüyoruz", "en"),
-    ).toBe("Work this round in BLO");
+  it("renders an explicit \"bu sırayı\" simple loop instruction unit-neutrally (Task 17C)", () => {
+    // "bu sırayı" names the current course without saying row or round, and
+    // turned rows use it too, so English must not assert either unit.
+    for (const [source, expected] of [
+      ["Bu sırayı Blo’dan örüyoruz", "Work in BLO"],
+      ["Bu sırayı FLO’dan örüyoruz", "Work in FLO"],
+    ] as const) {
+      const english = normalizeSourceNaturalLanguage(source, "en");
+      expect(english).toBe(expected);
+      expect(english).not.toMatch(/\b(?:round|row)s?\b/iu);
+      // The segment-wide style pass must not reinsert a unit either.
+      expect(normalizeTranslationStyle(`${source}.`, `${english}.`, "en"))
+        .toBe(`${expected}.`);
+    }
+  });
+
+  it("renders the same simple loop instruction unit-neutrally in Spanish (Task 17D)", () => {
+    // "esta vuelta" asserted a round the pipeline cannot know; the Spanish
+    // conditional template already uses the unit-free "Trabaja en <loop>".
+    for (const [source, expected] of [
+      ["Bu sırayı Blo’dan örüyoruz", "Trabaja en BLO"],
+      ["Bu sırayı FLO’dan örüyoruz", "Trabaja en FLO"],
+      ["Bu sırayı Blo’dan örüyoruz.", "Trabaja en BLO."],
+      ["27) Bu sırayı Blo’dan örüyoruz.", "27) Trabaja en BLO."],
+    ] as const) {
+      const spanish = normalizeSourceNaturalLanguage(source, "es");
+      expect(spanish).toBe(expected);
+      expect(spanish).not.toMatch(/vuelta|fila|ronda/iu);
+      // Style normalization must not reinsert a unit.
+      expect(normalizeTranslationStyle(source, spanish, "es")).toBe(expected);
+      // A valid result stays valid; the validator checks no Spanish unit.
+      expect(validateTranslation(source, spanish, "es", {
+        notationCaseInsensitive: true, contentKind: "pattern",
+      }).valid).toBe(true);
+    }
+    // English keeps the Task 17C wording.
+    expect(normalizeSourceNaturalLanguage("Bu sırayı Blo’dan örüyoruz", "en")).toBe("Work in BLO");
+    // The conditional template was already unit-free and is unchanged.
+    expect(normalizeSourceNaturalLanguage(
+      "Bu sırayı FLO’dan örüyoruz (çapraz ya da düz sık iğne tekniği ile örenler, BLO’dan örecekler).",
+      "es",
+    )).toBe("Trabaja en FLO. Si usando punto bajo cruzado o punto bajo normal, trabaja en BLO en su lugar.");
   });
 
 

@@ -312,7 +312,7 @@ describe("compact crochet-row semantic formatting projection", () => {
     const source =
       "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,";
     const target =
-      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,";
+      "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,";
 
     const stitchStart = source.indexOf("2x, 1v");
     const turnStart = source.indexOf("1 zincir");
@@ -548,7 +548,7 @@ describe("compact crochet-row structural validation regressions", () => {
     const source =
       "2) Bu sırayı Blo’dan örüyoruz. 2x, 1v, (4x,1v)*3, 2x = 24x, 1 zincir, dön,";
     const target =
-      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 99sc, Ch 1 and turn,";
+      "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 99sc, Ch 1 and turn,";
 
     const stitchStart = source.indexOf("2x, 1v");
     const turnStart = source.indexOf("1 zincir");

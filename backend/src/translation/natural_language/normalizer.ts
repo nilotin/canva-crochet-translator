@@ -1320,15 +1320,15 @@ const normalizeSimpleLoopInstruction = (
   targetLanguage: TargetLanguage,
 ): string =>
   source.replace(
-    // The regex itself only ever matches when the source explicitly says
-    // "bu sırayı" ("this round"), so it's safe to always render that word
-    // here -- bare "<loop>'dan örüyoruz" without "bu sırayı" never reaches
-    // this rule and keeps its own plain "Work in <loop>" phrasing.
+    // "bu sırayı" ("this course") names the current course without saying
+    // whether it is a row or a round, and nothing here knows which (turned
+    // rows use it too). Both languages therefore stay unit-neutral, like the
+    // conditional loop template above: "Work in <loop>" / "Trabaja en <loop>".
     /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\b/giu,
     (_match, loopRaw: string) =>
       targetLanguage === "en"
-        ? `Work this round in ${loopRaw.toUpperCase()}`
-        : `Trabaja esta vuelta en ${loopRaw.toUpperCase()}`,
+        ? `Work in ${loopRaw.toUpperCase()}`
+        : `Trabaja en ${loopRaw.toUpperCase()}`,
   );
 
 const normalizeSourceNaturalLanguageBase = (

@@ -5577,7 +5577,7 @@ describe("Page 14 exact saved blocks", () => {
     expect(result?.translated).toContain("Ch 1 and turn.");
 
     expect(result?.translated).toContain(
-      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+      "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
     );
 
     expect(result?.translated).toContain(
@@ -5665,7 +5665,7 @@ describe("Page 14 exact saved blocks", () => {
         "As shown in the image, when I worked 13sc, it aligned exactly over the arm. " +
         "You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. " +
         "Ch 1 and turn.\n" +
-        "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
+        "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
         "3) 24sc, Ch 1 and turn,\n" +
         "4) 24sc. Ch 1 and cut the yarn.",
     );
@@ -5703,12 +5703,12 @@ describe("Page 14 exact saved blocks", () => {
     expect(ownerAt("when I worked 13sc")).toBe("fmt-2");
     expect(ownerAt("1-2 fewer or additional")).toBe("fmt-3");
     expect(ownerAt("Ch 1 and turn.\n2)")).toBe("fmt-4");
-    expect(ownerAt("Work this round in BLO")).toBe("fmt-5");
+    expect(ownerAt("Work in BLO")).toBe("fmt-5");
     expect(ownerAt("2sc, 1inc")).toBe("fmt-6");
 
     const bloTurnOffset = translated.indexOf(
       "Ch 1 and turn,",
-      translated.indexOf("Work this round in BLO"),
+      translated.indexOf("Work in BLO"),
     );
     expect(
       regions.find(
@@ -6331,7 +6331,7 @@ describe("Page 14 compact-row semantic formatting projection", () => {
     const translated = result?.translated ?? "";
 
     expect(translated).toBe(
-      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+      "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
     );
 
     const translatedStitchStart = translated.indexOf("2sc, 1inc");
@@ -6447,7 +6447,7 @@ describe("Page 14 compact-row semantic formatting projection", () => {
     const translated = result?.translated ?? "";
 
     expect(translated).toBe(
-      "2) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
+      "2) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,",
     );
 
     expect(result?.formattingProjection).toBe("atomic_collapse");
@@ -6575,7 +6575,7 @@ describe("live Page 14 formatting regression", () => {
     expect(result?.translated).toBe(
       "2-25) 20sc for 24 rounds\n" +
         "26) Work 13sc (we will crochet the section folded outward over the arm). As shown in the image, when I worked 13sc, it aligned exactly over the arm. You can work 1-2 fewer or additional single crochet stitches so that it aligns with the top of the arm. Ch 1 and turn.\n" +
-        "27) Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
+        "27) Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n" +
         "28) 24sc, Ch 1 and turn,\n" +
         "29) 24sc. Ch 1 and cut the yarn.",
     );
@@ -6600,7 +6600,7 @@ describe("live Page 14 formatting regression", () => {
       {
         id: "fmt-5",
         text:
-          "Work this round in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n",
+          "Work in BLO. 2sc, 1inc, (4sc,1inc)*3, 2sc = 24sc, Ch 1 and turn,\n",
       },
       { id: "fmt-6", text: "28) " },
       { id: "fmt-7", text: "24sc, Ch 1 and turn,\n" },

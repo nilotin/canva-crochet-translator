@@ -590,7 +590,7 @@ const projectCompactChainTurnFormattingRegions = (
     );
 
   const targetIntroMatch =
-    /^(\s*)(?:(\d+)\)\s*)?Work\s+this\s+round\s+in\s+(FLO|BLO)[.]\s*/u.exec(
+    /^(\s*)(?:(\d+)\)\s*)?Work\s+in\s+(FLO|BLO)[.]\s*/u.exec(
       target,
     );
 
