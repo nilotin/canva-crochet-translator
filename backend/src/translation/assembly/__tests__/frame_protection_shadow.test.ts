@@ -22,6 +22,8 @@ const blocks = cases.flatMap(({ caseId, value }) =>
   value.request.blocks.map((block) => ({
     label: `${caseId} ${block.id}`,
     lane: value.lane,
+    /** One of the measured Stage 0 hazard cases R1-R4. */
+    measured: value.labels.hazards.length > 0,
     targetLanguage: value.request.targetLanguage,
     text: block.text,
   })),
@@ -78,7 +80,7 @@ describe("frame protection shadow: frame-bearing corpus blocks", () => {
 });
 
 describe("frame protection shadow: blocks without English units", () => {
-  const withoutUnits = blocks.filter(({ targetLanguage, lane }) => targetLanguage === "es" || lane === "repro");
+  const withoutUnits = blocks.filter(({ targetLanguage, measured }) => targetLanguage === "es" || measured);
 
   it.each(withoutUnits.map(({ label, text, targetLanguage }) => [label, text, targetLanguage] as const))(
     "%s: no units in its own language, carrier equals source, restore is identity",
@@ -92,8 +94,8 @@ describe("frame protection shadow: blocks without English units", () => {
     },
   );
 
-  it("covers all four repro cases, which have no units even in English", () => {
-    const repros = cases.filter(({ value }) => value.lane === "repro");
+  it("covers all four measured hazard cases (R1-R4), which have no units even in English", () => {
+    const repros = cases.filter(({ value }) => value.labels.hazards.length > 0);
     expect(repros).toHaveLength(4);
     for (const { value } of repros) {
       for (const block of value.request.blocks) {

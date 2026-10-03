@@ -80,6 +80,10 @@ const normalizeMaterialsTerminology = (
       )
     : source;
 
+/** Plain "sıra sonunda / sıra sonlarında N zincir çekip dönüyoruz", never after "bütün". */
+const COURSE_END_TURN_PATTERN =
+  /(?<!\bbütün\s+)\bsıra\s+(sonunda|sonlarında)\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu;
+
 type OriginalSourceReplacement = {
   start: number;
   end: number;
@@ -381,10 +385,15 @@ const normalizeEnglishCrochetStructures = (
         `At the end of each row, ch ${chains} and turn.`,
     )
     .replace(
-      // Plain "sıra sonlarında" keeps the project's established round wording.
-      /\bsıra\s+sonlarında\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu,
-      (_match, chains: string) =>
-        `At the end of each round, ch ${chains} and turn.`,
+      // Plain "sıra sonunda/sonlarında ... dönüyoruz" turns at the course end
+      // but does not say whether the course is a row or a turned round, so it
+      // stays unit-neutral. "Bütün sıra ..." (explicit row guidance) is handled
+      // above and never reaches this rule.
+      COURSE_END_TURN_PATTERN,
+      (_match, ending: string, chains: string) =>
+        ending.toLocaleLowerCase("tr-TR") === "sonunda"
+          ? `When you reach the end, ch ${chains} and turn.`
+          : `Each time you reach the end, ch ${chains} and turn.`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
@@ -1560,6 +1569,9 @@ const fullyResolvedSleeveSetupPattern =
 const fullyResolvedSleeveShapingPattern =
   /^\s*(?:\d+\)\s*)?\d+\s*x\s+örüyoruz\s*\(\s*kolun\s+üzerindeki\s+dışa\s+doğru\s+kıvırdığımız\s+kısmı\s+öreceğiz\s*\)\s*[.]\s*görselde\s+görüldüğü\s+gibi\s+ben\s+\d+\s*x\s+ördüğümde\s+tam\s+kolun\s+üzerine\s+denk\s+geldi\s*[.]\s*sizde\s+kolun\s+üst\s+kısmına\s+denk\s+gelecek\s+şekilde\s+\d+-\d+\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örebilirsiniz\s*[.]\s*\d+\s+zincir\s+çekip\s+dönüyoruz\s*[.]?\s*$/iu;
 
+const fullyResolvedCourseEndTurnPattern =
+  /^\s*(?:\d+(?:-\d+)?\)\s*)?sıra\s+(?:sonunda|sonlarında)\s+\d+\s+zincir\s+çekip\s+dönüyoruz\s*[.]?\s*$/iu;
+
 const fullyResolvedLongButtonholeGuidancePattern =
   /^\s*\d+\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)\s*$/iu;
 
@@ -1608,6 +1620,7 @@ export const normalizeSourceNaturalLanguageDetailed = (
       fullyResolvedSleeveShapingPattern.test(source) ||
       fullyResolvedSleeveInstruction ||
       fullyResolvedLongButtonholeGuidancePattern.test(source) ||
+      fullyResolvedCourseEndTurnPattern.test(source) ||
       fullyResolvedRoundCountTrailingAction
     );
 

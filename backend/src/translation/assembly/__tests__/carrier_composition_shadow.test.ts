@@ -31,6 +31,8 @@ const blocks = cases.flatMap(({ caseId, value }) =>
   value.request.blocks.map((block) => ({
     label: `${caseId} ${block.id}`,
     lane: value.lane,
+    /** One of the measured Stage 0 hazard cases R1-R4. */
+    measured: value.labels.hazards.length > 0,
     targetLanguage: value.request.targetLanguage,
     text: block.text,
   })),
@@ -95,7 +97,7 @@ describe("combined carrier shadow: frame-bearing corpus blocks", () => {
 });
 
 describe("combined carrier shadow: blocks without frame units stay identity", () => {
-  const withoutUnits = blocks.filter(({ targetLanguage, lane }) => targetLanguage === "es" || lane === "repro");
+  const withoutUnits = blocks.filter(({ targetLanguage, measured }) => targetLanguage === "es" || measured);
 
   it.each(withoutUnits.map(({ label, text, targetLanguage }) => [label, text, targetLanguage] as const))(
     "%s: no frame tokens, frame layer changes nothing",
@@ -110,7 +112,7 @@ describe("combined carrier shadow: blocks without frame units stay identity", ()
     },
   );
 
-  it("covers all four repro cases", () => {
-    expect(cases.filter(({ value }) => value.lane === "repro")).toHaveLength(4);
+  it("covers all four measured hazard cases (R1-R4)", () => {
+    expect(cases.filter(({ value }) => value.labels.hazards.length > 0)).toHaveLength(4);
   });
 });

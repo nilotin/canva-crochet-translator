@@ -1,0 +1,55 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "local-block-1",
+        "source": "Sıra sonunda 1 zincir çekip dönüyoruz.",
+        "translated": "When you reach the end, ch 1 and turn.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "c-9fd3d972ce-course-end-turn",
+  "labels": {
+    "families": [
+      "turning-row"
+    ],
+    "hazards": [
+      "row-round-unit-drift"
+    ],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 golden case, promoted from known-bad repro r-9fd3d972ce-unit-drift-turning (R4, hazard row-round-unit-drift) after Task 18B fixed it. Exact source request unchanged. Expected target from the explicit human-approved Task 18B product wording decision (\"Sıra sonunda 1 zincir çekip dönüyoruz.\" -> \"When you reach the end, ch 1 and turn.\"), verified byte-identical to the live translateBlocks output with zero provider calls."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "local-block-1",
+        "text": "Sıra sonunda 1 zincir çekip dönüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "approved",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "local-block-1",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

@@ -1,6 +1,9 @@
 /**
- * Stage 0, Step 3, reduced in Step 5: inventory of the four measured repros
- * (R1 to R4).
+ * Stage 0, Step 3, reduced in Step 5: inventory of the measured repros that are
+ * still open (R1 to R3). R4 (`row-round-unit-drift`) was fixed in Task 18B and
+ * promoted, with its unchanged request, to the curated lane as the approved
+ * regression case `c-9fd3d972ce-course-end-turn`; it is no longer a known-bad
+ * repro.
  *
  * Step 3 proved the harness by replaying each repro through the real
  * translateBlocks here. Step 5 moved that replay to the general suite
@@ -23,7 +26,6 @@ const REQUIRED_HAZARDS = [
   "ordinal-at-block-start", // R1
   "ordinal-mid-block", // R2
   "cross-block-context", // R3
-  "row-round-unit-drift", // R4
 ] as const;
 
 const repros = loadCorpus().cases.filter((entry) => entry.lane === "repro");
@@ -46,6 +48,14 @@ describe("Stage 0 repro cases: inventory", () => {
       expect(desired.length).toBeGreaterThan(0);
     },
   );
+
+  it("keeps fixed R4 as an approved curated regression, not as a known-bad repro", () => {
+    const r4 = loadCorpus().cases.filter(({ value }) =>
+      value.labels.hazards.includes("row-round-unit-drift"));
+    expect(r4.map(({ caseId, lane, value }) => [caseId, lane, value.status, value.labels.zeroProvider]))
+      .toEqual([["c-9fd3d972ce-course-end-turn", "curated", "approved", true]]);
+    expect(r4[0]?.value.expected?.results[0]?.translated).toBe("When you reach the end, ch 1 and turn.");
+  });
 
   it("R3 puts both blocks in one request", () => {
     const r3 = repros.find(({ value }) => value.labels.hazards.includes("cross-block-context"));

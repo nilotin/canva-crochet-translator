@@ -107,7 +107,8 @@ describe("frame ownership shadow: representative pins", () => {
 
 describe("frame ownership shadow: repro and Spanish cases", () => {
   it("R1-R4 produce no units and therefore no ownership results", () => {
-    const repros = cases.filter(({ value }) => value.lane === "repro");
+    // The measured Stage 0 hazard cases (R4 is now an approved curated case).
+    const repros = cases.filter(({ value }) => value.labels.hazards.length > 0);
     expect(repros).toHaveLength(4);
     expect(classified.filter(({ caseId }) => repros.some((repro) => repro.caseId === caseId))).toEqual([]);
   });

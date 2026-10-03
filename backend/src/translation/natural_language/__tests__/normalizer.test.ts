@@ -1645,14 +1645,14 @@ describe("Page 13 yarn intro and inflected chain-skip families", () => {
 });
 
 describe("Page 13 buttonhole and repeated round-end families", () => {
-  it("normalizes repeated round-end chain-and-turn wording", () => {
+  it("normalizes repeated course-end chain-and-turn wording unit-neutrally (Task 18B)", () => {
     expect(
       normalizeSourceNaturalLanguage(
         "Sıra sonlarında 1 zincir çekip dönüyoruz.",
         "en",
         "pattern",
       ),
-    ).toBe("At the end of each round, ch 1 and turn.");
+    ).toBe("Each time you reach the end, ch 1 and turn.");
   });
 
   it("consumes the optional Bütün prefix in repeated row-end turning instructions", () => {
@@ -1821,5 +1821,57 @@ describe("Page 14 sleeve shaping family", () => {
     expect(
       normalizeSourceNaturalLanguageDetailed(shaping, "es", "pattern").fullyResolved,
     ).toBe(false);
+  });
+});
+
+describe("course-end turn family is unit-neutral (Task 18B)", () => {
+  // "sıra sonunda / sıra sonlarında N zincir çekip dönüyoruz" turns at the end
+  // of a course without saying whether it is a row or a turned round.
+  const UNIT = /\b(?:rounds?|rows?)\b/iu;
+
+  it.each([
+    ["Sıra sonunda 1 zincir çekip dönüyoruz.", "When you reach the end, ch 1 and turn."],
+    ["Sıra sonlarında 1 zincir çekip dönüyoruz.", "Each time you reach the end, ch 1 and turn."],
+    ["Sıra sonunda 3 zincir çekip dönüyoruz.", "When you reach the end, ch 3 and turn."],
+    ["Sıra sonlarında 2 zincir çekip dönüyoruz.", "Each time you reach the end, ch 2 and turn."],
+    ["12) sıra sonunda 3 zincir çekip dönüyoruz", "12) When you reach the end, ch 3 and turn."],
+    ["4-9) Sıra sonlarında 2 zincir çekip dönüyoruz.", "4-9) Each time you reach the end, ch 2 and turn."],
+  ])("%s", (source, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(expected);
+    expect(result.text).not.toMatch(UNIT);
+    expect(result.text).not.toContain("end of the round");
+    expect(result.text).not.toContain("end of each round");
+    // A pure clause is fully resolved, so it never reaches the provider.
+    expect(result.fullyResolved).toBe(true);
+    // The style pass must not reinsert a unit.
+    expect(normalizeTranslationStyle(source, result.text, "en")).toBe(expected);
+  });
+
+  it("renders only the clause when free prose follows it", () => {
+    const result = normalizeSourceNaturalLanguageDetailed(
+      "Sıra sonunda 1 zincir çekip dönüyoruz ve kenarı dikiyoruz.", "en",
+    );
+    expect(result.text).toBe("When you reach the end, ch 1 and turn. ve kenarı dikiyoruz.");
+    expect(result.fullyResolved).toBe(false);
+  });
+
+  it("leaves the neighbouring families unchanged", () => {
+    for (const [source, expected] of [
+      ["Bütün sıra sonlarında 1 zincir çekip dönüyoruz.", "At the end of each row, ch 1 and turn."],
+      ["Bütün sıra sonunda 1 zincir çekip dönüyoruz.", "Bütün sıra sonunda Ch 1 and turn."],
+      ["Bu şekilde sıra sonuna kadar devam ediyoruz.", "Continue in this way to the end of the round."],
+      [
+        "Sıra sonlarında cc ile birleştirip 2 zincir çekip bir üst sıraya geçiyoruz.",
+        "At the end of each round, join with cc, ch 2, and continue to the next round.",
+      ],
+    ] as const) {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
+    }
+  });
+
+  it("does not add deterministic Spanish output for this family", () => {
+    expect(normalizeSourceNaturalLanguage("Sıra sonunda 1 zincir çekip dönüyoruz.", "es"))
+      .toBe("Sıra sonunda 1 zincir çekip dönüyoruz.");
   });
 });

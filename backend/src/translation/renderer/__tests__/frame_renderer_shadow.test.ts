@@ -60,9 +60,10 @@ describe("frame renderer shadow: corpus differential", () => {
 });
 
 describe("frame renderer shadow: repro guard", () => {
-  const repros = cases.filter(({ value }) => value.lane === "repro");
+  // The measured Stage 0 hazard cases R1-R4 (R4 is now an approved curated case).
+  const repros = cases.filter(({ value }) => value.labels.hazards.length > 0);
 
-  it("covers all four repro cases", () => {
+  it("covers all four measured hazard cases (R1-R4)", () => {
     expect(repros).toHaveLength(4);
   });
 

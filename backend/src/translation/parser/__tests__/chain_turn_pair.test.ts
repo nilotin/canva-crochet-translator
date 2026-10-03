@@ -216,7 +216,8 @@ describe("converb invariant", () => {
 });
 
 describe("repro guard", () => {
-  const repros = loadCorpus().cases.filter(({ value }) => value.lane === "repro");
+  // The measured Stage 0 hazard cases R1-R4 (R4 is now an approved curated case).
+  const repros = loadCorpus().cases.filter(({ value }) => value.labels.hazards.length > 0);
 
   // Repros admit only the Stage 2 signals (course_end_turn, and course_count
   // in R3 block 2): no stitch_count and no standalone chain or turn.
@@ -254,9 +255,9 @@ describe("repro guard", () => {
       ),
     );
     expect(found).toEqual([
+      ["c-9fd3d972ce-course-end-turn", "local-block-1", "single", "Sıra sonunda 1 zincir çekip dönüyoruz"],
       ["r-0b3aaf317b-cross-block-row-context", "local-block-1", "every", "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"],
       ["r-7f044c15ff-ordinal-mid-block", "local-block-1", "every", "Bütün sıra sonlarında 1 zincir çekip dönüyoruz"],
-      ["r-9fd3d972ce-unit-drift-turning", "local-block-1", "single", "Sıra sonunda 1 zincir çekip dönüyoruz"],
     ]);
   });
 });

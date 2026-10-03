@@ -19,7 +19,8 @@ import { foldPatternContext, type BlockTrace } from "../pattern_context.js";
 
 const cases = loadCorpus().cases;
 const reproOf = (hazard: string) => {
-  const repro = cases.find(({ value }) => value.lane === "repro" && value.labels.hazards.includes(hazard));
+  // By hazard, not lane: R4 was promoted from the repro lane to curated (Task 18C).
+  const repro = cases.find(({ value }) => value.labels.hazards.includes(hazard));
   if (repro === undefined) throw new Error(`No repro for hazard ${hazard}.`);
   return repro;
 };
@@ -100,9 +101,9 @@ describe("PatternContext shadow: R4 (deferred by Policy B)", () => {
     expect(trace?.after).toBe(trace?.before);
   });
 
-  it("stays known-bad in production, with its recorded output", () => {
-    expect(r4.value.status).toBe("known-bad");
-    expect(r4.value.expected?.results[0]?.translated).toBe("At the end of the round, ch 1 and turn.");
+  it("is fixed in production (Task 18B) and promoted to an approved curated case", () => {
+    expect([r4.value.lane, r4.value.status]).toEqual(["curated", "approved"]);
+    expect(r4.value.expected?.results[0]?.translated).toBe("When you reach the end, ch 1 and turn.");
   });
 });
 

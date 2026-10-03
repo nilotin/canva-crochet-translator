@@ -4893,7 +4893,7 @@ describe("Page 13 final buttonhole regressions", () => {
     expect(result?.valid).toBe(true);
   });
 
-  it("uses canonical repeated-round turn wording through the full pipeline", async () => {
+  it("uses unit-neutral repeated course-end turn wording through the full pipeline (Task 18B)", async () => {
     const provider = new InspectingProvider();
 
     const [result] = await translateBlocks(
@@ -4908,11 +4908,10 @@ describe("Page 13 final buttonhole regressions", () => {
     );
 
     expect(result?.translated).toBe(
-      "At the end of each round, ch 1 and turn.",
+      "Each time you reach the end, ch 1 and turn.",
     );
-    expect(result?.translated).not.toContain(
-      "At the end of rounds",
-    );
+    expect(result?.translated).not.toContain("end of each round");
+    expect(provider.requests).toHaveLength(0);
     expect(result?.errors).toEqual([]);
     expect(result?.valid).toBe(true);
   });
@@ -6610,5 +6609,31 @@ describe("live Page 14 formatting regression", () => {
 
     expect(result?.valid).toBe(true);
     expect(result?.errors).toEqual([]);
+  });
+});
+
+describe("course-end turn family through the pipeline (Task 18B)", () => {
+  it.each([
+    ["Sıra sonunda 1 zincir çekip dönüyoruz.", "When you reach the end, ch 1 and turn."],
+    ["12) Sıra sonlarında 2 zincir çekip dönüyoruz.", "12) Each time you reach the end, ch 2 and turn."],
+  ])("renders %s deterministically without the provider", async (text, expected) => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{ id: "course-end-turn", text }], "en", { provider });
+    expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+    expect(result?.translated).not.toMatch(/\b(?:rounds?|rows?)\b/iu);
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  it("sends only the free prose after the clause to the provider, never the course word", async () => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks(
+      [{ id: "course-end-turn-prose", text: "Sıra sonunda 1 zincir çekip dönüyoruz ve kenarı dikiyoruz." }],
+      "en",
+      { provider },
+    );
+    expect(result?.translated).toBe("When you reach the end, ch 1 and turn. ve kenarı dikiyoruz.");
+    const sent = provider.requests.flatMap(({ blocks }) => blocks.map(({ text }) => text));
+    expect(sent.join(" ")).toContain("kenarı dikiyoruz");
+    expect(sent.some((text) => /sıra/iu.test(text))).toBe(false);
   });
 });
