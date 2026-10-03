@@ -171,7 +171,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "en",
       ),
     ).toBe(
-      "Using a 2.20 mm crochet hook and siyah yarn (catania 110), work as follows.",
+      "Using a 2.20 mm crochet hook and black yarn (catania 110), work as follows.",
     );
   });
 
@@ -182,7 +182,7 @@ describe("normalizeSourceNaturalLanguage", () => {
         "en",
       ),
     ).toBe(
-      "Using a 2.20 mm crochet hook and siyah Catania 110 yarn, work as follows.",
+      "Using a 2.20 mm crochet hook and black Catania 110 yarn, work as follows.",
     );
   });
 

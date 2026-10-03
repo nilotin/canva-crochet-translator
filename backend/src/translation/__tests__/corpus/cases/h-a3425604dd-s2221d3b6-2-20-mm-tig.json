@@ -1,0 +1,53 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "intro",
+        "source": "2.20 mm tığ ile örüyoruz.",
+        "translated": "Using a 2.20 mm crochet hook, work as follows.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-a3425604dd-s2221d3b6-2-20-mm-tig",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "tool/yarn intro family is provider-independent when every slot is deterministic (Task 20B) > 2.20 mm tığ ile örüyoruz. renders deterministically with zero provider calls"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "intro",
+        "text": "2.20 mm tığ ile örüyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "intro",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

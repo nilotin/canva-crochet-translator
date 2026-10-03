@@ -294,6 +294,9 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it("never exposes a corrupted immutable restoration to final output", async () => {
+    // Since Task 20B a fully deterministic hook intro never reaches the
+    // provider, so this safety check uses an intro whose yarn description
+    // ("pamuk") is not a mapped colour and therefore keeps the provider path.
     const provider = new StubProvider({
       translations: [
         {
@@ -307,7 +310,7 @@ describe("translateBlocks provider boundary", () => {
       [
         {
           id: "corrupted-immutable",
-          text: "2.20 mm tığ ile örüyoruz.",
+          text: "2 numara tığ, pamuk ip (Catania) ile örüyoruz.",
         },
       ],
       "en",
@@ -810,8 +813,9 @@ describe("translateBlocks provider boundary", () => {
     );
 
     expect(result?.translated).toBe(
-      "Using a 2.20 mm crochet hook and siyah yarn (catania 110), work as follows.",
+      "Using a 2.20 mm crochet hook and black yarn (catania 110), work as follows.",
     );
+    expect(provider.requests).toHaveLength(0);
 
     const codes = result?.errors.map(({ code }) => code) ?? [];
     expect(codes).not.toContain("MEASUREMENT_INTEGRITY_MISMATCH");
@@ -1008,11 +1012,12 @@ describe("translateBlocks provider boundary", () => {
   });
 
   it.each([
-    ["2.00 no tığ ile örüyoruz.", "2.00 mm crochet hook."],
-    ["2.5 mm tığ ile örüyoruz.", "2.5 mm crochet hook."],
-    ["3.00 mm tığ kullanıyoruz.", "3.00 mm crochet hook."],
+    ["2.00 no tığ ile örüyoruz.", "Using a 2.00 mm crochet hook, work as follows."],
+    ["2.5 mm tığ ile örüyoruz.", "Using a 2.5 mm crochet hook, work as follows."],
+    ["3.00 mm tığ kullanıyoruz.", "Use a 3.00 mm crochet hook."],
   ] as const)(
-    "keeps one decimal through the applicable protected provider path: %s",
+    // Task 20B: these intros are fully deterministic and never reach the provider.
+    "keeps one decimal in a fully deterministic hook intro without the provider: %s",
     async (source, expected) => {
       const seen: string[] = [];
       const prompts: string[] = [];
@@ -1045,9 +1050,8 @@ describe("translateBlocks provider boundary", () => {
         "en",
         { provider },
       );
-      expect(seen).toHaveLength(1);
-      expect(seen[0]).not.toContain(decimal);
-      expect(prompts.join(" ")).not.toContain(decimal);
+      expect(seen).toHaveLength(0);
+      expect(prompts).toHaveLength(0);
       expect(result).toMatchObject({ translated: expected, valid: true });
       expect(result?.translated.split(decimal)).toHaveLength(2);
       expect(result?.errors).toEqual([]);
@@ -1656,10 +1660,10 @@ describe("translateBlocks provider boundary", () => {
         { provider },
       );
 
-      expect(provider.requests).toHaveLength(1);
-      expect(provider.protectedTexts).toEqual([
-        "Using a __XQAAAAQX__ crochet hook, work as follows.",
-      ]);
+      // Task 20B: the whole intro is deterministic, so the bisected hook
+      // expression is rendered atomically without any provider call.
+      expect(provider.requests).toHaveLength(0);
+      expect(provider.protectedTexts).toEqual([]);
       expect(result).toMatchObject({
         valid: true,
         translated: "Using a 2.20 mm crochet hook, work as follows.",
@@ -6635,5 +6639,75 @@ describe("course-end turn family through the pipeline (Task 18B)", () => {
     const sent = provider.requests.flatMap(({ blocks }) => blocks.map(({ text }) => text));
     expect(sent.join(" ")).toContain("kenarı dikiyoruz");
     expect(sent.some((text) => /sıra/iu.test(text))).toBe(false);
+  });
+});
+
+describe("tool/yarn intro family is provider-independent when every slot is deterministic (Task 20B)", () => {
+  // A provider that would destroy anything it is sent (the old h-3790 failure).
+  class HostileProvider extends InspectingProvider {
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      return { translations: request.blocks.map(({ id }) => ({ id, translated: "" })) };
+    }
+  }
+
+  it.each([
+    // h-3790: size only (was empty and invalid after a provider round-trip).
+    ["2.20 mm tığ ile örüyoruz.", "Using a 2.20 mm crochet hook, work as follows."],
+    // h-b171: mapped colour through the generic description branch (was "siyah").
+    ["2.20 numara tığ, siyah ip ile (catania 110) örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (catania 110), work as follows."],
+    ["2.20 numara tığ, siyah ip (Catania 110) ile örüyoruz.", "Using a 2.20 mm crochet hook and black Catania 110 yarn, work as follows."],
+    // h-39c84 intro line: multiword mapped colour with a bullet.
+    ["✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.", "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows."],
+    ["3.00 mm tığ kullanıyoruz.", "Use a 3.00 mm crochet hook."],
+  ])("%s renders deterministically with zero provider calls", async (text, expected) => {
+    const provider = new HostileProvider();
+    const [result] = await translateBlocks([{ id: "intro", text }], "en", { provider });
+    expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.translated).not.toMatch(/\b(?:siyah|açık|gri|tığ|ip|örüyoruz)\b/iu);
+    expect(result?.translated.split(text.match(/\d+(?:[.,]\d+)?/u)![0])).toHaveLength(2);
+  });
+
+  it.each([
+    // Unmapped descriptions are not deterministic: they keep the provider path.
+    ["2 numara tığ, pamuk ip (Catania) ile örüyoruz.", "Using a 2 mm crochet hook and pamuk Catania yarn, work as follows."],
+    // h-adcec: unknown "simli" plus a heading stays provider-owned and untranslated by this family.
+    ["Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz.", "Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz."],
+    // A recognized intro followed by free prose is not swallowed.
+    ["2.20 mm tığ ile örüyoruz. Ekru renk ip ile başlıyoruz.", "Using a 2.20 mm crochet hook, work as follows. With ecru yarn başlıyoruz."],
+  ])("%s keeps the provider path", async (text, echoed) => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{ id: "intro", text }], "en", { provider });
+    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(result?.translated).toBe(echoed);
+    expect(result?.translated).not.toContain("glitter");
+    expect(result?.translated).not.toContain("sparkly");
+  });
+
+  const intro = "✦ 2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.";
+  const introEn = "✦ Using a 2.20 mm crochet hook and light gray yarn (Gazzal Giza 2456), work as follows.";
+  const text = `${intro}\n1) Sihirli halka içine 6x\n2) 6v = 12x`;
+
+  it("a formatted block (as in h-39c84) no longer sends its intro formatting unit to the provider", async () => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{
+      id: "block", text,
+      formattingRegions: [
+        { id: "fmt-0", start: 0, end: intro.length },
+        { id: "fmt-1", start: intro.length, end: text.length },
+      ],
+    }], "en", { provider });
+    expect(result?.translated.split("\n")[0]).toBe(introEn);
+    expect(provider.protectedTexts.join(" ")).not.toMatch(/crochet hook|light gray|tığ/u);
+  });
+
+  it("an unformatted multi-line block keeps its single-segment provider path (existing boundary)", async () => {
+    // fullyResolved is decided per segment; an unformatted multi-line block is
+    // one segment, so the intro travels with the rest and is not swallowed.
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{ id: "block", text }], "en", { provider });
+    expect(result?.translated.split("\n")[0]).toBe(introEn);
+    expect(provider.requests.length).toBeGreaterThan(0);
   });
 });

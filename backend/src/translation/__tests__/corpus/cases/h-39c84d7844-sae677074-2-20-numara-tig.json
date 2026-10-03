@@ -457,7 +457,7 @@
       }
     ]
   },
-  "id": "h-39c84d7844-sb03f52fa-2-20-numara-tig",
+  "id": "h-39c84d7844-sae677074-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
@@ -477,10 +477,6 @@
       {
         "source": "In",
         "translated": "In"
-      },
-      {
-        "source": "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows.",
-        "translated": "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows."
       },
       {
         "source": "continue with the hair strands.",
@@ -762,17 +758,6 @@
         "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
         "targetLanguage": "en",
         "userPromptSha256": "c7e62ba074f70127db9c12da8a6e8dc0ab364ed1d4b22380dc3ad5fdec65b428"
-      },
-      {
-        "blockIds": [
-          "formatted-hook-and-ambiguous-repetition::format:1::segment:0"
-        ],
-        "blockTexts": [
-          "Using a __XQAAAAQX__ crochet hook and light gray yarn __XQAAABQX__Gazzal Giza __XQAAACQX____XQAAADQX__, work as follows."
-        ],
-        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
-        "targetLanguage": "en",
-        "userPromptSha256": "b29558961742233ae65fa994c673bbb3e4e17f7c67e40e9edc55626e164ae7df"
       },
       {
         "blockIds": [

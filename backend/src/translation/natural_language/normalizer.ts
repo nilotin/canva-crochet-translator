@@ -1166,6 +1166,29 @@ const normalizeEnglishCrochetStructures = (
     );
 };
 
+// Tool/yarn intro shapes ("N numara tığ, <yarn> ip ile ... örüyoruz"). Each
+// source is used both by the renderer below and, anchored to a whole line, by
+// `isFullyResolvedToolIntro`, so the two can never disagree about the grammar.
+const HOOK_SIZE_SOURCE = String.raw`(\d+(?:[.,]\d+)?)`;
+const DESCRIPTION_BRAND_AFTER_ILE_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s+ile\s*\(\s*([^)]+?)\s*\)\s+örüyoruz`;
+const DESCRIPTION_BRAND_BEFORE_ILE_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+örüyoruz`;
+const BRANDED_COLOR_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s+(?:numara|no)\s+tığ\s*[,，]\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\s+renk)?\s*\(\s*([^)]+?)\s*\)\s*ip\s+ile\s+örüyoruz`;
+const HOOK_ONLY_WORK_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+ile\s+örüyoruz`;
+const HOOK_ONLY_USE_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+kullanıyoruz`;
+
+/**
+ * A free yarn description becomes English only when the WHOLE description is
+ * a mapped colour; anything else ("pamuk", "simli", "simli siyah") stays as
+ * written, so it keeps its provider round-trip.
+ */
+const toolIntroDescription = (
+  description: string,
+  targetLanguage: TargetLanguage,
+): string =>
+  targetLanguage === "en"
+    ? translateTurkishYarnColor(description, targetLanguage) ?? description
+    : description;
+
 const normalizeToolMaterialIntro = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -1173,14 +1196,14 @@ const normalizeToolMaterialIntro = (
   let normalized = source;
 
   normalized = normalized.replace(
-    /\b(\d+(?:[.,]\d+)?)\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s+ile\s*\(\s*([^)]+?)\s*\)\s+örüyoruz\b/giu,
+    new RegExp(String.raw`\b${DESCRIPTION_BRAND_AFTER_ILE_SOURCE}\b`, "giu"),
     (
       _match,
       size: string,
       yarnDescription: string,
       yarnBrand: string,
     ) => {
-      const description = yarnDescription.trim();
+      const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
       const brand = yarnBrand.trim();
 
       return targetLanguage === "en"
@@ -1190,14 +1213,14 @@ const normalizeToolMaterialIntro = (
   );
 
   normalized = normalized.replace(
-    /\b(\d+(?:[.,]\d+)?)\s*(?:numara|no)\s+tığ\s*,\s*([^,()]+?)\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+örüyoruz\b/giu,
+    new RegExp(String.raw`\b${DESCRIPTION_BRAND_BEFORE_ILE_SOURCE}\b`, "giu"),
     (
       _match,
       size: string,
       yarnDescription: string,
       yarnBrand: string,
     ) => {
-      const description = yarnDescription.trim();
+      const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
       const brand = yarnBrand.trim();
 
       return targetLanguage === "en"
@@ -1207,7 +1230,7 @@ const normalizeToolMaterialIntro = (
   );
 
   const brandedColorHookPattern = new RegExp(
-    `(?<!\\p{L})(\\d+(?:[.,]\\d+)?)\\s+(?:numara|no)\\s+tığ\\s*[,，]\\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\\s+renk)?\\s*\\(\\s*([^)]+?)\\s*\\)\\s*ip\\s+ile\\s+örüyoruz(?!\\p{L})`,
+    String.raw`(?<!\p{L})${BRANDED_COLOR_SOURCE}(?!\p{L})`,
     "giu",
   );
 
@@ -1224,7 +1247,7 @@ const normalizeToolMaterialIntro = (
   );
 
   normalized = normalized.replace(
-    /\b(\d+(?:[.,]\d+)?)\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+ile\s+örüyoruz\b/giu,
+    new RegExp(String.raw`\b${HOOK_ONLY_WORK_SOURCE}\b`, "giu"),
     (_match, size: string) =>
       targetLanguage === "en"
         ? `Using a ${size} mm crochet hook, work as follows`
@@ -1232,7 +1255,7 @@ const normalizeToolMaterialIntro = (
   );
 
   normalized = normalized.replace(
-    /\b(\d+(?:[.,]\d+)?)\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+kullanıyoruz\b/giu,
+    new RegExp(String.raw`\b${HOOK_ONLY_USE_SOURCE}\b`, "giu"),
     (_match, size: string) =>
       targetLanguage === "en"
         ? `Use a ${size} mm crochet hook`
@@ -1240,6 +1263,28 @@ const normalizeToolMaterialIntro = (
   );
 
   return normalized;
+};
+
+/**
+ * True when the whole line (after an optional `N)` marker and `✦`/`◆` bullet)
+ * is one tool/yarn intro whose every slot renders deterministically: hook size
+ * only, or hook size plus a mapped colour and brand. Such a line is complete
+ * English after normalization and must not be sent to the provider. A line with
+ * any other content, or a description that is not exactly a mapped colour,
+ * keeps the provider path.
+ */
+const isFullyResolvedToolIntro = (source: string): boolean => {
+  const whole = (shape: string) =>
+    new RegExp(String.raw`^\s*(?:\d+\)\s*)?(?:[✦◆]\s*)?${shape}\s*[.]?\s*$`, "iu").exec(source);
+
+  if (whole(HOOK_ONLY_WORK_SOURCE) || whole(HOOK_ONLY_USE_SOURCE) || whole(BRANDED_COLOR_SOURCE)) {
+    return true;
+  }
+  for (const shape of [DESCRIPTION_BRAND_AFTER_ILE_SOURCE, DESCRIPTION_BRAND_BEFORE_ILE_SOURCE]) {
+    const match = whole(shape);
+    if (match && translateTurkishYarnColor(match[2]?.trim() ?? "", "en") !== undefined) return true;
+  }
+  return false;
 };
 
 const normalizeConditionalTechnique = (
@@ -1621,6 +1666,7 @@ export const normalizeSourceNaturalLanguageDetailed = (
       fullyResolvedSleeveInstruction ||
       fullyResolvedLongButtonholeGuidancePattern.test(source) ||
       fullyResolvedCourseEndTurnPattern.test(source) ||
+      isFullyResolvedToolIntro(source) ||
       fullyResolvedRoundCountTrailingAction
     );
 
