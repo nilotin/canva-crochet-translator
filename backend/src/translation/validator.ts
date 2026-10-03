@@ -16,13 +16,19 @@ import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
 import {
+  ARM_JOINING_SOURCE_PATTERN,
   legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
   parseBareRoundCountTargetLine,
+  parseCourseCountClauseLine,
+  scanCompactChainCutSourceSpans,
+  scanGenericCourseCountSourceSpans,
   scanRoundCountTrailingActionSourceSpans,
   scanRoundCountTrailingActionTargetSpans,
   scanRoundCountYarnCutSourceSpans,
   scanRoundCountYarnCutTargetSpans,
+  scanWorkedChainCutSourceSpans,
+  scanWrittenChainCutSourceSpans,
   splitLogicalLines,
   type CourseUnitResolver,
 } from "./natural_language/bare_round_count.js";
@@ -185,6 +191,142 @@ const hasValidBareCrochetCountUnits = (
       targetUnit.toLocaleLowerCase("en") !== expectedUnitWord
     ) {
       return false;
+    }
+  }
+
+  return true;
+};
+
+type CourseCountClaim = {
+  /**
+   * Source offset this check asks the resolver at: the clause start (written-
+   * chain, worked chain-cut), line start (arm-joining) or count start
+   * (generic). It lies on the same line as the renderer's own lookup, which is
+   * equivalent because resolver lookup is line-scoped; it is not necessarily
+   * the identical offset (the normalizer may resolve after a stripped marker).
+   */
+  readonly start: number;
+  readonly rounds: string;
+  /** Leading `N)` / `A-B)` marker the clause captured, if any. */
+  readonly prefix: string;
+  /** False for counts another check already verifies (trailing-action, cut-yarn). */
+  readonly checked: boolean;
+};
+
+const overlaps = (
+  span: { start: number; end: number },
+  claimed: readonly { start: number; end: number }[],
+): boolean => claimed.some(({ start, end }) => span.start < end && start < span.end);
+
+/**
+ * The course counts of the generic, written-chain, arm-joining and worked
+ * chain-cut families, plus the trailing-action and cut-yarn counts that share
+ * their source text, in source order. The same shared scanners and precedence
+ * as the normalizer: a generic count only where no specialized clause, bare
+ * course-count line or compact chain-cut claims the text. Bare lines belong to
+ * `hasValidBareCrochetCountUnits`.
+ */
+const clauseCourseCounts = (source: string): CourseCountClaim[] => {
+  const counts: CourseCountClaim[] = [];
+  const claimed: { start: number; end: number }[] = [];
+  const add = (
+    span: { start: number; end: number; rounds: string; prefix: string },
+    checked: boolean,
+  ) => {
+    claimed.push(span);
+    counts.push({ start: span.start, rounds: span.rounds, prefix: span.prefix, checked });
+  };
+
+  for (const line of splitLogicalLines(source)) {
+    if (parseBareRoundCountSourceLine(line.text)) {
+      claimed.push(line);
+      continue;
+    }
+    const armJoining = parseCourseCountClauseLine(ARM_JOINING_SOURCE_PATTERN, line.text);
+    if (armJoining) add({ ...armJoining, start: line.start, end: line.end }, true);
+  }
+  for (const span of scanWorkedChainCutSourceSpans(source)) add(span, true);
+  for (const span of scanWrittenChainCutSourceSpans(source)) add(span, true);
+  for (const span of scanRoundCountTrailingActionSourceSpans(source)) add(span, false);
+  for (const span of scanRoundCountYarnCutSourceSpans(source)) add(span, false);
+  claimed.push(...scanCompactChainCutSourceSpans(source));
+  for (const span of scanGenericCourseCountSourceSpans(source)) {
+    if (!overlaps(span, claimed)) add(span, true);
+  }
+
+  return counts.sort((left, right) => left.start - right.start);
+};
+
+/**
+ * Resolver parity for the course-count clauses `hasValidBareCrochetCountUnits`
+ * and the swap checks do not cover. Every checked count asks the resolver
+ * once, at the offset its renderer resolves it at, and its translated line
+ * must carry "<count> <unit word>" in source order. Lines pair exactly as for
+ * bare counts: by index when line counts agree, otherwise only through a
+ * unique leading marker; anything else fails closed.
+ */
+const hasValidClauseCourseCountUnits = (
+  source: string,
+  translated: string,
+  sourceContext: string = source,
+  sourceOffset = 0,
+  resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
+): boolean => {
+  const sourceLines = splitLogicalLines(source);
+  const translatedLines = splitLogicalLines(translated);
+  const counts = clauseCourseCounts(source);
+  const claimedTranslatedLineIndexes = new Set<number>();
+
+  for (const [index, sourceLine] of sourceLines.entries()) {
+    const lineCounts = counts.filter(
+      ({ start }) => start >= sourceLine.start && start <= sourceLine.end,
+    );
+    if (!lineCounts.some(({ checked }) => checked)) continue;
+
+    let translatedLineIndex: number | undefined;
+    if (sourceLines.length === translatedLines.length) {
+      translatedLineIndex = index;
+    } else {
+      const lead = lineCounts.find(({ start, prefix }) =>
+        prefix.trim() !== "" &&
+        source.slice(sourceLine.start, start).trim() === "");
+      const marker = lead?.prefix.trim() ?? getLeadingInstructionMarker(sourceLine.text);
+      if (marker === undefined) return false;
+      const matching = translatedLines.flatMap((line, translatedIndex) =>
+        line.text.trimStart().startsWith(marker) ? [translatedIndex] : []);
+      if (matching.length !== 1) return false;
+      translatedLineIndex = matching[0];
+    }
+
+    if (
+      translatedLineIndex === undefined ||
+      claimedTranslatedLineIndexes.has(translatedLineIndex)
+    ) {
+      return false;
+    }
+    claimedTranslatedLineIndexes.add(translatedLineIndex);
+
+    const translatedLine = translatedLines[translatedLineIndex]?.text;
+    if (translatedLine === undefined) return false;
+
+    let cursor = 0;
+    for (const count of lineCounts) {
+      const unitPattern = new RegExp(
+        `(?<![\\p{L}\\p{N}_])${count.rounds}\\s+(round|rounds|row|rows)(?![\\p{L}\\p{N}_])`,
+        "iu",
+      );
+      const match = unitPattern.exec(translatedLine.slice(cursor));
+      if (!match) return false;
+      cursor += match.index + match[0].length;
+      if (!count.checked) continue;
+
+      const expectedUnitWord = expectedCrochetCountUnitWord(
+        count.rounds,
+        sourceContext,
+        sourceOffset + count.start,
+        resolveCourseUnit,
+      );
+      if (match[1]?.toLocaleLowerCase("en") !== expectedUnitWord) return false;
     }
   }
 
@@ -632,18 +774,25 @@ export const validateTranslation = (
         translatedNumbers,
       ));
 
-  const bareCountUnitsValid =
+  const courseCountUnitsValid =
     options.contentKind === "materials" ||
     targetLanguage !== "en" ||
-    hasValidBareCrochetCountUnits(
+    (hasValidBareCrochetCountUnits(
       source,
       translated,
       options.sourceContext ?? source,
       options.sourceStart ?? 0,
       options.resolveCourseUnit,
-    );
+    ) &&
+      hasValidClauseCourseCountUnits(
+        source,
+        translated,
+        options.sourceContext ?? source,
+        options.sourceStart ?? 0,
+        options.resolveCourseUnit,
+      ));
 
-  if (!numericSequenceMatches || !bareCountUnitsValid) {
+  if (!numericSequenceMatches || !courseCountUnitsValid) {
     errors.push(
       error(
         "NUMBER_MISMATCH",

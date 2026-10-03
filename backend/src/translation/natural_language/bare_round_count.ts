@@ -483,3 +483,130 @@ export const normalizeBareRoundCountSourceLines = (
       return text + line.separator;
     })
     .join("");
+
+/** Existing arm-joining sentence structure; unit semantics belong to the resolver. */
+export const ARM_JOINING_SOURCE_PATTERN =
+  /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s*[,，]\s*[iİ]pimizi\s+kesmeden\s+kol\s+birleştirme\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu;
+
+/** Existing whole-line written-chain yarn-cut structure (style line rebuild). */
+export const WRITTEN_CHAIN_CUT_LINE_PATTERN =
+  /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz([.]?\s*)$/iu;
+
+const WRITTEN_CHAIN_CUT_SOURCE_PATTERN =
+  /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu;
+
+/** A course-count clause whose unit the resolver decides, as matched in source. */
+export type CourseCountClauseSource = {
+  start: number;
+  end: number;
+  prefix: string;
+  rounds: string;
+  stitches: string;
+  suffix: string;
+};
+
+/** Written-chain yarn-cut spans anywhere in `source` (the normalizer's scan). */
+export const scanWrittenChainCutSourceSpans = (
+  source: string,
+): CourseCountClauseSource[] =>
+  [...source.matchAll(WRITTEN_CHAIN_CUT_SOURCE_PATTERN)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    prefix: match[1] ?? "",
+    rounds: match[2] ?? "",
+    stitches: match[3] ?? "",
+    suffix: "",
+  }));
+
+export const renderEnglishWrittenChainCutSpan = (
+  source: CourseCountClauseSource,
+  unit: CrochetCountUnit,
+): string =>
+  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}sc. Ch 1 and cut the yarn${source.suffix}`;
+
+export const renderEnglishArmJoiningSpan = (
+  source: CourseCountClauseSource,
+  stitchNotation: "x" | "sc",
+  unit: CrochetCountUnit,
+): string =>
+  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}${stitchNotation}. Without cutting the yarn, continue by joining the arms${source.suffix}`;
+
+/**
+ * "Mx, K zincir çekip ipimizi kesiyoruz": a compact chain-cut the normalizer
+ * renders before the generic course count, so it takes precedence over it.
+ */
+export const COMPACT_CHAIN_CUT_SOURCE_PATTERN =
+  /((?:\d+\)\s*)?)(\d+)\s*x\s*[,，]\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu;
+
+export const scanCompactChainCutSourceSpans = (
+  source: string,
+): { start: number; end: number }[] =>
+  [...source.matchAll(COMPACT_CHAIN_CUT_SOURCE_PATTERN)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+  }));
+
+const GENERIC_COURSE_COUNT_SOURCE_PATTERN = /\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu;
+
+/** Every generic "N sıra Mx" course count in `source`, as the normalizer matches it. */
+export const scanGenericCourseCountSourceSpans = (
+  source: string,
+): CourseCountClauseSource[] =>
+  [...source.matchAll(GENERIC_COURSE_COUNT_SOURCE_PATTERN)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    prefix: "",
+    rounds: match[1] ?? "",
+    stitches: match[2] ?? "",
+    suffix: "",
+  }));
+
+/** "N rows, Mx": the generic course count, unit decided by the caller's resolver. */
+export const renderEnglishGenericCourseCountSpan = (
+  source: CourseCountClauseSource,
+  stitchNotation: "x" | "sc",
+  unit: CrochetCountUnit,
+): string =>
+  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}${stitchNotation}${source.suffix}`;
+
+const WORKED_CHAIN_CUT_SOURCE_PATTERN =
+  /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+örüyoruz\s*,\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu;
+
+export type WorkedChainCutSource = CourseCountClauseSource & { chains: string };
+
+/** "N sıra Mx örüyoruz, K zincir çekip ipimizi kesiyoruz" spans anywhere in `source`. */
+export const scanWorkedChainCutSourceSpans = (
+  source: string,
+): WorkedChainCutSource[] =>
+  [...source.matchAll(WORKED_CHAIN_CUT_SOURCE_PATTERN)].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    prefix: match[1] ?? "",
+    rounds: match[2] ?? "",
+    stitches: match[3] ?? "",
+    chains: match[4] ?? "",
+    suffix: "",
+  }));
+
+export const renderEnglishWorkedChainCutSpan = (
+  source: WorkedChainCutSource,
+  unit: CrochetCountUnit,
+): string =>
+  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches} sc. Ch ${source.chains} and cut the yarn${source.suffix}`;
+
+/** Parses one whole line with a line-anchored clause pattern (arm-joining, written-chain). */
+export const parseCourseCountClauseLine = (
+  pattern: RegExp,
+  line: string,
+): CourseCountClauseSource | undefined => {
+  const match = pattern.exec(line);
+  if (!match) return undefined;
+  return {
+    start: 0,
+    end: line.length,
+    prefix: match[1] ?? "",
+    rounds: match[2] ?? "",
+    stitches: match[3] ?? "",
+    suffix: match[4] ?? "",
+  };
+};

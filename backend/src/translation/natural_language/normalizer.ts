@@ -1,12 +1,23 @@
 import type { TargetLanguage } from "../types.js";
 import {
+  ARM_JOINING_SOURCE_PATTERN,
+  COMPACT_CHAIN_CUT_SOURCE_PATTERN,
   legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
+  parseCourseCountClauseLine,
+  renderEnglishArmJoiningSpan,
   renderEnglishBareRoundCountLine,
+  renderEnglishGenericCourseCountSpan,
   renderEnglishRoundCountTrailingActionSpan,
   renderEnglishRoundCountYarnCutSpan,
+  renderEnglishWorkedChainCutSpan,
+  renderEnglishWrittenChainCutSpan,
+  scanCompactChainCutSourceSpans,
+  scanGenericCourseCountSourceSpans,
   scanRoundCountTrailingActionSourceSpans,
   scanRoundCountYarnCutSourceSpans,
+  scanWorkedChainCutSourceSpans,
+  scanWrittenChainCutSourceSpans,
   splitLogicalLines,
   type CourseUnitResolver,
 } from "./bare_round_count.js";
@@ -83,6 +94,32 @@ const normalizeEnglishRoundCountStructures = (
 ): string => {
   const replacements: OriginalSourceReplacement[] = [];
 
+  // Every course-count family below is scanned on the immutable source text,
+  // so resolver offsets cannot drift after earlier normalization replacements.
+  // Worked chain-cut: "N sıra Mx örüyoruz, K zincir çekip ipimizi kesiyoruz".
+  for (const span of scanWorkedChainCutSourceSpans(source)) {
+    replacements.push({
+      start: span.start,
+      end: span.end,
+      text: renderEnglishWorkedChainCutSpan(
+        span,
+        resolveCourseUnit(sourceContext, sourceOffset + span.start),
+      ),
+    });
+  }
+
+  // Written-chain yarn cut: "N sıra Mx bir zincir çekip ipimizi kesiyoruz".
+  for (const span of scanWrittenChainCutSourceSpans(source)) {
+    replacements.push({
+      start: span.start,
+      end: span.end,
+      text: renderEnglishWrittenChainCutSpan(
+        span,
+        resolveCourseUnit(sourceContext, sourceOffset + span.start),
+      ),
+    });
+  }
+
   for (const span of scanRoundCountTrailingActionSourceSpans(source)) {
     replacements.push({
       start: span.start,
@@ -114,6 +151,25 @@ const normalizeEnglishRoundCountStructures = (
   }
 
   for (const line of splitLogicalLines(source)) {
+    const armJoining = parseCourseCountClauseLine(
+      ARM_JOINING_SOURCE_PATTERN,
+      line.text,
+    );
+    if (armJoining) {
+      // Resolve against immutable source coordinates, before earlier text
+      // replacements can change lengths. Reuse the final renderer's grammar.
+      replacements.push({
+        start: line.start,
+        end: line.end,
+        text: renderEnglishArmJoiningSpan(
+          armJoining,
+          "x",
+          resolveCourseUnit(sourceContext, sourceOffset + line.start),
+        ),
+      });
+      continue;
+    }
+
     const parsed = parseBareRoundCountSourceLine(line.text);
     if (!parsed) continue;
 
@@ -127,6 +183,27 @@ const normalizeEnglishRoundCountStructures = (
           sourceContext,
           sourceOffset + line.start,
         ),
+      ),
+    });
+  }
+
+  // The generic "N sıra Mx" count is the fallback for every course count no
+  // specialized family claimed. It keeps its former precedence: no span
+  // already claimed above, and none the earlier chain replacements would
+  // consume. Each count asks the resolver at its own source offset.
+  const claimed = [
+    ...replacements,
+    ...scanCompactChainCutSourceSpans(source),
+  ];
+  for (const span of scanGenericCourseCountSourceSpans(source)) {
+    if (claimed.some(({ start, end }) => span.start < end && start < span.end)) continue;
+    replacements.push({
+      start: span.start,
+      end: span.end,
+      text: renderEnglishGenericCourseCountSpan(
+        span,
+        "x",
+        resolveCourseUnit(sourceContext, sourceOffset + span.start),
       ),
     });
   }
@@ -232,38 +309,13 @@ const normalizeEnglishCrochetStructures = (
         `Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches.)`,
     )
     .replace(
-      /((?:\d+\)\s*)?)(\d+)\s*x\s*[,，]\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
+      COMPACT_CHAIN_CUT_SOURCE_PATTERN,
       (
         _match,
         marker: string,
         stitches: string,
         chains: string,
       ) => `${marker}${stitches}sc. Ch ${chains} and cut the yarn`,
-    )
-    .replace(
-      /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+örüyoruz\s*,\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
-      (
-        _match,
-        marker: string,
-        rounds: string,
-        stitches: string,
-        chains: string,
-      ) =>
-        `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches} sc. Ch ${chains} and cut the yarn`,
-    )
-    .replace(
-      /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
-      (
-        _match,
-        marker: string,
-        rounds: string,
-        stitches: string,
-      ) =>
-        `${marker}${rounds} ${rounds === "1" ? "round" : "rounds"}, ${stitches}sc. Ch 1 and cut the yarn`,
-    )
-    .replace(
-      /\b(\d+)\s+sıra\s+(\d+)\s*x\b/giu,
-      "$1 rounds, $2x",
     )
     .replace(
       /\b(\d+)\.\s*sıranın\s+sonunda\s+(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,

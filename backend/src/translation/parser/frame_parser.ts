@@ -34,7 +34,9 @@
  *  - Full nouns (`zincir`) and verb forms (`örüyoruz`, `çekip`, `dönüyoruz`)
  *    are parser lexicon, whole words only: the glossary has no verbs, and its
  *    descriptions are never used as spellings. So are the course-end phrase
- *    words (`COURSE_END_PHRASES`) and the course noun (`COURSE_WORDS`).
+ *    words (`COURSE_END_PHRASES`) and the course noun (`COURSE_WORDS`), and
+ *    the further continuation words the course_count boundary exceptions
+ *    below compare against (`bir`, `ipimizi`, `kesiyoruz`, `ve`, `dikiyoruz`).
  *
  * FIRST-SLICE ADMISSION RULES. The left and right boundary checks below are a
  * deliberately conservative admission policy for this first migrated slice,
@@ -43,6 +45,15 @@
  * ("66x örüyoruz ipimizi kesmeden ...") is perfectly meaningful; it simply
  * stays Opaque until a later task widens admission together with the context
  * it needs. For the linked pair the same rules apply outside the pair only.
+ *
+ * Narrow course_count exceptions: a course count may also be followed by one
+ * of three exact, single-line yarn-cut continuations, recognized from typed
+ * tokens only (`followedByWrittenChainCut`, `followedByWorkedChainCut`,
+ * `followedByDashYarnCut`): "bir zincir çekip ipimizi kesiyoruz",
+ * "örüyoruz, K zincir çekip ipimizi kesiyoruz", and a dash run before
+ * "ipimizi kesiyoruz" (optionally "ve dikiyoruz"). Each must end at a right
+ * boundary. Only the count becomes a frame; the continuation stays Opaque and
+ * no chain, work or yarn-cut frame is parsed from it.
  *
  * Import rules: `../lexer/typed_lexer.js`, `../glossary.js` and `./frame_ir.js`
  * only. No translator, normalizer, validator, provider or corpus code.
@@ -367,6 +378,97 @@ const matchCourseEndTurn = (
 };
 
 /**
+ * A written-one-chain yarn-cut continuation bounds a preceding course count.
+ * Inspect exact typed tokens only; the continuation remains Opaque. This does
+ * not admit arbitrary prose after a count or parse a chain/yarn-cut frame.
+ */
+const followedByWrittenChainCut = (tokens: readonly LexToken[], stitchIndex: number): boolean => {
+  if (tokens[stitchIndex]?.raw !== "x") return false;
+  const words = ["bir", "zincir", "çekip", "ipimizi", "kesiyoruz"];
+  for (const [offset, word] of words.entries()) {
+    const space = tokens[stitchIndex + 1 + offset * 2];
+    const token = tokens[stitchIndex + 2 + offset * 2];
+    if (space?.kind !== "whitespace" || token?.kind !== "word" || token.raw !== word) return false;
+  }
+  return admitsRight(nextSignificant(tokens, stitchIndex + words.length * 2));
+};
+
+/**
+ * A worked chain-and-cut continuation ("örüyoruz, K zincir çekip ipimizi
+ * kesiyoruz") bounds a preceding course count. Exact typed tokens on one line
+ * only, optional whitespace before the comma; the continuation remains Opaque.
+ * This does not parse a work, chain or yarn-cut frame.
+ */
+const followedByWorkedChainCut = (tokens: readonly LexToken[], stitchIndex: number): boolean => {
+  if (tokens[stitchIndex]?.raw !== "x") return false;
+  let index = stitchIndex + 1;
+  const space = (): boolean => {
+    if (tokens[index]?.kind !== "whitespace") return false;
+    index += 1;
+    return true;
+  };
+  const word = (raw: string): boolean => {
+    if (tokens[index]?.kind !== "word" || tokens[index]?.raw !== raw) return false;
+    index += 1;
+    return true;
+  };
+  if (!space() || !word("örüyoruz")) return false;
+  if (tokens[index]?.kind === "whitespace") index += 1;
+  if (tokens[index]?.kind !== "punctuation" || tokens[index]?.raw !== ",") return false;
+  index += 1;
+  if (!space() || countValue(tokens[index]) === undefined) return false;
+  index += 1;
+  for (const raw of ["zincir", "çekip", "ipimizi", "kesiyoruz"]) {
+    if (!space() || !word(raw)) return false;
+  }
+  return admitsRight(nextSignificant(tokens, index - 1));
+};
+
+/**
+ * A dash-separated yarn cut ("--- ipimizi kesiyoruz", "– ipimizi kesiyoruz",
+ * optionally "... ve dikiyoruz") bounds a preceding course count. Exact typed
+ * tokens on one line only: optional whitespace, a run of "-" or one "–"/"—",
+ * optional whitespace, the yarn-cut words, then a right boundary. The
+ * continuation remains Opaque; a dash followed by anything else (e.g. "16x-2")
+ * is still rejected.
+ */
+const followedByDashYarnCut = (tokens: readonly LexToken[], stitchIndex: number): boolean => {
+  if (tokens[stitchIndex]?.raw !== "x") return false;
+  let index = stitchIndex + 1;
+  const optionalSpace = () => {
+    if (tokens[index]?.kind === "whitespace") index += 1;
+  };
+  const words = (...raws: string[]): boolean => {
+    for (const [offset, raw] of raws.entries()) {
+      if (offset > 0) {
+        if (tokens[index]?.kind !== "whitespace") return false;
+        index += 1;
+      }
+      if (tokens[index]?.kind !== "word" || tokens[index]?.raw !== raw) return false;
+      index += 1;
+    }
+    return true;
+  };
+
+  optionalSpace();
+  const dash = tokens[index];
+  if (dash?.kind !== "dash") return false;
+  if (dash.raw === "-") {
+    while (tokens[index]?.kind === "dash" && tokens[index]?.raw === "-") index += 1;
+  } else if (dash.raw === "–" || dash.raw === "—") {
+    index += 1;
+  } else {
+    return false;
+  }
+  optionalSpace();
+  if (!words("ipimizi", "kesiyoruz")) return false;
+  if (admitsRight(nextSignificant(tokens, index - 1))) return true;
+  if (tokens[index]?.kind !== "whitespace") return false;
+  index += 1;
+  return words("ve", "dikiyoruz") && admitsRight(nextSignificant(tokens, index - 1));
+};
+
+/**
  * `course_count`: "N sıra Mx", work M stitches of one type for N courses.
  * Six tokens: course count, whitespace, course noun, whitespace, stitch count,
  * attached glossary stitch form (the `stitch_count` spellings). Markers such as
@@ -400,7 +502,12 @@ const matchCourseCount = (
   const concept = STITCH_COUNT_FORMS.get(stitch.raw);
   if (concept === undefined) return undefined;
   if (!admitsLeft(previousSignificant(tokens, index))) return undefined;
-  if (!admitsRight(nextSignificant(tokens, index + 5))) return undefined;
+  if (
+    !admitsRight(nextSignificant(tokens, index + 5)) &&
+    !followedByWrittenChainCut(tokens, index + 5) &&
+    !followedByWorkedChainCut(tokens, index + 5) &&
+    !followedByDashYarnCut(tokens, index + 5)
+  ) return undefined;
 
   const frame: CourseCountFrame = {
     kind: "frame",

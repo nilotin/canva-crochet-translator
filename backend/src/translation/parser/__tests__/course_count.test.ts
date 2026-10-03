@@ -158,7 +158,6 @@ describe("course_count: stays Opaque", () => {
     ["5 sıra 16zn", "not a stitch-count concept"],
     ["abc 5 sıra 16x", "prose before it"],
     ["5 sıra 16x örüyoruz", "a verb after it"],
-    ["6 sıra 18x --- ipimizi kesiyoruz", "part of a cut-the-yarn clause"],
     ["5 sıra 16x-2", "a dash after it"],
     ["5 sıra\n16x", "line break inside"],
     ["5\nsıra 16x", "line break inside"],
@@ -186,5 +185,101 @@ describe("course_count: purity", () => {
     const before = [...COURSE_WORDS];
     parseFrames(source);
     expect([...COURSE_WORDS]).toEqual(before);
+  });
+});
+
+describe("course_count: written-chain yarn-cut boundary (Task 14D)", () => {
+  it.each(["25 sıra 12x", "3 sıra 7x"])("claims only %s, leaving the continuation Opaque", (count) => {
+    const source = `🧶\r\n11-35) ${count} bir zincir çekip ipimizi kesiyoruz.`;
+    expect(shape(source)).toEqual([
+      ["opaque", "🧶\r\n11-35) "],
+      ["course_count", count],
+      ["opaque", " bir zincir çekip ipimizi kesiyoruz."],
+    ]);
+    const frame = only(source);
+    expect(frame.span.start).toBe(source.indexOf(count));
+    expect(source.slice(frame.span.start, frame.span.end)).toBe(count);
+  });
+
+  it.each([
+    "bir", "bir zincir", "bir zincir çekip", "bir zincir çekip ipimizi",
+    "bir zincir çekip ipimizi kesmiyoruz.",
+    "bir zincir çekip ipimizi kesiyoruzlar.",
+    "bir zincir çekip ipimizi kesiyoruz sonra",
+    "iki zincir çekip ipimizi kesiyoruz.",
+    "bir zincir\nçekip ipimizi kesiyoruz.",
+  ])("keeps an unsupported continuation Opaque: %s", (tail) => {
+    expect(courseCounts(`25 sıra 12x ${tail}`)).toEqual([]);
+  });
+});
+
+describe("course_count: worked chain-and-cut boundary (Task 14I)", () => {
+  it.each([
+    "26 sıra 14x örüyoruz, 1 zincir çekip ipimizi kesiyoruz.",
+    "26 sıra 14x  örüyoruz , 1 zincir çekip ipimizi kesiyoruz",
+    "1 sıra 7x örüyoruz, 2 zincir çekip ipimizi kesiyoruz.",
+  ])("claims only the count in %j, leaving the continuation Opaque", (tail) => {
+    const source = `🧶\r\n13-38) ${tail}`;
+    const count = /^\d+ sıra \d+x/u.exec(tail)![0];
+    expect(shape(source)).toEqual([
+      ["opaque", "🧶\r\n13-38) "],
+      ["course_count", count],
+      ["opaque", tail.slice(count.length)],
+    ]);
+    const frame = only(source);
+    expect(source.slice(frame.span.start, frame.span.end)).toBe(count);
+  });
+
+  it.each([
+    "örüyoruz",
+    "örüyoruz,",
+    "örüyoruz, 1 zincir çekip ipimizi",
+    "örüyoruz 1 zincir çekip ipimizi kesiyoruz.",
+    "örüyoruz, bir zincir çekip ipimizi kesiyoruz.",
+    "örüyoruz, 1 zincir çekip ipimizi kesiyoruz sonra",
+    "örüyoruz, 1 zincir çekip ipimizi kesmiyoruz.",
+    "örüyoruz, 1 zincir \nçekip ipimizi kesiyoruz.",
+    "örüyoruz, 1.5 zincir çekip ipimizi kesiyoruz.",
+  ])("keeps an unsupported continuation Opaque: %s", (tail) => {
+    expect(courseCounts(`26 sıra 14x ${tail}`)).toEqual([]);
+  });
+});
+
+describe("course_count: dash-separated yarn-cut boundary (Task 15B)", () => {
+  it.each([
+    ["10-15) ", "6 sıra 18x", " --- ipimizi kesiyoruz."],
+    ["10-15) ", "6 sıra 18x", " - ipimizi kesiyoruz ve dikiyoruz."],
+    ["10-15) ", "6 sıra 18x", " – ipimizi kesiyoruz."],
+    ["10-15) ", "6 sıra 18x", " — ipimizi kesiyoruz"],
+    ["1) ", "1 sıra 18x", "-ipimizi kesiyoruz."],
+  ])("claims only %s%s, leaving %j Opaque", (marker, count, tail) => {
+    const source = `🧶\r\n${marker}${count}${tail}`;
+    expect(shape(source)).toEqual([
+      ["opaque", `🧶\r\n${marker}`],
+      ["course_count", count],
+      ["opaque", tail],
+    ]);
+    const frame = only(source);
+    expect(frame.span.start).toBe(source.indexOf(count));
+    expect(source.slice(frame.span.start, frame.span.end)).toBe(count);
+  });
+
+  it.each([
+    "6 sıra 18x -",
+    "6 sıra 18x --- ipimizi",
+    "6 sıra 18x --- kesiyoruz.",
+    "6 sıra 18x --- ipimizi kesmiyoruz.",
+    "6 sıra 18x - ipimizi kesiyoruz sonra",
+    "6 sıra 18x - ipimizi kesiyoruz ve",
+    "6 sıra 18x - ipimizi kesiyoruz ve dikmiyoruz.",
+    "6 sıra 18x - ipimizi kesiyoruz ve dikiyoruz sonra",
+    "6 sıra 18x ‐ ipimizi kesiyoruz.",
+    "6 sıra 18x –– ipimizi kesiyoruz.",
+    "6 sıra 18x - ipimizi\nkesiyoruz.",
+    "6 sıra 18x-2",
+    "6 sıra 18x - sonra",
+    "6 sıra 18x - 2 zincir",
+  ])("keeps a partial or unrelated dash continuation Opaque: %j", (source) => {
+    expect(courseCounts(source)).toEqual([]);
   });
 });

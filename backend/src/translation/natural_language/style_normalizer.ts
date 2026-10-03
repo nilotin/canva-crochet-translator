@@ -1,12 +1,22 @@
 import type { TargetLanguage } from "../types.js";
 import {
+  ARM_JOINING_SOURCE_PATTERN,
   legacyCourseUnitResolver,
   parseBareRoundCountSourceLine,
+  parseCourseCountClauseLine,
+  renderEnglishArmJoiningSpan,
   renderEnglishBareRoundCountLine,
+  renderEnglishGenericCourseCountSpan,
   renderEnglishRoundCountTrailingActionSpan,
   renderEnglishRoundCountYarnCutSpan,
+  renderEnglishWorkedChainCutSpan,
+  renderEnglishWrittenChainCutSpan,
+  scanGenericCourseCountSourceSpans,
   scanRoundCountTrailingActionSourceSpans,
   scanRoundCountYarnCutSourceSpans,
+  scanWorkedChainCutSourceSpans,
+  scanWrittenChainCutSourceSpans,
+  WRITTEN_CHAIN_CUT_LINE_PATTERN,
   type CourseUnitResolver,
 } from "./bare_round_count.js";
 import {
@@ -426,28 +436,29 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${bullet}With ecru yarn: (Cut the orange yarn.)`;
   }
 
-  const writtenChainCut =
-    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+bir\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz([.]?\s*)$/iu.exec(
-      source,
-    );
+  const writtenChainCut = parseCourseCountClauseLine(
+    WRITTEN_CHAIN_CUT_LINE_PATTERN,
+    source,
+  );
 
   if (writtenChainCut) {
-    const roundWord =
-      Number(writtenChainCut[2]) === 1 ? "round" : "rounds";
-
-    return `${writtenChainCut[1]}${writtenChainCut[2]} ${roundWord}, ${writtenChainCut[3]}sc. Ch 1 and cut the yarn${writtenChainCut[4]}`;
+    return renderEnglishWrittenChainCutSpan(
+      writtenChainCut,
+      resolveCourseUnit(sourceContext, sourceStart),
+    );
   }
 
-  const continueWithArmJoining =
-    /^(\s*(?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s*[,，]\s*[iİ]pimizi\s+kesmeden\s+kol\s+birleştirme\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu.exec(
-      source,
-    );
+  const continueWithArmJoining = parseCourseCountClauseLine(
+    ARM_JOINING_SOURCE_PATTERN,
+    source,
+  );
 
   if (continueWithArmJoining) {
-    const roundWord =
-      Number(continueWithArmJoining[2]) === 1 ? "round" : "rounds";
-
-    return `${continueWithArmJoining[1]}${continueWithArmJoining[2]} ${roundWord}, ${continueWithArmJoining[3]}sc. Without cutting the yarn, continue by joining the arms${continueWithArmJoining[4]}`;
+    return renderEnglishArmJoiningSpan(
+      continueWithArmJoining,
+      "sc",
+      resolveCourseUnit(sourceContext, sourceStart),
+    );
   }
 
   const armJoiningHeading =
@@ -735,13 +746,16 @@ const normalizeEnglishCrochetInstructionLine = (
 
 /**
  * True when the line rebuild decides this source line's row/round wording
- * through the course-unit resolver: a bare course-count line, or a line that is
- * exactly one course-count trailing-action or cut-yarn span. The segment-wide
- * wording rewrite leaves such lines to that rebuild, so it is never a second
- * authority for them.
+ * through the course-unit resolver: a bare course-count line, a whole-line
+ * written-chain or arm-joining clause, or a line that is exactly one
+ * course-count trailing-action or cut-yarn span. The segment-wide wording
+ * rewrite leaves such lines to that rebuild, so it is never a second authority
+ * for them.
  */
 const isResolverOwnedCourseCountLine = (source: string): boolean => {
   if (parseBareRoundCountSourceLine(source) !== undefined) return true;
+  if (WRITTEN_CHAIN_CUT_LINE_PATTERN.test(source)) return true;
+  if (ARM_JOINING_SOURCE_PATTERN.test(source)) return true;
   const wholeLine = (spans: readonly { start: number; end: number }[]): boolean =>
     spans.length === 1 &&
     source.slice(0, spans[0]!.start).trim() === "" &&
@@ -752,8 +766,114 @@ const isResolverOwnedCourseCountLine = (source: string): boolean => {
   );
 };
 
-const toRoundWording = (text: string): string =>
-  text.replace(/\brows\b/giu, "rounds").replace(/\brow\b/giu, "round");
+/**
+ * The exact target text the source normalizer rendered for each
+ * resolver-owned course-count clause in one source line, re-rendered with the
+ * resolver's unit through the same render helpers. Marker prefixes and
+ * trailing whitespace are left out because the translator may strip and
+ * restore a leading instruction marker around the normalized body. These
+ * strings are located verbatim in the translation; no source-to-target offset
+ * is inferred.
+ */
+const resolverRenderedCourseCounts = (
+  line: string,
+  sourceContext: string,
+  lineStart: number,
+  resolveCourseUnit: CourseUnitResolver,
+): string[] => {
+  const bare = <Span extends { prefix: string; suffix: string }>(span: Span): Span => ({
+    ...span,
+    prefix: "",
+    suffix: "",
+  });
+  const unitAt = (offset: number) =>
+    resolveCourseUnit(sourceContext, lineStart + offset);
+  const rendered: string[] = [];
+  // The normalizer renders "Nx"; restoring protected notation turns it into
+  // the target abbreviation ("Nsc") before style runs, so protect both.
+  const inBothNotations = (render: (notation: "x" | "sc") => string) =>
+    rendered.push(render("x"), render("sc"));
+
+  // Spans a specialized family renders; the generic count never re-renders them.
+  const claimed: { start: number; end: number }[] = [];
+
+  const bareLine = parseBareRoundCountSourceLine(line);
+  if (bareLine) {
+    claimed.push({ start: 0, end: line.length });
+    const unit = unitAt(0);
+    inBothNotations((notation) =>
+      renderEnglishBareRoundCountLine(bare(bareLine), notation, unit));
+  }
+  const armJoining = parseCourseCountClauseLine(ARM_JOINING_SOURCE_PATTERN, line);
+  if (armJoining) {
+    claimed.push({ start: 0, end: line.length });
+    const unit = unitAt(0);
+    inBothNotations((notation) =>
+      renderEnglishArmJoiningSpan(bare(armJoining), notation, unit));
+  }
+  for (const span of scanWorkedChainCutSourceSpans(line)) {
+    claimed.push(span);
+    rendered.push(renderEnglishWorkedChainCutSpan(bare(span), unitAt(span.start)));
+  }
+  for (const span of scanWrittenChainCutSourceSpans(line)) {
+    claimed.push(span);
+    rendered.push(renderEnglishWrittenChainCutSpan(bare(span), unitAt(span.start)));
+  }
+  for (const span of scanRoundCountTrailingActionSourceSpans(line)) {
+    claimed.push(span);
+    const unit = unitAt(span.start);
+    inBothNotations((notation) =>
+      renderEnglishRoundCountTrailingActionSpan(bare(span), notation, unit));
+  }
+  for (const span of scanRoundCountYarnCutSourceSpans(line)) {
+    claimed.push(span);
+    const unit = unitAt(span.start);
+    inBothNotations((notation) =>
+      renderEnglishRoundCountYarnCutSpan(bare(span), notation, unit));
+  }
+  for (const span of scanGenericCourseCountSourceSpans(line)) {
+    if (claimed.some(({ start, end }) => span.start < end && start < span.end)) continue;
+    const unit = unitAt(span.start);
+    inBothNotations((notation) =>
+      renderEnglishGenericCourseCountSpan(span, notation, unit));
+  }
+  return rendered;
+};
+
+/**
+ * Segment-wide row -> round wording, except inside `protectedTexts`: verbatim
+ * course-count renderings whose unit the resolver already decided.
+ */
+const toRoundWording = (
+  text: string,
+  protectedTexts: readonly string[] = [],
+): string => {
+  const rewrite = (part: string) =>
+    part.replace(/\brows\b/giu, "rounds").replace(/\brow\b/giu, "round");
+  let result = "";
+  let cursor = 0;
+
+  for (;;) {
+    let next = -1;
+    let length = 0;
+    for (const candidate of protectedTexts) {
+      if (candidate === "") continue;
+      const index = text.indexOf(candidate, cursor);
+      if (
+        index >= 0 &&
+        (next < 0 || index < next || (index === next && candidate.length > length))
+      ) {
+        next = index;
+        length = candidate.length;
+      }
+    }
+    if (next < 0) break;
+    result += rewrite(text.slice(cursor, next)) + text.slice(next, next + length);
+    cursor = next + length;
+  }
+
+  return result + rewrite(text.slice(cursor));
+};
 
 const normalizeEnglishCrochetInstructions = (
   source: string,
@@ -772,17 +892,39 @@ const normalizeEnglishCrochetInstructions = (
     ) ||
     /\b\d+\s+zincir(?:\s+çekip)?\s+dön(?:üyoruz)?\b/iu.test(source);
 
-  // Segment-wide wording rule for text the resolver does not own. Lines whose
-  // unit the resolver decides (below, in the line rebuild) are left alone.
+  // Segment-wide row -> round wording for text the resolver does not own.
+  // Whole lines the line rebuild decides are skipped entirely; on every other
+  // line (and across the whole translation when lines cannot be paired) the
+  // resolver's own course-count renderings are protected verbatim, while
+  // unrelated row wording is still rewritten as before.
   const roundWording =
     /(?<!\p{L})sıra\p{L}*/iu.test(source) && !usesTurningRows;
+  const sourceLineStarts: number[] = [];
+  sourceLines.reduce((start, line) => {
+    sourceLineStarts.push(start);
+    return start + line.length + 1;
+  }, sourceStart);
+  const renderedCourseCounts = (index: number): string[] =>
+    resolverRenderedCourseCounts(
+      sourceLines[index] ?? "",
+      sourceContext,
+      sourceLineStarts[index] ?? sourceStart,
+      resolveCourseUnit,
+    );
+
   const rawTranslatedLines = translated.split("\n");
   if (sourceLines.length !== rawTranslatedLines.length) {
-    return roundWording ? toRoundWording(translated) : translated;
+    // Lines cannot be paired, so protect every resolver rendering verbatim.
+    return roundWording
+      ? toRoundWording(
+          translated,
+          sourceLines.flatMap((_line, index) => renderedCourseCounts(index)),
+        )
+      : translated;
   }
   const translatedLines = rawTranslatedLines.map((line, index) =>
     roundWording && !isResolverOwnedCourseCountLine(sourceLines[index] ?? "")
-      ? toRoundWording(line)
+      ? toRoundWording(line, renderedCourseCounts(index))
       : line,
   );
   let lineStart = 0;

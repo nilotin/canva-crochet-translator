@@ -13,6 +13,7 @@ import {
   type BlockCourseAnalysis,
   type CourseDecisionBlock,
 } from "../course_decisions.js";
+import { lookupTypedCourseUnit } from "../../course_unit_resolution.js";
 import { foldPatternContext } from "../pattern_context.js";
 
 const TURN = "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
@@ -177,5 +178,104 @@ describe("course decisions: lineIndexAt", () => {
 
   it.each([-1, 10, 1.5, Number.NaN])("offset %s lies outside the block", (position) => {
     expect(lineIndexAt(analysis, position)).toBeUndefined();
+  });
+});
+
+describe("written-chain course context (Task 14D)", () => {
+  const turn = "10) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+  const line = "11-35) 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.";
+
+  it.each(["\n", "\r\n"])("reads inherited rows before the yarn-cut reset with %j", (separator) => {
+    const text = `${turn}${separator}${line}${separator}36) 2 sıra 8x`;
+    const decisions = decide({ id: "b", text }).decisions.get("b")!;
+    expect(decisions.map(({ courseKind }) => courseKind)).toEqual(["row", "unknown"]);
+    expect(decisions[0]?.sourceSpan).toEqual({
+      start: text.indexOf("25 sıra"), end: text.indexOf(" bir zincir"), raw: "25 sıra 12x",
+    });
+    const [trace] = foldPatternContext([text]);
+    expect(trace?.reads.map(({ courseKind }) => courseKind)).toEqual(["row", "unknown"]);
+    expect(trace?.resets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reason: "yarn_cut", span: { start: text.indexOf(`${separator}36)`), end: text.indexOf(`${separator}36)`), raw: "" } }),
+    ]));
+  });
+
+  it.each([
+    ["no evidence", line],
+    ["blank line", `${turn}\n\n${line}`],
+    ["discontinuous numbering", `${turn}\n${line.replace("11-35)", "12-35)")}`],
+    ["U+2028", `${turn}\u2028${line}`],
+    ["U+2029", `${turn}\u2029${line}`],
+    ["same-line evidence", `11-35) Bütün sıra sonlarında 1 zincir çekip dönüyoruz; 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.`],
+  ])("preserves unknown after %s", (_name, text) => {
+    expect(decide({ id: "b", text }).decisions.get("b")?.map(({ courseKind }) => courseKind)).toEqual(["unknown"]);
+  });
+});
+
+it("written-chain counts retain fail-closed lookup for conflicting same-line decisions", () => {
+  const text = "10) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n11) 2 sıra 8x; Bütün sıra sonlarında 1 zincir çekip dönüyoruz; 25 sıra 12x bir zincir çekip ipimizi kesiyoruz.";
+  const prepass = decide({ id: "b", text });
+  expect(prepass.decisions.get("b")?.map(({ courseKind }) => courseKind)).toEqual(["row", "unknown"]);
+  expect(lookupTypedCourseUnit(prepass, "b", text, text.indexOf("25 sıra"))).toEqual({
+    kind: "fallback", reason: "ambiguous_line",
+  });
+});
+
+describe("worked chain-and-cut course context (Task 14I)", () => {
+  const turn = "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+  const line = "13-38) 26 sıra 14x örüyoruz, 1 zincir çekip ipimizi kesiyoruz.";
+
+  it.each(["\n", "\r\n"])("reads inherited rows before the yarn-cut reset with %j", (separator) => {
+    const text = `${turn}${separator}${line}${separator}39) 2 sıra 8x`;
+    const prepass = decide({ id: "b", text });
+    const decisions = prepass.decisions.get("b")!;
+    expect(decisions.map(({ courseKind }) => courseKind)).toEqual(["row", "unknown"]);
+    expect(decisions[0]?.sourceSpan).toEqual({
+      start: text.indexOf("26 sıra"), end: text.indexOf(" örüyoruz"), raw: "26 sıra 14x",
+    });
+    expect(lookupTypedCourseUnit(prepass, "b", text, text.indexOf("26 sıra"))).toMatchObject({
+      kind: "typed", unit: "row",
+    });
+  });
+
+  it.each([
+    ["no evidence", line],
+    ["blank line", `${turn}\n\n${line}`],
+    ["discontinuous numbering", `${turn}\n${line.replace("13-38)", "14-38)")}`],
+    ["U+2028", `${turn}\u2028${line}`],
+    ["U+2029", `${turn}\u2029${line}`],
+  ])("preserves unknown after %s", (_name, text) => {
+    expect(decide({ id: "b", text }).decisions.get("b")?.map(({ courseKind }) => courseKind)).toEqual(["unknown"]);
+  });
+});
+
+describe("dash-separated yarn-cut course context (Task 15B)", () => {
+  const turn = "9) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+
+  describe.each([
+    "10-15) 6 sıra 18x --- ipimizi kesiyoruz.",
+    "10-15) 6 sıra 18x - ipimizi kesiyoruz ve dikiyoruz.",
+  ])("%s", (line) => {
+    it.each(["\n", "\r\n"])("reads inherited rows, then the yarn cut resets the next line (%j)", (separator) => {
+      const text = `${turn}${separator}${line}${separator}16) 2 sıra 8x`;
+      const prepass = decide({ id: "b", text });
+      const decisions = prepass.decisions.get("b")!;
+      expect(decisions.map(({ courseKind }) => courseKind)).toEqual(["row", "unknown"]);
+      expect(decisions[0]?.sourceSpan).toEqual({
+        start: text.indexOf("6 sıra"), end: text.indexOf("6 sıra") + "6 sıra 18x".length, raw: "6 sıra 18x",
+      });
+      expect(lookupTypedCourseUnit(prepass, "b", text, text.indexOf(line))).toMatchObject({ kind: "typed", unit: "row" });
+      const [trace] = foldPatternContext([text]);
+      expect(trace?.resets).toEqual(expect.arrayContaining([expect.objectContaining({ reason: "yarn_cut" })]));
+    });
+
+    it.each([
+      ["no evidence", line],
+      ["blank line", `${turn}\n\n${line}`],
+      ["discontinuous numbering", `${turn}\n${line.replace("10-15)", "11-15)")}`],
+      ["U+2028", `${turn}\u2028${line}`],
+      ["U+2029", `${turn}\u2029${line}`],
+    ])("preserves unknown after %s", (_name, text) => {
+      expect(decide({ id: "b", text }).decisions.get("b")?.map(({ courseKind }) => courseKind)).toEqual(["unknown"]);
+    });
   });
 });

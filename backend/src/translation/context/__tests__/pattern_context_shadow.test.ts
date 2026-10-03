@@ -128,6 +128,7 @@ describe("PatternContext shadow: corpus course_count reads", () => {
       ["c-1bb09c4de3-page14-multi-style-block-2", "24 sıra 20x", "unknown"],
       ["h-293cba8ae6-s69e691d8-12-23-12-sira", "12 sıra 66x", "unknown"],
       ["h-2c6ae438a1-s8ba3bafb-2-11-10-sira", "10 sıra 64x", "unknown"],
+      ["h-3882616ab2-sfb8dd806-bu-siradan-sonra-kol", "6 sıra 18x", "unknown"],
       ["h-adcec187ab-s9637a557-bal-kabagi-2-00", "15 sıra 8hdc", "unknown"],
       ["h-d3cc1710cc-s64028a30-bu-aciklama-cevrilsin-2", "10 sıra 64x", "unknown"],
       ["r-0b3aaf317b-cross-block-row-context", "5 sıra 16x", "row"],

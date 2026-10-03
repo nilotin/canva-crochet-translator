@@ -95,8 +95,9 @@ describe("frame parser shadow: corpus source blocks", () => {
     expect([countOf("chain"), countOf("turn"), countOf("course_end_turn")]).toEqual([4, 4, 4]);
   });
 
-  it("adds 6 course_count frames without changing any other count", () => {
-    expect(countOf("course_count")).toBe(6);
+  // Task 15B: the dash-separated yarn cut in h-3882616ab2 adds the 7th.
+  it("adds 7 course_count frames without changing any other count", () => {
+    expect(countOf("course_count")).toBe(7);
     expect([countOf("stitch_count"), countOf("chain"), countOf("turn"), countOf("course_end_turn")]).toEqual([
       7, 4, 4, 4,
     ]);
