@@ -111,18 +111,24 @@ describe("repro and curated ids stay request-based", () => {
   // Pinned literally: these ids were frozen in Step 3 and must never change.
   // R4 (`r-9fd3d972ce-unit-drift-turning`) left the repro lane when Task 18B
   // fixed it; its request hash lives on, unchanged, in the curated id below.
+  // R1 (`r-7a5acffa51-ordinal-at-block-start`) left the repro lane when Beta
+  // Blocker #3 fixed it; its request hash lives on in the curated id below.
   const FROZEN_REPRO_IDS = [
     "r-0b3aaf317b-cross-block-row-context",
-    "r-7a5acffa51-ordinal-at-block-start",
     "r-7f044c15ff-ordinal-mid-block",
   ];
+
+  it("keeps the promoted R1 request hash under its curated id", () => {
+    expect(loadCorpus().cases.map(({ caseId }) => caseId))
+      .toContain("c-7a5acffa51-ordinal-stitch-attach");
+  });
 
   it("keeps the promoted R4 request hash under its curated id", () => {
     expect(loadCorpus().cases.map(({ caseId }) => caseId))
       .toContain("c-9fd3d972ce-course-end-turn");
   });
 
-  it("keeps the three open frozen repro ids byte-identical", () => {
+  it("keeps the two open frozen repro ids byte-identical", () => {
     const ids = loadCorpus()
       .cases.filter((entry) => entry.lane === "repro")
       .map((entry) => entry.caseId)

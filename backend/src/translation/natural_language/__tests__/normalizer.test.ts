@@ -1952,8 +1952,8 @@ describe("deterministic span carrier: word-ordinal chain start (Task 22B)", () =
     // Not rendered at all, so nothing to carry.
     expect(spansOf("İkinci zincirden itibaren 5x örüyoruz.")).toEqual([]);
     expect(spansOf("3. zincirden itibaren 8x")).toEqual(["Starting from the 3rd chain, work"]);
-    // A stitch ordinal has no renderer (beta blocker #3): nothing is carried.
-    expect(spansOf("7. sık iğneye ipimizi sabitliyoruz.")).toEqual([]);
+    // A stitch ordinal is a typed reference since Beta Blocker #3, carried with its verb.
+    expect(spansOf("7. sık iğneye ipimizi sabitliyoruz.")).toEqual(["Attach the yarn to the 7th single crochet"]);
     expect(
       spansOf("12 zincir çekip geriye dönüyoruz. 4 zincir atlıyoruz. 3. zincirden itibaren 18x. zincir üzerine 5x"),
     ).toEqual(["Ch 12 and turn.", "skip", "chains", "Starting from the 3rd chain, work", "work", "along the chain"]);

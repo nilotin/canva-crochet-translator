@@ -5,7 +5,7 @@
         "errorCodes": [],
         "id": "local-block-1",
         "source": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6x sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nBütün sıra sonlarında 1 zincir çekip dönüyoruz.",
-        "translated": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6sc sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nAt the end of each row, ch 1 and turn.",
+        "translated": "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6sc sayıp atlıyoruz.\nAttach the yarn to the 7th single crochet.\nAt the end of each row, ch 1 and turn.",
         "valid": true,
         "warningCodes": []
       }
@@ -67,17 +67,15 @@
       {
         "blockIds": [
           "span-0",
-          "span-1",
-          "span-2"
+          "span-1"
         ],
         "blockTexts": [
           "Görselde görüldüğü gibi birinci parçanın bittiği yerden",
-          "sayıp atlıyoruz.",
-          ". sık iğneye ipimizi sabitliyoruz."
+          "sayıp atlıyoruz."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "f2e7b6247b51770aab52d84845e4017f8c22b013402fd5b416c476d73dbe3bcd"
+        "userPromptSha256": "8647cd02066484c0c6f6ef8658f830bd9ba96d4c4cde878a206d6f94f9681f1b"
       }
     ]
   }

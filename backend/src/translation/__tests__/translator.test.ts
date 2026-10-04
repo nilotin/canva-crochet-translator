@@ -6936,7 +6936,7 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
     expect(paraphrased?.translated).toContain("EDGE");
   });
 
-  it("carries second-chain wording (Task 24A); a block-leading numeric ordinal stays as before (blocker #3)", async () => {
+  it("carries second-chain wording (Task 24A) and a block-leading numeric chain ordinal (Beta Blocker #3)", async () => {
     const second = new InspectingProvider();
     const [secondResult] = await translateBlocks(
       [{ id: "second-chain", text: "ikinci zincirden itibaren 5x" }],
@@ -6952,8 +6952,8 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
       "en",
       { provider: numeric },
     );
-    expect(numericResult?.translated).toBe("3. zincirden itibaren 8sc");
-    expect(numeric.protectedTexts).toEqual(["zincirden itibaren"]);
+    expect(numericResult?.translated).toBe("Starting from the 3rd chain, work 8sc");
+    expect(numeric.protectedTexts).toEqual([]);
   });
 
   it("formatting units still translate and project the mixed line", async () => {
@@ -8398,5 +8398,170 @@ describe("provider row/round guidance follows the resolver and never contradicts
     const [result] = await translateBlocks([{ id: "es", text: `${TURN}\n14) 7. sıradan itibaren kenarı dikiyoruz.` }], "es", { provider });
     expect(provider.requests.every((request) => !/“sıra”/u.test(request.systemPrompt))).toBe(true);
     expect(result?.translated).toMatch(/Vuelta 7/u);
+  });
+});
+
+describe("numbered chain and stitch references are typed and carried (Beta Blocker #3)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  // Flips the ordinal, the noun and the relation wherever the provider can see them.
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text
+        .replace(/\b(\d+)(?:st|nd|rd|th)\b/gu, "8th")
+        .replace(/single crochet|\bchain\b|\bstitch\b/gu, "double crochet")
+        .replace(/\bto the\b/gu, "from the")
+        .replace(/Starting from|Attach/gu, "Ending at")
+        .replace(/kenarı/giu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (
+    text: string,
+    provider: InspectingProvider,
+    language: "en" | "es" = "en",
+    formattingRegions?: { id: string; start: number; end: number }[],
+  ) =>
+    (await translateBlocks([{ id: "ordinal", text, ...(formattingRegions ? { formattingRegions } : {}) }], language, { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  const ORDINALS = [
+    ["1", "1st"], ["2", "2nd"], ["3", "3rd"], ["4", "4th"], ["7", "7th"], ["8", "8th"], ["10", "10th"],
+    ["11", "11th"], ["12", "12th"], ["13", "13th"], ["21", "21st"], ["22", "22nd"], ["23", "23rd"], ["24", "24th"],
+  ] as const;
+
+  it.each(ORDINALS)("%s. renders %s at block start and mid-block with no provider call", async (number, ordinal) => {
+    const start = new InspectingProvider();
+    expect(await translate(`${number}. zincirden itibaren 8x`, start)).toMatchObject({
+      translated: `Starting from the ${ordinal} chain, work 8sc`,
+      valid: true,
+    });
+    expect(start.protectedTexts).toEqual([]);
+
+    const mid = new InspectingProvider();
+    const result = await translate(`6x\n${number}. sık iğneye ipimizi sabitliyoruz.`, mid);
+    expect(result).toMatchObject({ translated: `6sc\nAttach the yarn to the ${ordinal} single crochet.`, valid: true });
+    expect(mid.protectedTexts).toEqual([]);
+  });
+
+  it.each([
+    ["3. zincirden itibaren 8x", "Starting from the 3rd chain, work 8sc", []],
+    ["7. sık iğneye ipimizi sabitliyoruz.", "Attach the yarn to the 7th single crochet.", []],
+    ["Sonra 8. sık iğneye ipimizi sabitliyoruz.", "Sonra attach the yarn to the 8th single crochet.", ["Sonra"]],
+    ["Sonra 3. zincire ipimizi sabitliyoruz.", "Sonra attach the yarn to the 3rd chain.", ["Sonra"]],
+    ["Sonra 8. sık iğneden 6x örüyoruz.", "Sonra from the 8th single crochet 6sc örüyoruz.", ["Sonra", "örüyoruz."]],
+    ["Sonra 3. ilmeğe geçiyoruz.", "Sonra to the 3rd stitch geçiyoruz.", ["Sonra", "geçiyoruz."]],
+    ["3.zincirden itibaren 8x", "Starting from the 3rd chain, work 8sc", []],
+    [
+      "3. zincirden itibaren 6x\nSonra 7. sık iğneye ipimizi sabitliyoruz.",
+      "Starting from the 3rd chain, work 6sc\nSonra attach the yarn to the 7th single crochet.",
+      ["Sonra"],
+    ],
+    [
+      "3. sık iğneye ipimizi sabitliyoruz. Sonra 3. zincire ipimizi sabitliyoruz.",
+      "Attach the yarn to the 3rd single crochet. Sonra attach the yarn to the 3rd chain.",
+      [". Sonra"],
+    ],
+  ])("%s renders every target and relation, the prose alone reaching the provider", async (text, expected, prose) => {
+    const echo = new InspectingProvider();
+    expect(await translate(text, echo)).toMatchObject({ translated: expected, valid: true, errors: [] });
+    expect(echo.protectedTexts).toEqual(prose);
+  });
+
+  it.each([
+    ["Sonra 7. sık iğneye ipimizi sabitliyoruz ve kenarı dikiyoruz.", ["the 7th single crochet"]],
+    ["3. zincirden itibaren 6x\nSonra 7. sık iğneye ipimizi sabitliyoruz, kenarı dikiyoruz.", ["the 3rd chain", "the 7th single crochet"]],
+    ["7. sık iğneye ipimizi sabitliyoruz. Sonra 7. zincire ipimizi sabitliyoruz, kenarı dikiyoruz.", ["the 7th single crochet", "the 7th chain"]],
+  ])("%s keeps every ordinal, noun and relation through every hostile provider", async (text, phrases) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const result = await translate(text, provider);
+      for (const phrase of phrases) expect(occurrences(result?.translated, phrase)).toBe(1);
+      expect(result?.translated).not.toMatch(/8th|double crochet|Ending at/u);
+      for (const sent of provider.protectedTexts) expect(sent).not.toMatch(/\d+\.\s*(?:sık|zincir|ilmeğe)/u);
+    }
+  });
+
+  it("the validator rejects a wrong ordinal, noun or a dropped reference", () => {
+    const source = "Sonra 7. sık iğneye ipimizi sabitliyoruz.";
+    expect(validateTranslation(source, "Then attach the yarn to the 7th single crochet.", "en").errors).toEqual([]);
+    for (const wrong of [
+      "Then attach the yarn to the 8th single crochet.",
+      "Then attach the yarn to the 7th double crochet.",
+      "Then attach the yarn to the single crochet.",
+      "Then attach the yarn.",
+    ]) {
+      expect(validateTranslation(source, wrong, "en").errors.map(({ code }) => code)).toContain("LOST_PATTERN_NOTATION");
+    }
+    // Two references need two renderings.
+    const twice = "7. zincirden itibaren 6x, sonra 7. zincirden itibaren 6x";
+    expect(
+      validateTranslation(twice, "Starting from the 7th chain, work 6sc, then work 6sc", "en").errors.map(({ code }) => code),
+    ).toContain("LOST_PATTERN_NOTATION");
+  });
+
+  it("a stitch ordinal is not a stitch count", () => {
+    const source = "7. sık iğneye ipimizi sabitliyoruz.";
+    const result = validateTranslation(source, "Attach the yarn to the 7th single crochet.", "en");
+    expect(result.errors).toEqual([]);
+    expect(result.errors.map(({ code }) => code)).not.toContain("NUMBER_MISMATCH");
+  });
+
+  it.each([
+    ["3. 6x", "3. 6sc"],
+    ["3. 6x, 1v", "3. 6sc, 1inc"],
+    ["3. Sihirli halka içine 6x", "3. 6sc into the magic ring"],
+  ])("instruction marker control %s stays a marker", async (text, expected) => {
+    const echo = new InspectingProvider();
+    expect(await translate(text, echo)).toMatchObject({ translated: expected, valid: true });
+    expect(echo.protectedTexts).toEqual([]);
+  });
+
+  it("N. sıra stays a course reference, Round or Row per the resolver", async () => {
+    const round = await translate("7. sıradan itibaren kenarı dikiyoruz.", new InspectingProvider());
+    expect(round?.translated).toContain("Round 7");
+    expect(round?.translated).not.toMatch(/7th/u);
+    const row = await translate(
+      "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n13) 7. sıradan itibaren kenarı dikiyoruz.",
+      new InspectingProvider(),
+    );
+    expect(row?.translated).toContain("Row 7");
+    expect(row?.translated).not.toMatch(/7th|Round 7/u);
+  });
+
+  it("a bare nominative chain count is not an ordinal", async () => {
+    const result = await translate("3. zincir çekip dönüyoruz.", new InspectingProvider());
+    expect(result?.translated).not.toMatch(/3rd/u);
+  });
+
+  it("formatting units keep the carried reference; a boundary inside it fails closed", async () => {
+    const text = "7. sık iğneye ipimizi sabitliyoruz. Sonra kenarı dikiyoruz.";
+    const cut = text.indexOf(" Sonra");
+    const whole = await translate(text, new InspectingProvider(), "en", [
+      { id: "fmt-0", start: 0, end: cut },
+      { id: "fmt-1", start: cut, end: text.length },
+    ]);
+    expect(whole).toMatchObject({ translated: "Attach the yarn to the 7th single crochet. Sonra kenarı dikiyoruz.", valid: true });
+    const split = await translate(text, new InspectingProvider(), "en", [
+      { id: "fmt-0", start: 0, end: 2 },
+      { id: "fmt-1", start: 2, end: text.length },
+    ]);
+    expect(split?.valid).toBe(false);
+    expect(split?.errors.map(({ code }) => code)).toContain("LOST_PATTERN_NOTATION");
+  });
+
+  it("Spanish keeps the number before its noun and is not checked for English wording", async () => {
+    const echo = new InspectingProvider();
+    const result = await translate("7. sık iğneye ipimizi sabitliyoruz.", echo, "es");
+    expect(result).toMatchObject({ translated: "7. sık iğneye ipimizi sabitliyoruz.", valid: true });
+    expect(result?.translated).not.toMatch(/7th|single crochet/u);
   });
 });

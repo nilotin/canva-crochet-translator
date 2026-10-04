@@ -19,10 +19,9 @@ const exact = (source: string): LexToken[] => {
   return tokens;
 };
 
+// R1 was promoted to the curated lane (Beta Blocker #3); cases are found by hazard.
 const reproSource = (hazard: string): string => {
-  const repro = loadCorpus().cases.find(
-    ({ value }) => value.lane === "repro" && value.labels.hazards.includes(hazard),
-  );
+  const repro = loadCorpus().cases.find(({ value }) => value.labels.hazards.includes(hazard));
   const text = repro?.value.request.blocks[0]?.text;
   if (text === undefined) throw new Error(`No repro for hazard ${hazard}.`);
   return text;
@@ -438,7 +437,7 @@ describe("typed lexer: real pattern sentences", () => {
   });
 });
 
-describe("typed lexer: ordinal repros R1 and R2 (tokenized, NOT fixed)", () => {
+describe("typed lexer: ordinal cases R1 and R2 (tokenized; the lexer still only states facts)", () => {
   // The lexer only exposes the characters. Whether "7." is a list marker or an
   // ordinal is a frame-parser decision; replay of R1/R2 is unaffected because
   // no production module uses this lexer.

@@ -1,4 +1,5 @@
 import { extractRoundReferences } from "./natural_language/round_references.js";
+import { extractOrdinalReferences } from "./natural_language/ordinal_references.js";
 export type LeadingInstruction = {
   leadingWhitespace: string;
   marker: string;
@@ -17,6 +18,10 @@ export const extractLeadingInstruction = (
   if (!match) return undefined;
   // “6. sıra…” names a crochet round; “6.” alone is an instruction marker.
   if (extractRoundReferences(source)[0]?.start === (match[1]?.length ?? 0)) return undefined;
+  // “3. zincirden”, “7. sık iğneye” name the 3rd chain / 7th single crochet
+  // (Beta Blocker #3): lexical evidence after the dot wins over the position.
+  const firstLine = source.split("\n", 1)[0] ?? "";
+  if (extractOrdinalReferences(firstLine)[0]?.start === (match[1]?.length ?? 0)) return undefined;
 
   const matched = match[0];
   return {

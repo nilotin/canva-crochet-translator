@@ -218,8 +218,8 @@ describe("ordinal repros stay unresolved", () => {
     },
   );
 
-  it("R1 (the block-leading ordinal) stays fully Opaque", () => {
-    const r1 = repros.find(({ value }) => value.labels.hazards.includes("ordinal-at-block-start"));
+  it("R1 (the block-leading ordinal, now a curated case) stays fully Opaque to the frame parser", () => {
+    const r1 = loadCorpus().cases.find(({ value }) => value.labels.hazards.includes("ordinal-at-block-start"));
     expect(r1).toBeDefined();
     for (const block of r1!.value.request.blocks) allOpaque(block.text);
   });

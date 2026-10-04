@@ -15,7 +15,8 @@ import { validateSemanticAnchors } from "./natural_language/semantic_anchors.js"
 import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
-import { scanSourceDataRanges } from "./natural_language/normalizer.js";
+import { ordinalReferencePhrase, scanSourceDataRanges } from "./natural_language/normalizer.js";
+import { extractOrdinalReferences } from "./natural_language/ordinal_references.js";
 import {
   ARM_JOINING_SOURCE_PATTERN,
   legacyCourseUnitResolver,
@@ -829,6 +830,28 @@ export const validateTranslation = (
     warnings.push(...validateTargetLanguageFluency(translated, targetLanguage));
 
     return { valid: errors.length === 0, errors, warnings };
+  }
+
+  // Every typed numbered chain/stitch reference (Beta Blocker #3) must keep
+  // its ordinal and noun: "7. sık iğneye" needs "the 7th single crochet".
+  // Checked structurally from the typed source scan, never from prose.
+  if (targetLanguage === "en" && (options.contentKind ?? "pattern") === "pattern") {
+    const expected = new Map<string, number>();
+    for (const reference of extractOrdinalReferences(source)) {
+      const phrase = ordinalReferencePhrase(reference);
+      expected.set(phrase, (expected.get(phrase) ?? 0) + 1);
+    }
+    for (const [phrase, count] of expected) {
+      const found = translated.toLowerCase().split(phrase).length - 1;
+      if (found < count) {
+        errors.push(
+          error(
+            "LOST_PATTERN_NOTATION",
+            `Numbered stitch or chain reference changed: expected ${count} occurrence(s) of “${phrase}”, received ${found}.`,
+          ),
+        );
+      }
+    }
   }
 
   // A reference on a line the resolver put in rows is checked as "Row N"

@@ -1,0 +1,55 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "local-block-1",
+        "source": "7. sık iğneye ipimizi sabitliyoruz.",
+        "translated": "Attach the yarn to the 7th single crochet.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "c-7a5acffa51-ordinal-stitch-attach",
+  "labels": {
+    "families": [
+      "ordinal-marker"
+    ],
+    "hazards": [
+      "ordinal-at-block-start"
+    ],
+    "zeroProvider": true
+  },
+  "lane": "curated",
+  "origins": [
+    {
+      "kind": "manual",
+      "note": "Curated Stage 0 golden case, promoted from known-bad repro r-7a5acffa51-ordinal-at-block-start (R1, hazard ordinal-at-block-start) after Beta Blocker #3 typed numbered stitch/chain references. Exact source request unchanged. Expected target equals the repro's documented desired output (\"7. sık iğneye ipimizi sabitliyoruz.\" -> \"Attach the yarn to the 7th single crochet.\"), verified byte-identical to the live translateBlocks output with zero provider calls."
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "local-block-1",
+        "text": "7. sık iğneye ipimizi sabitliyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "approved",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "local-block-1",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

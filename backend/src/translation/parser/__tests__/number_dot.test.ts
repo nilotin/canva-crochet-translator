@@ -71,11 +71,9 @@ describe("classifyNumberDot: row_round_label", () => {
 
 describe("classifyNumberDot: ordinal_or_ordinary", () => {
   it.each([
-    ["R1: a leading stitch ordinal", "7. sık iğneye ipimizi sabitliyoruz.", "ordinal-head"],
     ["a leading glossary stitch head", "3. x’e ipimizi sabitliyoruz.", "ordinal-head"],
     ["a leading chain noun", "3. zincir çekip dönüyoruz.", "ordinal-head"],
     ["a leading unlisted row inflection", "6. sıraya geçiyoruz.", "row-stem"],
-    ["R2: a mid-block line-start ordinal", "atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.", "not-leading"],
     ["a sentence number", "Toplam 3. Sonra dönüyoruz.", "not-leading"],
     ["a repeat count before a period", "(6x, v) x 6. FLO örüyoruz.", "not-leading"],
     ["glued to a letter on the left", "a6. sıra", "attached-left"],
@@ -85,12 +83,9 @@ describe("classifyNumberDot: ordinal_or_ordinary", () => {
     expect(classifyNumberDots(source).at(-1)).toMatchObject({ kind: "ordinal_or_ordinary", reason });
   });
 
-  it("keeps a leading number a marker when its head is not in the first-slice lexicon", () => {
-    // "zincire" (dative) is not a listed spelling; production claims it as a marker too.
-    expect(only("3. zincire ipimizi sabitliyoruz.")).toMatchObject({
-      kind: "instruction_marker",
-      reason: "leading-position",
-    });
+  it("keeps a leading number a marker when its head is not a case-marked reference head", () => {
+    expect(only("3. zincir çekip dönüyoruz.")).toMatchObject({ kind: "ordinal_or_ordinary", reason: "ordinal-head" });
+    expect(only("3. kenarı dikiyoruz.")).toMatchObject({ kind: "instruction_marker", reason: "leading-position" });
   });
 
   it("uses the second word only for the two-word noun 'sık iğne'", () => {
@@ -104,7 +99,7 @@ describe("classifyNumberDot: ordinal_or_ordinary", () => {
     expect(decisions("1. Bu kısmı ayrı örüyoruz.\n2. sırada 3. ilmeğe geçiyoruz.")).toEqual([
       ["1.", "instruction_marker", "leading-position"],
       ["2.", "row_round_label", "row-word"],
-      ["3.", "ordinal_or_ordinary", "not-leading"],
+      ["3.", "ordinal_reference", "ordinal-reference"],
     ]);
   });
 });
@@ -204,5 +199,33 @@ describe("number_dot: module contract", () => {
   it("uses no clock, randomness, environment or locale-dependent API", () => {
     expect(code).not.toMatch(/process\.|Date\.now|new Date\(|Math\.random|performance\.now/);
     expect(code).not.toMatch(/localeCompare|Intl\.|toLocale(?:Lower|Upper)Case/);
+  });
+});
+
+describe("classifyNumberDot: ordinal_reference (Beta Blocker #3)", () => {
+  it.each([
+    ["R1: a block-leading stitch ordinal", "7. sık iğneye ipimizi sabitliyoruz."],
+    ["R2: a mid-block line-start ordinal", "atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz."],
+    ["a block-leading chain ordinal", "3. zincirden itibaren 8x"],
+    ["a chain dative", "3. zincire ipimizi sabitliyoruz."],
+    ["a stitch ablative mid-line", "Sonra 8. sık iğneden 6x örüyoruz."],
+    ["a stitch dative (ilmek)", "Sonra 3. ilmeğe geçiyoruz."],
+    ["no space after the dot", "3.zincirden itibaren 8x"],
+    ["a tab after the dot", "3.\tzincirden itibaren 8x"],
+  ])("%s", (_label, source) => {
+    expect(classifyNumberDots(source).at(-1)).toMatchObject({ kind: "ordinal_reference", reason: "ordinal-reference" });
+  });
+
+  it.each([
+    ["a numbered instruction", "3. 6x"],
+    ["a numbered instruction with notation", "3. 6x, 1v"],
+    ["a numbered prose instruction", "3. Sihirli halka içine 6x"],
+    ["a course reference", "7. sıra"],
+    ["a bare nominative chain (makes chains)", "3. zincir çekip dönüyoruz."],
+    ["glued on the left", "a3. zincirden"],
+    ["across a line break", "3.\nzincirden"],
+    ["two space runs", "3.  \u00a0zincirden"],
+  ])("never for %s", (_label, source) => {
+    expect(classifyNumberDots(source)[0]?.kind).not.toBe("ordinal_reference");
   });
 });

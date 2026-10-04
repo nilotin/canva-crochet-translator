@@ -27,6 +27,7 @@ import {
 } from "./yarn_colors.js";
 import { renderEnglishSleeveInstruction } from "./sleeve_instructions.js";
 import { type Composed, type DeterministicSpan, type SourceDataPiece, TrackedText } from "./tracked_text.js";
+import { extractOrdinalReferences, type OrdinalReference, type OrdinalTarget } from "./ordinal_references.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -365,7 +366,7 @@ const normalizeEnglishCrochetStructures = (
       skip === "1" ? "st" : "sts",
     )}`;
 
-  return tracked
+  return renderOrdinalReferences(tracked
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
     .replace(/\bağız\s*(?:[:;–—-])/giu, "Mouth:")
@@ -1293,7 +1294,62 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bgözleri\s+yerleştirebiliriz\b/giu,
       "we can insert the eyes",
-    );
+    ));
+};
+
+/** The project's English noun for each typed ordinal target. */
+const ORDINAL_TARGET_NOUNS: Record<OrdinalTarget, string> = {
+  chain: "chain",
+  single_crochet: "single crochet",
+  stitch: "stitch",
+};
+
+/** "the 7th single crochet": the English a typed ordinal reference always renders. */
+export const ordinalReferencePhrase = (reference: Pick<OrdinalReference, "number" | "target">): string =>
+  `the ${englishOrdinal(reference.number)} ${ORDINAL_TARGET_NOUNS[reference.target]}`;
+
+/** The length of `words` (each after one same-line space/tab run) right at `end`, when they follow. */
+const followingWords = (text: string, end: number, words: readonly string[]): number | undefined => {
+  let cursor = end;
+  for (const word of words) {
+    const space = /^[ \t]+/u.exec(text.slice(cursor))?.[0];
+    if (space === undefined || !text.startsWith(word, cursor + space.length)) return undefined;
+    cursor += space.length + word.length;
+    if (/^[\p{L}\p{N}_]/u.test(text.slice(cursor))) return undefined;
+  }
+  return cursor - end;
+};
+
+/**
+ * Numbered chain/stitch references (Beta Blocker #3), found by their own
+ * recognizer at exact ranges, never by searching the text: "7. sık iğneye" is the 7th single
+ * crochet, "3. zincirden" the 3rd chain. The ordinal, the noun and the case
+ * relation are rendered deterministically and carried; only a following verb
+ * this family already owns is composed with them (the yarn is attached "to"
+ * the stitch whatever its case, as for "ilk sık iğneden ipimizi
+ * sabitliyoruz"; "N. zincirden itibaren" keeps the existing "Starting from"
+ * wording). Everything else around them stays provider-owned.
+ */
+const renderOrdinalReferences = (text: TrackedText): TrackedText => {
+  const edits = extractOrdinalReferences(text.text).map((reference: OrdinalReference) => {
+    const phrase = ordinalReferencePhrase(reference);
+    // A clause opener is capitalized only where a sentence starts ("Sonra
+    // attach the yarn ..." stays one sentence for the provider).
+    const opener = (words: string) =>
+      /(?:^|[.!?:]|\n)[ \t]*$/u.test(text.text.slice(0, reference.start))
+        ? words
+        : `${words[0]!.toLowerCase()}${words.slice(1)}`;
+    const attach = followingWords(text.text, reference.end, ["ipimizi", "sabitliyoruz"]);
+    if (attach !== undefined) {
+      return { start: reference.start, end: reference.end + attach, rendered: `${opener("Attach")} the yarn to ${phrase}` };
+    }
+    const starting = reference.relation === "from" ? followingWords(text.text, reference.end, ["itibaren"]) : undefined;
+    if (starting !== undefined) {
+      return { start: reference.start, end: reference.end + starting, rendered: `${opener("Starting")} from ${phrase}` };
+    }
+    return { start: reference.start, end: reference.end, rendered: `${reference.relation} ${phrase}` };
+  });
+  return text.replaceRanges(edits, (index) => text.mark(edits[index]!.rendered));
 };
 
 // Tool/yarn intro shapes ("N numara tığ, <yarn> ip ile ... örüyoruz"). Each

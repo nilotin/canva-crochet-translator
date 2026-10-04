@@ -268,27 +268,69 @@ export class TrackedText {
         typeof replacement === "function"
           ? replacement(...(args as [string, ...unknown[]]))
           : expandReplacement(replacement, match, groups, offset, input, named);
-      const raw = typeof composed === "string" ? composed : composed.text;
-      // Without recording no mark was ever written, so any mark code point
-      // came from the text itself: it is kept verbatim and never read as a
-      // range (the text stays exactly what plain `replace` produces). Only
-      // positions recorded by `compose` become (positioned) source data.
-      if (!this.recording) {
-        const positioned =
-          typeof composed === "string" || !this.requested
-            ? []
-            : composed.sourceData.map(({ start, end }) => ({ start, end, text: raw.slice(start, end) }));
-        edits.push({ start: offset, end: offset + match.length, inserted: raw, spans: { ...NO_RANGES, positioned } });
-        return raw;
-      }
-      // With recording on `compose` never positions; a positioned rendering
-      // here cannot be placed through the marks, so it breaks that channel.
-      if (typeof composed !== "string") invalidMarks.positioned = true;
-      const unmarked = unmark(raw);
-      for (const kind of KINDS) if (unmarked.invalid[kind]) invalidMarks[kind] = true;
-      edits.push({ start: offset, end: offset + match.length, inserted: unmarked.text, spans: unmarked.spans });
-      return unmarked.text;
+      return this.recordEdit(offset, offset + match.length, composed, edits, invalidMarks);
     });
+    return this.withEdits(text, edits, invalidMarks);
+  }
+
+  /**
+   * Replaces exact ranges of the text (Beta Blocker #3: typed lexer ranges,
+   * never searched for), with the same recording rules as `replace`. The
+   * ranges must be integers, in bounds, non-empty and ascending without
+   * overlap; otherwise nothing is edited. The text is exactly what splicing
+   * each rendering into its range produces.
+   */
+  replaceRanges(
+    ranges: readonly { readonly start: number; readonly end: number }[],
+    render: (index: number) => Composed,
+  ): TrackedText {
+    const valid = ranges.every(
+      ({ start, end }, index) =>
+        Number.isInteger(start) &&
+        Number.isInteger(end) &&
+        start >= (ranges[index - 1]?.end ?? 0) &&
+        end > start &&
+        end <= this.text.length,
+    );
+    if (!valid || ranges.length === 0) return this;
+    const edits: Edit[] = [];
+    const invalidMarks: Broken = { deterministic: false, source: false, positioned: false };
+    let text = "";
+    let cursor = 0;
+    ranges.forEach(({ start, end }, index) => {
+      text += this.text.slice(cursor, start) + this.recordEdit(start, end, render(index), edits, invalidMarks);
+      cursor = end;
+    });
+    text += this.text.slice(cursor);
+    return this.withEdits(text, edits, invalidMarks);
+  }
+
+  /** Records one edit of [start, end) and returns the text it inserts. */
+  private recordEdit(start: number, end: number, composed: Composed, edits: Edit[], invalidMarks: Broken): string {
+    const raw = typeof composed === "string" ? composed : composed.text;
+    // Without recording no mark was ever written, so any mark code point
+    // came from the text itself: it is kept verbatim and never read as a
+    // range (the text stays exactly what plain `replace` produces). Only
+    // positions recorded by `compose` become (positioned) source data.
+    if (!this.recording) {
+      const positioned =
+        typeof composed === "string" || !this.requested
+          ? []
+          : composed.sourceData.map(({ start: from, end: to }) => ({ start: from, end: to, text: raw.slice(from, to) }));
+      edits.push({ start, end, inserted: raw, spans: { ...NO_RANGES, positioned } });
+      return raw;
+    }
+    // With recording on `compose` never positions; a positioned rendering
+    // here cannot be placed through the marks, so it breaks that channel.
+    if (typeof composed !== "string") invalidMarks.positioned = true;
+    const unmarked = unmark(raw);
+    for (const kind of KINDS) if (unmarked.invalid[kind]) invalidMarks[kind] = true;
+    edits.push({ start, end, inserted: unmarked.text, spans: unmarked.spans });
+    return unmarked.text;
+  }
+
+  /** The tracked result of one batch of edits: every range moved or recorded. */
+  private withEdits(text: string, edits: readonly Edit[], invalidMarks: Broken): TrackedText {
     if (edits.length === 0) return this;
 
     const deterministic = moveRanges(this.ranges.deterministic, edits, "deterministic");

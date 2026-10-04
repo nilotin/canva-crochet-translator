@@ -210,9 +210,10 @@ describe("typed lexer shadow: documented mismatches in current lexing", () => {
     ]);
   });
 
-  it("M4: a leading ordinal is claimed as an instruction marker outside the mixed lexer (R1)", () => {
+  it("M4 (resolved by Beta Blocker #3): a leading stitch ordinal is no longer claimed as an instruction marker (R1)", () => {
     const source = "7. sık iğneye ipimizi sabitliyoruz.";
-    expect(extractLeadingInstruction(source)?.marker).toBe("7.");
+    expect(extractLeadingInstruction(source)).toBeUndefined();
+    expect(extractLeadingInstruction("7. Bu kısmı ayrı örüyoruz.")?.marker).toBe("7.");
     // lexMixedSegment declares an instruction_marker kind but never emits it.
     expect(mixedPairs(source).map(([kind]) => kind)).not.toContain("instruction_marker");
     expect(lexSource(source).slice(0, 2).map(({ kind, raw }) => [kind, raw])).toEqual([

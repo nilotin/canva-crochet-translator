@@ -13,6 +13,12 @@
  *                           implements with a regex;
  *  - `row_round_label`      "N. sıra..." names a row or round, the concept
  *                           production's round-reference extraction implements;
+ *  - `ordinal_reference`    "N. zincirden", "N. sık iğneye": a typed numbered
+ *                           chain or stitch reference (Beta Blocker #3), at
+ *                           any position, block start included. Production
+ *                           mirrors this lexicon in
+ *                           `natural_language/ordinal_references.ts`; the
+ *                           shadow tests pin agreement;
  *  - `ordinal_or_ordinary`  everything else: mid-text ordinals, sentence
  *                           numbers, glued or ambiguous forms. This is the
  *                           conservative fallback and is not refined further.
@@ -27,6 +33,9 @@
  *                       `.` `,` `_`                      -> ordinal_or_ordinary
  *  2. row-word          `.` is followed by at most one space/tab run and a
  *                       row/round word                   -> row_round_label
+ *  2b. ordinal-reference `.` is followed by at most one space/tab run and a
+ *                       case-marked chain or stitch head (`ORDINAL_REFERENCE_HEADS`,
+ *                       "sık" + a case-marked "iğne")      -> ordinal_reference
  *  3. not-leading       any non-whitespace token precedes the number
  *                                                        -> ordinal_or_ordinary
  *  4. attached-right    `.` is followed by something other than whitespace,
@@ -61,12 +70,17 @@ import { lexSource, type LexToken } from "../lexer/typed_lexer.js";
 import type { SourceSpan } from "./frame_ir.js";
 import { CHAIN_UNIT_FORMS, STITCH_COUNT_FORMS } from "./frame_parser.js";
 
-export type NumberDotKind = "instruction_marker" | "row_round_label" | "ordinal_or_ordinary";
+export type NumberDotKind =
+  | "instruction_marker"
+  | "row_round_label"
+  | "ordinal_reference"
+  | "ordinal_or_ordinary";
 
 /** Which precedence rule decided (see the module comment). */
 export type NumberDotReason =
   | "attached-left"
   | "row-word"
+  | "ordinal-reference"
   | "not-leading"
   | "attached-right"
   | "ordinal-head"
@@ -118,6 +132,37 @@ export const ORDINAL_HEAD_FORMS: ReadonlySet<string> = new Set([
 const SINGLE_CROCHET_HEAD = "sık";
 const SINGLE_CROCHET_STEM = "iğne";
 
+/**
+ * Typed numbered references (Beta Blocker #3). Only case-marked heads that are
+ * evidenced in the corpus, captures and tests, each with the relation its case
+ * determines: ablative "-den" = from, dative "-e" = to. The bare nominative
+ * "zincir" is never one: "N. zincir çekip" makes chains, it names none.
+ */
+export type OrdinalTarget = "chain" | "single_crochet" | "stitch";
+export type OrdinalRelation = "from" | "to";
+
+export const ORDINAL_REFERENCE_HEADS: ReadonlyMap<string, { target: OrdinalTarget; relation: OrdinalRelation }> =
+  new Map([
+    ["zincirden", { target: "chain", relation: "from" }],
+    ["zincire", { target: "chain", relation: "to" }],
+    ["ilmeğe", { target: "stitch", relation: "to" }],
+  ]);
+
+/** Case-marked second words of "sık iğne" (single crochet). */
+export const SINGLE_CROCHET_CASES: ReadonlyMap<string, OrdinalRelation> = new Map([
+  ["iğneden", "from"],
+  ["iğneye", "to"],
+]);
+
+/** A typed numbered chain or stitch reference: `number` ordinal, `target`, case `relation`. */
+export type OrdinalReference = {
+  /** From the number to the end of the head noun, e.g. `7. sık iğneye`. */
+  readonly span: SourceSpan;
+  readonly number: string;
+  readonly target: OrdinalTarget;
+  readonly relation: OrdinalRelation;
+};
+
 // ---------------------------------------------------------------------------
 // Token checks
 // ---------------------------------------------------------------------------
@@ -148,6 +193,58 @@ const attachedLeft = (previous: LexToken | undefined): boolean =>
     previous.kind === "abbreviation" ||
     previous.kind === "number" ||
     (previous.kind === "punctuation" && LEFT_GLUE_PUNCTUATION.has(previous.raw)));
+
+/**
+ * The typed reference whose number token is `tokens[index]`, read from the
+ * immediate lexical context only: an integer `N.` not glued on the left, at
+ * most one same-line space/tab run, then a case-marked head. Undefined
+ * otherwise.
+ */
+export const ordinalReferenceAt = (
+  tokens: readonly LexToken[],
+  index: number,
+  source: string,
+): OrdinalReference | undefined => {
+  if (!isNumberDot(tokens, index) || attachedLeft(tokens[index - 1])) return undefined;
+  let headIndex = index + 2;
+  const gap = tokens[headIndex];
+  if (gap?.kind === "whitespace") {
+    if (!SPACES_OR_TABS.test(gap.raw)) return undefined;
+    headIndex += 1;
+  }
+  const head = tokens[headIndex];
+  if (head?.kind !== "word") return undefined;
+  let last: LexToken = head;
+  let typed = ORDINAL_REFERENCE_HEADS.get(head.raw);
+  if (typed === undefined && head.raw === SINGLE_CROCHET_HEAD) {
+    const space = tokens[headIndex + 1];
+    const second = tokens[headIndex + 2];
+    const relation =
+      space?.kind === "whitespace" && SPACES_OR_TABS.test(space.raw) && second?.kind === "word"
+        ? SINGLE_CROCHET_CASES.get(second.raw)
+        : undefined;
+    if (relation !== undefined && second !== undefined) {
+      typed = { target: "single_crochet", relation };
+      last = second;
+    }
+  }
+  if (typed === undefined) return undefined;
+  const number = tokens[index]!;
+  return {
+    span: { start: number.start, end: last.end, raw: source.slice(number.start, last.end) },
+    number: number.raw,
+    ...typed,
+  };
+};
+
+/** Every typed numbered chain/stitch reference in `source`, in source order. */
+export const scanOrdinalReferences = (source: string): OrdinalReference[] => {
+  const tokens = lexSource(source);
+  return tokens.flatMap((_token, index) => {
+    const reference = ordinalReferenceAt(tokens, index, source);
+    return reference ? [reference] : [];
+  });
+};
 
 /** `.` then at most one space/tab run then a row/round word. */
 const rowWordFollows = (tokens: readonly LexToken[], dotIndex: number): boolean => {
@@ -218,6 +315,7 @@ export const classifyNumberDot = (
 
   if (attachedLeft(tokens[index - 1])) return decide("ordinal_or_ordinary", "attached-left");
   if (rowWordFollows(tokens, index + 1)) return decide("row_round_label", "row-word");
+  if (ordinalReferenceAt(tokens, index, source)) return decide("ordinal_reference", "ordinal-reference");
   if (!tokens.slice(0, index).every(isBlank)) return decide("ordinal_or_ordinary", "not-leading");
   const after = tokens[index + 2];
   if (after !== undefined && !isBlank(after)) return decide("ordinal_or_ordinary", "attached-right");

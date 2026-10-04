@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import { loadCorpus } from "../../__tests__/corpus/load_corpus.js";
 import { extractLeadingInstruction } from "../../instruction_marker.js";
 import { LEX_TOKEN_KINDS, lexSource } from "../../lexer/typed_lexer.js";
+import { extractOrdinalReferences } from "../../natural_language/ordinal_references.js";
 import { extractRoundReferences } from "../../natural_language/round_references.js";
 import { classifyNumberDots, type NumberDotDecision, type NumberDotKind } from "../number_dot.js";
 
@@ -23,6 +24,9 @@ import { classifyNumberDots, type NumberDotDecision, type NumberDotKind } from "
 const productionKind = (source: string, start: number): NumberDotKind => {
   if (extractRoundReferences(source).some((reference) => reference.start === start)) {
     return "row_round_label";
+  }
+  if (extractOrdinalReferences(source).some((reference) => reference.start === start)) {
+    return "ordinal_reference";
   }
   const instruction = extractLeadingInstruction(source);
   return instruction !== undefined &&
@@ -46,13 +50,14 @@ const disagreements = <T extends Comparison>(comparisons: readonly T[]): T[] =>
   comparisons.filter(({ decision, production }) => decision.kind !== production);
 
 const cases = loadCorpus().cases;
-const reproOf = (hazard: string) => {
-  const repro = cases.find(({ value }) => value.lane === "repro" && value.labels.hazards.includes(hazard));
-  if (repro === undefined) throw new Error(`No repro for hazard ${hazard}.`);
-  return repro;
+// R1 was promoted to the curated lane by Beta Blocker #3; both are found by hazard.
+const caseOf = (hazard: string) => {
+  const found = cases.find(({ value }) => value.labels.hazards.includes(hazard));
+  if (found === undefined) throw new Error(`No case for hazard ${hazard}.`);
+  return found;
 };
-const R1 = reproOf("ordinal-at-block-start");
-const R2 = reproOf("ordinal-mid-block");
+const R1 = caseOf("ordinal-at-block-start");
+const R2 = caseOf("ordinal-mid-block");
 const R1_SOURCE = R1.value.request.blocks[0]!.text;
 const R2_SOURCE = R2.value.request.blocks[0]!.text;
 
@@ -79,36 +84,36 @@ describe("N. ownership: the lexer states facts, the parser decides", () => {
   });
 });
 
-describe("N. ownership: R1 and R2 (typed characterization; production unchanged)", () => {
-  it("R1: the block-leading 7. is a stitch ordinal in the typed path", () => {
+describe("N. ownership: R1 and R2 (typed ordinal references, Beta Blocker #3)", () => {
+  it("R1: the block-leading 7. is a typed stitch ordinal reference", () => {
     expect(R1_SOURCE).toBe("7. sık iğneye ipimizi sabitliyoruz.");
     expect(classifyNumberDots(R1_SOURCE)).toEqual([
       {
-        kind: "ordinal_or_ordinary",
-        reason: "ordinal-head",
+        kind: "ordinal_reference",
+        reason: "ordinal-reference",
         span: { start: 0, end: 2, raw: "7." },
         index: 0,
       },
     ]);
   });
 
-  it("R1: production still claims 7. as an instruction marker (the known-bad seam)", () => {
-    expect(extractLeadingInstruction(R1_SOURCE)?.marker).toBe("7.");
-    expect(R1.value.status).toBe("known-bad");
-    expect(R1.value.expected?.results[0]?.translated).toBe("7. sık iğneye ipimizi sabitliyoruz.");
+  it("R1: production agrees, renders the ordinal and was promoted to the curated lane", () => {
+    expect(extractLeadingInstruction(R1_SOURCE)).toBeUndefined();
+    expect([R1.lane, R1.value.status]).toEqual(["curated", "approved"]);
+    expect(R1.value.expected?.results[0]?.translated).toBe("Attach the yarn to the 7th single crochet.");
   });
 
-  it("R2: the mid-block 7. is never an instruction marker", () => {
+  it("R2: the mid-block 7. is a typed stitch ordinal reference", () => {
     const [decision] = classifyNumberDots(R2_SOURCE);
-    expect(decision).toMatchObject({ kind: "ordinal_or_ordinary", reason: "not-leading", span: { raw: "7." } });
+    expect(decision).toMatchObject({ kind: "ordinal_reference", reason: "ordinal-reference", span: { raw: "7." } });
     expect(R2_SOURCE.slice(decision!.span.start - 1, decision!.span.end)).toBe("\n7.");
   });
 
-  it("R2: production output is still the recorded known-bad result", () => {
+  it("R2: the ordinal is rendered; the repro stays known-bad for its prose fragmentation", () => {
     expect(extractLeadingInstruction(R2_SOURCE)).toBeUndefined();
     expect(R2.value.status).toBe("known-bad");
     expect(R2.value.expected?.results[0]?.translated).toBe(
-      "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6sc sayıp atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.\nAt the end of each row, ch 1 and turn.",
+      "Görselde görüldüğü gibi birinci parçanın bittiği yerden 6sc sayıp atlıyoruz.\nAttach the yarn to the 7th single crochet.\nAt the end of each row, ch 1 and turn.",
     );
   });
 });
@@ -132,7 +137,7 @@ describe("N. ownership: corpus parity", () => {
     }
   });
 
-  it("disagrees only on R1, and only by withholding instruction_marker", () => {
+  it("agrees with production on every corpus occurrence (R1 is resolved since Beta Blocker #3)", () => {
     expect(
       disagreements(corpusComparisons).map(({ caseId, decision, production }) => [
         caseId,
@@ -141,7 +146,7 @@ describe("N. ownership: corpus parity", () => {
         decision.kind,
         decision.reason,
       ]),
-    ).toEqual([[R1.caseId, "7.", "instruction_marker", "ordinal_or_ordinary", "ordinal-head"]]);
+    ).toEqual([]);
   });
 });
 
@@ -165,6 +170,9 @@ describe("N. ownership: synthetic parity", () => {
     "Sonra 6. sıraya geçiyoruz.",
     "atlıyoruz.\n7. sık iğneye ipimizi sabitliyoruz.",
     "1. Bu kısmı ayrı örüyoruz.\n2. sırada 3. ilmeğe geçiyoruz.",
+    "7. sık iğneye ipimizi sabitliyoruz.",
+    "3. zincirden itibaren 8x",
+    "Sonra 8. sık iğneden 6x örüyoruz.",
   ];
 
   it.each(agreeing)("%j agrees with production", (source) => {
@@ -172,7 +180,6 @@ describe("N. ownership: synthetic parity", () => {
   });
 
   it.each([
-    ["7. sık iğneye ipimizi sabitliyoruz.", "ordinal-head"],
     ["3. zincir çekip dönüyoruz.", "ordinal-head"],
     ["3. x’e ipimizi sabitliyoruz.", "ordinal-head"],
     ["6. sıraya geçiyoruz.", "row-stem"],
