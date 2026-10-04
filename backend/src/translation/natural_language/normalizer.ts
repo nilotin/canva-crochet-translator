@@ -57,9 +57,9 @@ export type SourceNaturalLanguageNormalization = {
   /**
    * Ranges of `text` rendered deterministically by a family that opted into
    * the carrier (chain + turn, word-ordinal chain start, buttonhole turn,
-   * magic ring, yarn intro), in source order and non-overlapping. Empty when
-   * nothing opted in or when any rendering could not be located exactly in
-   * the final text (fail closed).
+   * magic ring, yarn intro, "In" before FLO/BLO, "Work" before a stitch
+   * count), in source order and non-overlapping. Empty when nothing opted in
+   * or when any recorded range was invalidated by a later rule (fail closed).
    */
   deterministicSpans: readonly DeterministicSpan[];
 };
@@ -807,7 +807,7 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /(^|\n)(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]\s*dan(?=\s)/gimu,
       (_match, lineStart: string, prefix: string, loop: string) =>
-        `${lineStart}${prefix}In ${loop.toUpperCase()},`,
+        `${lineStart}${prefix}${recordDeterministicSpan("In")} ${loop.toUpperCase()},`,
     )
     .replace(
       /\b(\d+)\s*x\s+örüyoruz\s+ipimizi\s+kesmeden\s+saç\s+telleri\s+ile\s+devam\s+ediyoruz\b/giu,
@@ -830,7 +830,10 @@ const normalizeEnglishCrochetStructures = (
         count: string,
         stitch: string,
         terminalPeriod: string | undefined,
-      ) => `${prefix}Work ${count}${stitch}${terminalPeriod ? "." : ""}`,
+      ) =>
+        `${prefix}${recordDeterministicSpan("Work")} ${count}${stitch}${
+          terminalPeriod ? "." : ""
+        }`,
     )
     .replace(
       // Canva may place the repeated action ("*N") and the following

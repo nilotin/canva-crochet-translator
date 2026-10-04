@@ -457,7 +457,7 @@
       }
     ]
   },
-  "id": "h-39c84d7844-s0d689f74-2-20-numara-tig",
+  "id": "h-39c84d7844-s18c891a8-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
@@ -477,10 +477,6 @@
       {
         "source": ". This will be the beginning of the round",
         "translated": ". This will be the beginning of the round"
-      },
-      {
-        "source": "In",
-        "translated": "In"
       },
       {
         "source": "continue with the hair strands.",
@@ -756,39 +752,6 @@
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
         "userPromptSha256": "71bba21896ebd98ab00be85ddee5872935aa59b6a11139fd1aa5aa912dd74801"
-      },
-      {
-        "blockIds": [
-          "span-0"
-        ],
-        "blockTexts": [
-          "In"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "3d2a41827f5b262b8cc96af156117fdf989319a53fadc026e8a02397c4e0790e"
-      },
-      {
-        "blockIds": [
-          "span-0"
-        ],
-        "blockTexts": [
-          "In"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "5e84f5e92a27f2740453cea46ed999f0627294027092c7092eabccd96722a47a"
-      },
-      {
-        "blockIds": [
-          "span-0"
-        ],
-        "blockTexts": [
-          "In"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "92f1f319a1a8168e9b966cf30effb64a93a6561f2671895033a008bb19e0fcb1"
       },
       {
         "blockIds": [

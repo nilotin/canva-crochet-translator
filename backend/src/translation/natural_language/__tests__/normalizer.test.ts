@@ -2053,3 +2053,34 @@ describe("deterministic spans are recorded where they are rendered (Task 23B)", 
     }
   });
 });
+
+describe("deterministic span carrier: \"In\" before FLO/BLO and \"Work\" before a count (Task 23C)", () => {
+  it.each([
+    ["5) FLO’dan (3x, 1v)*6 = 30x", "5) In FLO, (3x, 1v)*6 = 30x", [[3, 5, "In"]]],
+    ["BLO’dan (2x, 1v)*6 = 18x", "In BLO, (2x, 1v)*6 = 18x", [[0, 2, "In"]]],
+    ["FLO’dan (3x, 1v)*6, sonra kenarı dikiyoruz.", "In FLO, (3x, 1v)*6, sonra kenarı dikiyoruz.", [[0, 2, "In"]]],
+    ["6x örüyoruz", "Work 6x", [[0, 4, "Work"]]],
+    ["6dc örüyoruz.", "Work 6dc.", [[0, 4, "Work"]]],
+    ["Kenarı dikip.\n4tr örüyoruz.", "Kenarı dikip.\nWork 4tr.", [[14, 18, "Work"]]],
+    // Earlier identical English from the source is never carried.
+    ["In bu sırada:\nFLO’dan (3x, 1v)*6, sonra kenarı dikiyoruz.", "In bu sırada:\nIn FLO, (3x, 1v)*6, sonra kenarı dikiyoruz.", [[14, 16, "In"]]],
+    ["Work slowly. 6x örüyoruz.", "Work slowly. Work 6x.", [[13, 17, "Work"]]],
+  ] as const)("%s carries only the glue word", (source, text, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end, text: spanText }) => [start, end, spanText])).toEqual(expected);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+    }
+  });
+
+  it("leaves Spanish and neighbouring loop/stitch forms off the carrier", () => {
+    const spansOf = (source: string, language: "en" | "es" = "en") =>
+      normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
+    expect(spansOf("5) FLO’dan (3x, 1v)*6 = 30x", "es")).toEqual([]);
+    expect(spansOf("6x örüyoruz", "es")).toEqual([]);
+    expect(spansOf("BLO’dan 6x örüyoruz")).toEqual([]);
+    expect(spansOf("Bu sırayı FLO’dan örüyoruz.")).toEqual([]);
+    expect(spansOf("Sonra 6dc örüyoruz.")).toEqual([]);
+  });
+});

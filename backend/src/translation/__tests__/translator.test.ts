@@ -932,8 +932,10 @@ describe("translateBlocks provider boundary", () => {
         return { ok: true, provider: "duplicate-span", model: "stub-model" };
       },
     };
+    // "6x örüyoruz" is fully deterministic since Task 23C ("Work" is carried),
+    // so the fixture keeps one provider span with real prose.
     const results = await translateBlocks(
-      [{ id: "one", text: "6x örüyoruz" }],
+      [{ id: "one", text: "6x sonra duruyoruz" }],
       "en",
       { provider },
     );
@@ -7225,5 +7227,98 @@ describe("the carrier protects the rendered occurrence, not an earlier identical
     const [result] = await translateBlocks([{ id: "duplicate-text", text }], "en", { provider });
     // The rendering survives; only the English that was already in the source is provider text.
     expect(result?.translated).toMatch(tail);
+  });
+});
+
+describe("deterministic span carrier keeps \"In\" before FLO/BLO and \"Work\" out of provider ownership (Task 23C)", () => {
+  // Hostile providers: erase everything, paraphrase English, or drop placeholders.
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text.replace(/\bIn\b/gu, "Out").replace(/\bWork\b/gu, "Skip").replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string) =>
+    (await translateBlocks([{ id: "glue", text }], "en", { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["5) FLO’dan (3x, 1v)*6 = 30x", "5) In FLO, (3sc, 1inc)*6 = 30sc"],
+    ["BLO’dan (2x, 1v)*6 = 18x", "In BLO, (2sc, 1inc)*6 = 18sc"],
+    ["6x örüyoruz", "Work 6sc"],
+    ["6dc örüyoruz.", "Work 6dc."],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      expect(await translate(provider, text)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["FLO’dan (3x, 1v)*6, sonra kenarı dikiyoruz.", "In FLO, (3sc, 1inc)*6,", ["sonra kenarı dikiyoruz."]],
+    ["Kenarı dikip. 6x örüyoruz.", "Work 6sc.", ["Kenarı dikip."]],
+    // The same English word already in the source stays provider text.
+    ["In bu sırada:\nFLO’dan (3x, 1v)*6, sonra kenarı dikiyoruz.", "\nIn FLO, (3sc, 1inc)*6,", ["In bu sırada", "sonra kenarı dikiyoruz."]],
+    ["Work slowly, kenarı dikip. 6x örüyoruz.", "Work 6sc.", ["Work slowly", "kenarı dikip."]],
+  ])("a mixed line %s offers only its prose to the provider", async (text, carried, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(occurrences(echoed?.translated, carried)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      // Exactly once, byte-exact, with counts still in target notation.
+      expect(occurrences(result?.translated, carried)).toBe(1);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    // The prose, including the source's own English, is still provider-owned.
+    const rewritten = await translate(new RewritingProvider(hostile.rewrite), text);
+    expect(rewritten?.translated).toContain("EDGE");
+    expect(rewritten?.translated).not.toMatch(/Out FLO|Skip 6sc/u);
+  });
+
+  it("the style layer leaves the carried In FLO unchanged and never duplicates it", async () => {
+    const result = await translate(new InspectingProvider(), "12) FLO’dan (9x, 1v)*6 = 66x");
+    expect(result?.translated).toBe("12) In FLO, (9sc, 1inc)*6 = 66sc");
+    expect(occurrences(result?.translated, "In FLO")).toBe(1);
+  });
+
+  it("formatting units keep their regions around the carried In", async () => {
+    const text = "5) FLO’dan (3x, 1v)*6 = 30x";
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{
+      id: "glue-formatted", text,
+      formattingRegions: [
+        { id: "fmt-0", start: 0, end: 3 },
+        { id: "fmt-1", start: 3, end: 19 },
+        { id: "fmt-2", start: 19, end: text.length },
+      ],
+    }], "en", { provider });
+    expect(result?.valid).toBe(true);
+    expect(result?.translated).toBe("5) In FLO, (3sc, 1inc)*6 = 30sc");
+    expect(provider.requests).toHaveLength(0);
+    expect(result?.targetFormattingRegions?.map(({ id }) => id)).toEqual(["fmt-0", "fmt-1", "fmt-2"]);
+  });
+
+  it("the validator still checks counts beside the carried words", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const valid = (source: string, target: string) => validateTranslation(source, target, "en", options).valid;
+    expect(valid("6x örüyoruz", "Work 6sc")).toBe(true);
+    expect(valid("6x örüyoruz", "Work 5sc")).toBe(false);
+    expect(valid("5) FLO’dan (3x, 1v)*6 = 30x", "5) In FLO, (3sc, 1inc)*6 = 30sc")).toBe(true);
+    expect(valid("5) FLO’dan (3x, 1v)*6 = 30x", "5) In FLO, (4sc, 1inc)*6 = 30sc")).toBe(false);
   });
 });

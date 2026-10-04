@@ -11,7 +11,7 @@
       }
     ]
   },
-  "id": "h-2c5ac91027-scef3c9cc-1-28x-oruyoruz-1",
+  "id": "h-2c5ac91027-sdcbc9dbb-1-28x-oruyoruz-1",
   "labels": {
     "families": [],
     "hazards": [],
@@ -31,10 +31,6 @@
       {
         "source": "At the end of each row",
         "translated": "At the end of each row"
-      },
-      {
-        "source": "Work",
-        "translated": "Work"
       },
       {
         "source": "and turn.",
@@ -71,18 +67,16 @@
         "blockIds": [
           "span-0",
           "span-1",
-          "span-2",
-          "span-3"
+          "span-2"
         ],
         "blockTexts": [
-          "Work",
           "At the end of each row",
           "ch",
           "and turn."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "d9f25fe363a2b3e3ae5a5a154ad4860316dac4bf8d55f87083e5ad4a323cf861"
+        "userPromptSha256": "83f41a948c3304638ef84f910598d4bd8982895c0b573df12f09c2f34db13378"
       }
     ]
   }
