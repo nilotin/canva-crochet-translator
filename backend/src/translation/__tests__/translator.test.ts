@@ -6721,13 +6721,16 @@ describe("tool/yarn intro family is provider-independent when every slot is dete
     expect(provider.protectedTexts.join(" ")).not.toMatch(/crochet hook|light gray|tığ/u);
   });
 
-  it("an unformatted multi-line block keeps its single-segment provider path (existing boundary)", async () => {
+  it("an unformatted multi-line block stays one segment and, fully carried, needs no provider (Task 23K-2)", async () => {
     // fullyResolved is decided per segment; an unformatted multi-line block is
-    // one segment, so the intro travels with the rest and is not swallowed.
+    // one whole-block segment. Since Task 23K-2 its deterministic spans (the
+    // intro, the magic ring) are carried there too, and nothing translatable
+    // is left, so the provider is not called.
     const provider = new InspectingProvider();
     const [result] = await translateBlocks([{ id: "block", text }], "en", { provider });
     expect(result?.translated.split("\n")[0]).toBe(introEn);
-    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(result?.valid).toBe(true);
+    expect(provider.requests).toHaveLength(0);
   });
 });
 
@@ -7846,8 +7849,8 @@ describe("notation-like yarn and tool brands stay exact source data and validate
         expect(result?.valid, brand).toBe(true);
         expect(result?.translated.split("\n").slice(1), brand).toEqual(expected.split("\n").slice(1));
         expect(result?.translated, brand).toContain(`yarn (${brand})`);
-        expect(provider.requests.length, brand).toBeGreaterThan(0);
-        expect(provider.protectedTexts.join(" "), brand).not.toContain(brand);
+        // Fully carried since Task 23K-2: nothing is left for the provider.
+        expect(provider.requests, brand).toHaveLength(0);
       }
       const echo = new InspectingProvider();
       expect((await translate(text, echo))?.translated).toBe(expected);
@@ -7912,5 +7915,151 @@ describe("notation-like yarn and tool brands stay exact source data and validate
       { provider: new InspectingProvider() },
     );
     expect(result[0]?.translated).toBe("Con un ganchillo de 2.20 mm y hilo negro (Alize 3pb), tejemos de la siguiente manera.");
+  });
+});
+
+describe("deterministic spans are carried on fully-resolved and whole-block paths (Task 23K-2)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  // Rewrites every carried English phrase of every family, plus unrelated prose.
+  const hostile = (text: string) =>
+    text
+      .replace(/\bUsing a\b/gu, "Employing a")
+      .replace(/crochet hook/gu, "needle")
+      .replace(/\b(?:black|red|light gray)\b/gu, "white")
+      .replace(/\byarn\b/gu, "thread")
+      .replace(/work as follows/gu, "proceed")
+      .replace(/Alize|Gazzal|Brand/gu, "acrylic")
+      .replace(/\bCh\b/gu, "Chain")
+      .replace(/\bch\b/gu, "chain")
+      .replace(/\bturn\b/gu, "rotate")
+      .replace(/magic ring/gu, "chain space")
+      .replace(/\bWork\b/gu, "Crochet")
+      .replace(/\bIn\b/gu, "Inside")
+      .replace(/\bskip\b/gu, "miss")
+      .replace(/Start with/gu, "Begin with")
+      .replace(/seventh chain/gu, "chain seven")
+      .replace(/kenarı/giu, "EDGE");
+  const translate = async (
+    text: string,
+    provider: InspectingProvider,
+    formattingRegions?: { id: string; start: number; end: number }[],
+  ) =>
+    (await translateBlocks([{ id: "carrier-23k2", text, ...(formattingRegions ? { formattingRegions } : {}) }], "en", { provider }))[0];
+  const CARRIED = /Using a|crochet hook|work as follows|Start with|\bCh\b|\bch\b|and turn|magic ring|\bWork\b|\bIn\b|\bskip\b|seventh chain|Alize|Gazzal/u;
+
+  it.each([
+    // [source, echoed output, carried text that must survive a hostile provider]
+    ["2.20 numara tığ, siyah (Alize Cotton Gold) ip ile örüyoruz ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize Cotton Gold), work as follows ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize Cotton Gold), work as follows"],
+    ["Önce kenarı dikiyoruz, sonra 2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz.", "Önce kenarı dikiyoruz, sonra Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows."],
+    ["2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz ve 3x örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows ve 3sc örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows ve 3sc"],
+    ["2,5 no tığ, Açık gri renk (Brand 3x 1v)ip ile örüyoruz ve kenarı dikiyoruz", "Using a 2,5 mm crochet hook and light gray yarn (Brand 3x 1v), work as follows ve kenarı dikiyoruz", "Using a 2,5 mm crochet hook and light gray yarn (Brand 3x 1v), work as follows"],
+    ["2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz. 1 zincir çekip dönüyoruz. Siyah ip (Gazzal 1v) ile başlıyoruz ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Ch 1 and turn. Start with black yarn (Gazzal 1v) ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Ch 1 and turn. Start with black yarn (Gazzal 1v) ve"],
+    ["2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz. 2.20 numara tığ, siyah (Alize 1v) ip ile örüyoruz ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Using a 2.20 mm crochet hook and black yarn (Alize 1v), work as follows ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Using a 2.20 mm crochet hook and black yarn (Alize 1v), work as follows ve"],
+  ])("a whole-block tool intro %s keeps its English, hook size and brand while prose stays provider-owned", async (text, echoed, carried) => {
+    const echo = new InspectingProvider();
+    expect(await translate(text, echo)).toMatchObject({ translated: echoed, valid: true, errors: [] });
+    expect(echo.requests).toHaveLength(1);
+    expect(echo.protectedTexts.join(" ")).not.toMatch(CARRIED);
+    const rewritten = await translate(text, new RewritingProvider(hostile));
+    expect(rewritten?.valid).toBe(true);
+    expect(rewritten?.translated).toContain(carried);
+    if (/kenarı/u.test(echoed)) expect(rewritten?.translated).toContain("EDGE");
+  });
+
+  it.each([
+    // Each carried family, forced onto the whole-block path by a measurement.
+    ["1 zincir çekip dönüyoruz ve 5 cm sonra kenarı dikiyoruz.", "Ch 1 and turn. ve 5 cm sonra kenarı dikiyoruz."],
+    ["Yedinci zincirden itibaren 28x örüyoruz ve 5 cm sonra kenarı dikiyoruz.", "Starting from the seventh chain, work 28sc ve 5 cm sonra kenarı dikiyoruz."],
+    ["Sihirli halka içine 6x örüyoruz, 2 cm sonra kenarı dikiyoruz.", "6sc into the magic ring örüyoruz, 2 cm sonra kenarı dikiyoruz."],
+    ["Kırmızı renk ip (Alize 3x) ile başlıyoruz ve 5 cm sonra kenarı dikiyoruz.", "Start with red yarn (Alize 3x) ve 5 cm sonra kenarı dikiyoruz."],
+    ["Bunu dikiyoruz. 6x örüyoruz ve 5 cm sonra kenarı dikiyoruz.", "Bunu dikiyoruz. Work 6sc ve 5 cm sonra kenarı dikiyoruz."],
+    ["FLO'dan 6x örüyoruz ve 5 cm sonra kenarı dikiyoruz.", "In FLO, 6sc örüyoruz ve 5 cm sonra kenarı dikiyoruz."],
+    ["2) BLO dan (3x, 1v) ve 5 cm sonra kenarı dikiyoruz.", "2) In BLO, (3sc, 1inc) ve 5 cm sonra kenarı dikiyoruz."],
+    ["3 zincir çekip 2x atlıyoruz ve 5 cm sonra kenarı dikiyoruz.", "ch 3, skip 2 sts ve 5 cm sonra kenarı dikiyoruz."],
+    ["42x - 5 zincir (düğme iliği) dön ve 5 cm sonra kenarı dikiyoruz.", "42sc, ch 5 (buttonhole) and turn ve 5 cm sonra kenarı dikiyoruz."],
+  ])("the generic carrier keeps %s out of the whole-block provider request", async (text, echoed) => {
+    const echo = new InspectingProvider();
+    expect(await translate(text, echo)).toMatchObject({ translated: echoed, valid: true, errors: [] });
+    expect(echo.requests).toHaveLength(1);
+    expect(echo.protectedTexts.join(" ")).not.toMatch(CARRIED);
+    expect(echo.protectedTexts.join(" ")).toContain("kenarı dikiyoruz");
+    const rewritten = await translate(text, new RewritingProvider(hostile));
+    expect(rewritten).toMatchObject({ translated: echoed.replace("kenarı", "EDGE"), valid: true });
+  });
+
+  it("fully-resolved lines stay provider-free and exact, with and without source data", async () => {
+    for (const [text, expected] of [
+      ["2.20 numara tığ, siyah ip ile (catania 110) örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (catania 110), work as follows."],
+      ["◆ 2.20 numara tığ, Açık gri (Alize 3x) ip ile örüyoruz.", "◆ Using a 2.20 mm crochet hook and light gray yarn (Alize 3x), work as follows."],
+      ["1 zincir çekip dönüyoruz.", "Ch 1 and turn."],
+    ] as const) {
+      const provider = new RewritingProvider(hostile);
+      expect(await translate(text, provider)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it("a fully carried multi-line block needs no provider", async () => {
+    const text = "◆ 2.20 numara tığ, Açık gri (Alize 3x) ip ile örüyoruz.\n1) Sihirli halka içine 6x\n2) 1 zincir çekip dönüyoruz.";
+    const provider = new RewritingProvider(hostile);
+    expect(await translate(text, provider)).toMatchObject({
+      translated: "◆ Using a 2.20 mm crochet hook and light gray yarn (Alize 3x), work as follows.\n1) 6sc into the magic ring\n2) Ch 1 and turn.",
+      valid: true,
+    });
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  it("fails as before when the provider empties or drops placeholders", async () => {
+    for (const text of ["1 zincir çekip dönüyoruz ve 5 cm sonra kenarı dikiyoruz.", "Önce kenarı dikiyoruz, sonra 2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz."]) {
+      for (const rewrite of [() => "", (output: string) => output.replace(/__XQ[A-Z]+QX__\s?/gu, "")]) {
+        const result = await translate(text, new RewritingProvider(rewrite));
+        expect(result).toMatchObject({ translated: "", valid: false });
+        expect(result?.errors.map(({ code }) => code)).toContain("MISSING_PROTECTED_NOTATION");
+      }
+      const duplicated = await translate(text, new RewritingProvider((output) => output.replace(/(__XQAAAAQX__)/u, "$1 $1")));
+      expect(duplicated?.errors.map(({ code }) => code)).toContain("DUPLICATE_PROTECTED_NOTATION");
+    }
+  });
+
+  it("does not carry when the source already holds placeholder syntax (prior behavior)", async () => {
+    const provider = new InspectingProvider();
+    const result = await translate("1 zincir çekip dönüyoruz ve __XQAAAAQX__ 5 cm sonra kenarı dikiyoruz.", provider);
+    expect(result?.valid).toBe(false);
+    expect(provider.protectedTexts).toEqual(["Ch __XQAAAAQX__ and turn. ve __XQAAAAQX__ __XQAAABQX__ sonra kenarı dikiyoruz."]);
+  });
+
+  it("keeps formatting units working for a formatted whole-block tool intro", async () => {
+    const intro = "✦ 2.20 numara tığ, Açık gri (Alize 3x) ip ile örüyoruz.";
+    const text = `${intro} Sonra 5 cm kenarı dikiyoruz.`;
+    const provider = new InspectingProvider();
+    const result = await translate(text, provider, [
+      { id: "fmt-0", start: 0, end: intro.length },
+      { id: "fmt-1", start: intro.length, end: text.length },
+    ]);
+    expect(result?.valid).toBe(true);
+    expect(result?.translated.startsWith("✦ Using a 2.20 mm crochet hook and light gray yarn (Alize 3x), work as follows.")).toBe(true);
+    expect(result?.targetFormattingRegions?.map(({ id }) => id)).toEqual(["fmt-0", "fmt-1"]);
+    expect(provider.protectedTexts.join(" ")).not.toMatch(CARRIED);
+  });
+
+  it("leaves Spanish whole-block requests unchanged (no carried spans)", async () => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks(
+      [{ id: "es", text: "1 zincir çekip dönüyoruz ve 5 cm sonra kenarı dikiyoruz." }],
+      "es",
+      { provider },
+    );
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.protectedTexts.join(" ")).not.toMatch(/__XQAAAAQX__ ve/u);
+    expect(result?.valid).toBe(true);
   });
 });

@@ -1325,11 +1325,14 @@ const normalizeToolMaterialIntro = (
 ): TrackedText => {
   let normalized = source;
 
-  // A brand is source data only where the whole intro is deterministic.
+  // A brand is source data, and the rendering a carried deterministic span,
+  // only where the whole intro is deterministic.
   const brandOf = (yarnBrand: string, deterministic: boolean): string =>
     targetLanguage === "en" && deterministic
       ? source.markSourceData(yarnBrand.trim())
       : yarnBrand.trim();
+  const carried = (rendered: string, deterministic: boolean): string =>
+    targetLanguage === "en" && deterministic ? source.mark(rendered) : rendered;
 
   normalized = normalized.replace(
     descriptionBrandAfterIlePattern(),
@@ -1340,10 +1343,11 @@ const normalizeToolMaterialIntro = (
       yarnBrand: string,
     ) => {
       const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
-      const brand = brandOf(yarnBrand, isMappedColorDescription(yarnDescription));
+      const deterministic = isMappedColorDescription(yarnDescription);
+      const brand = brandOf(yarnBrand, deterministic);
 
       return targetLanguage === "en"
-        ? `Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`
+        ? carried(`Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`, deterministic)
         : `Con un ganchillo de ${size} mm y hilo ${description} (${brand}), tejemos de la siguiente manera`;
     },
   );
@@ -1357,10 +1361,11 @@ const normalizeToolMaterialIntro = (
       yarnBrand: string,
     ) => {
       const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
-      const brand = brandOf(yarnBrand, isMappedColorDescription(yarnDescription));
+      const deterministic = isMappedColorDescription(yarnDescription);
+      const brand = brandOf(yarnBrand, deterministic);
 
       return targetLanguage === "en"
-        ? `Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
+        ? carried(`Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`, deterministic)
         : `Con un ganchillo de ${size} mm y hilo ${description} ${brand}, tejemos de la siguiente manera`;
     },
   );
@@ -1372,7 +1377,7 @@ const normalizeToolMaterialIntro = (
         translateTurkishYarnColor(color, targetLanguage) ?? color.trim();
 
       return targetLanguage === "en"
-        ? `Using a ${size} mm crochet hook and ${translatedColor} yarn (${brandOf(brand, true)}), work as follows`
+        ? carried(`Using a ${size} mm crochet hook and ${translatedColor} yarn (${brandOf(brand, true)}), work as follows`, true)
         : `Con un ganchillo de ${size} mm y hilo ${translatedColor} (${brand.trim()}), tejemos de la siguiente manera`;
     },
   );

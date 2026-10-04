@@ -21,9 +21,13 @@ import {
   isPatternOnlyProtectedText,
   type OpaqueRange,
   protectImmutablePattern,
-  reservedPlaceholder,
   restoreImmutablePattern,
 } from "./notation/immutable.js";
+import {
+  carryDeterministicSpans,
+  isCarriedPatternOnly,
+  protectCarriedBlock,
+} from "./deterministic_carrier.js";
 import {
   extractLeadingInstruction,
   restoreLeadingInstruction,
@@ -202,32 +206,9 @@ const deterministicCarrier = (
   flat: LexedMixedSegment,
   sourceData: readonly OpaqueRange[] = [],
 ): DeterministicCarrier | undefined => {
-  if (spans.length === 0 || containsReservedPlaceholder(normalized)) return undefined;
-
-  const rendered = new Map<string, string>();
-  let text = "";
-  let cursor = 0;
-  spans.forEach((span, index) => {
-    const placeholder = reservedPlaceholder(index);
-    text += normalized.slice(cursor, span.start) + placeholder;
-    rendered.set(placeholder, span.text);
-    cursor = span.end;
-  });
-  text += normalized.slice(cursor);
-
-  // Source data inside a carried span is already restored verbatim; source
-  // data outside every span stays opaque at its shifted position. A range
-  // that straddles a span boundary cannot be placed safely (fail closed).
-  const opaqueRanges: OpaqueRange[] = [];
-  for (const range of sourceData) {
-    if (spans.some((span) => range.start >= span.start && range.end <= span.end)) continue;
-    if (spans.some((span) => range.start < span.end && range.end > span.start)) return undefined;
-    let shift = 0;
-    spans.forEach((span, index) => {
-      if (span.end <= range.start) shift += reservedPlaceholder(index).length - (span.end - span.start);
-    });
-    opaqueRanges.push({ start: range.start + shift, end: range.end + shift });
-  }
+  const carried = carryDeterministicSpans(normalized, spans, sourceData);
+  if (!carried) return undefined;
+  const { text, rendered, opaqueRanges } = carried;
 
   const lexed = lexMixedSegment(text, targetLanguage, idPrefix, {
     reservedPlaceholders: [...rendered.keys()],
@@ -322,7 +303,6 @@ const translateSegment = async (
     contentKind,
     sourceData,
   );
-  const protectedBlock = { ...block, text: protectedSource.text };
   const mixed = lexMixedSegment(
     normalized,
     targetLanguage,
@@ -481,16 +461,31 @@ const translateSegment = async (
       }
     }
   } else {
+    // Whole-block paths (fully resolved, measurement, prose-only, round-only)
+    // carry deterministic spans too: each becomes a reserved placeholder that
+    // restores its exact rendered text, so the provider only ever sees the
+    // remaining text. Undefined: the uncarried text, exactly as before.
+    const carried = carryDeterministicSpans(normalized, normalization.deterministicSpans, sourceData);
+    const carriedBlock = carried && protectCarriedBlock(carried, contentKind);
+    const blockSource = carriedBlock ?? protectedSource;
+    const blockToTranslate = { ...block, text: blockSource.text };
+    const blockRoundTokens = blockSource.tokens.filter(
+      (token) => token.kind === "round_reference",
+    );
+    // Nothing left but immutable and carried text: no provider call.
+    const blockPatternOnly =
+      patternOnly ||
+      (carriedBlock !== undefined && isCarriedPatternOnly(carriedBlock));
     const materialQuantityGrammar =
       contentKind === "materials"
-        ? protectedSource.tokens
+        ? blockSource.tokens
             .map((token, index) => ({ token, index }))
             .filter(({ token }) =>
               token.kind === "number" &&
               new RegExp(
                 `${token.placeholder}\\s*(?:adet|tane|yumak|çile|paket|çift)\\b`,
                 "iu",
-              ).test(protectedSource.text),
+              ).test(blockSource.text),
             )
             .map(({ token, index }) => ({
               blockId: block.id,
@@ -501,14 +496,14 @@ const translateSegment = async (
                   : ("plural" as const),
             }))
         : [];
-    const prompt = buildTranslationPrompt(targetLanguage, [protectedBlock], roundTokens.map((token) => ({
+    const prompt = buildTranslationPrompt(targetLanguage, [blockToTranslate], blockRoundTokens.map((token) => ({
       placeholder: token.placeholder, meaning: renderRoundReference(token, targetLanguage),
     })), contentKind, materialQuantityGrammar);
-    const providerResult = patternOnly
-      ? { translations: [{ id: block.id, translated: protectedSource.text }] }
+    const providerResult = blockPatternOnly
+      ? { translations: [{ id: block.id, translated: blockSource.text }] }
       : await provider.translate({
           targetLanguage,
-          blocks: [protectedBlock],
+          blocks: [blockToTranslate],
           systemPrompt: prompt.system,
           userPrompt: prompt.user,
         });
@@ -525,8 +520,12 @@ const translateSegment = async (
         ? undefined
         : restoreImmutablePattern(
             modelTranslation,
-            protectedSource,
+            blockSource,
             targetLanguage,
+            // Measurements and round references inside carried spans are
+            // restored verbatim; integrity is still checked against every
+            // one in the uncarried text.
+            protectedSource,
           );
     restored =
       restoration?.valid === true
@@ -537,7 +536,7 @@ const translateSegment = async (
       .flatMap(([, diagnostics]) => diagnostics);
 
     const reservedPlaceholderLeak =
-      protectedSource.tokens.length === 0 &&
+      blockSource.tokens.length === 0 &&
       modelTranslation !== undefined &&
       containsReservedPlaceholder(modelTranslation)
         ? [

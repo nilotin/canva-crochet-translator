@@ -2005,7 +2005,8 @@ describe("deterministic span carrier: buttonhole turn, magic ring, yarn intro (T
       normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
     expect(spansOf("3. sıranın sonunda 2 zincir (düğme iliği) dön")).toEqual([]);
     expect(spansOf("6 zincir (düğme iliği)")).toEqual([]);
-    expect(spansOf("2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.")).toEqual([]);
+    // The branded tool intro joined the carrier in Task 23K-2 (see below); Spanish stays off.
+    expect(spansOf("2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.", "es")).toEqual([]);
     expect(spansOf("42x - 5 zincir (düğme iliği) dön", "es")).toEqual([]);
     expect(spansOf("Sihirli halka içine 6x", "es")).toEqual([]);
     expect(spansOf("Siyah ip (catania 110) ile başlıyoruz.", "es")).toEqual([]);

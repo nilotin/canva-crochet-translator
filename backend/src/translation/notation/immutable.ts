@@ -306,6 +306,12 @@ export const restoreImmutablePattern = (
   translated: string,
   protectedSource: ProtectedImmutableText,
   targetLanguage: TargetLanguage,
+  /**
+   * The protection whose measurements and round references the restored text
+   * must keep. Defaults to `protectedSource`; differs only when some of that
+   * text was carried verbatim behind placeholders.
+   */
+  integritySource: ProtectedImmutableText = protectedSource,
 ): NotationRestoration => {
   const errors: PlaceholderIntegrityDiagnostic[] = placeholderIntegrityErrors(
     translated,
@@ -316,14 +322,16 @@ export const restoreImmutablePattern = (
   let restored = translated;
   for (const token of protectedSource.tokens) {
     const replacement = renderProtectedToken(token, targetLanguage);
+    // A function replacer: restored source text (e.g. a brand) is never read
+    // as a `$` replacement pattern.
     if (replacement !== undefined)
-      restored = restored.replace(token.placeholder, replacement);
+      restored = restored.replace(token.placeholder, () => replacement);
   }
   errors.push(...validateMeasurementIntegrity(
-    protectedSource.tokens.filter((token) => token.kind === "measurement"),
+    integritySource.tokens.filter((token) => token.kind === "measurement"),
     restored,
   ));
-  const roundSource = protectedSource.tokens.filter(({ kind }) => kind === "round_reference").map(({ source }) => source).join(" ");
+  const roundSource = integritySource.tokens.filter(({ kind }) => kind === "round_reference").map(({ source }) => source).join(" ");
   errors.push(...validateRoundReferences(roundSource, restored, targetLanguage));
   return { text: restored, valid: errors.length === 0, errors };
 };
