@@ -2084,3 +2084,26 @@ describe("deterministic span carrier: \"In\" before FLO/BLO and \"Work\" before 
     expect(spansOf("Sonra 6dc örüyoruz.")).toEqual([]);
   });
 });
+
+describe("simple Work rule keeps the separator before following prose (Task 23D)", () => {
+  it.each([
+    ["6x örüyoruz", "Work 6x"],
+    ["6x örüyoruz.", "Work 6x."],
+    ["6x örüyoruz   .", "Work 6x."],
+    ["6dc örüyoruz.", "Work 6dc."],
+    ["6x örüyoruz, ve kenarı dikiyoruz.", "Work 6x, ve kenarı dikiyoruz."],
+    ["6x örüyoruz. Kenarı dikiyoruz.", "Work 6x. Kenarı dikiyoruz."],
+    ["6x örüyoruz.\nKenarı dikiyoruz.", "Work 6x.\nKenarı dikiyoruz."],
+    ["6x örüyoruz ve kenarı dikiyoruz.", "Work 6x ve kenarı dikiyoruz."],
+    ["6x örüyoruz\nve kenarı dikiyoruz.", "Work 6x\nve kenarı dikiyoruz."],
+    ["Kenarı dikip. 6x örüyoruz ve sonra kesiyoruz.", "Kenarı dikip. Work 6x ve sonra kesiyoruz."],
+  ] as const)("%s", (source, text) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.text).not.toMatch(/\d+(?:x|dc|tr)\p{L}/u);
+    // The carried word is unchanged; the count stays outside it.
+    const start = text.indexOf("Work");
+    expect(result.deterministicSpans.map(({ start: s, end, text: t }) => [s, end, t])).toEqual([[start, start + 4, "Work"]]);
+    expect(normalizeSourceNaturalLanguage(source, "es")).toBe(source);
+  });
+});

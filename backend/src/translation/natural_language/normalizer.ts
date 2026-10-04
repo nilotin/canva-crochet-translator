@@ -823,7 +823,9 @@ const normalizeEnglishCrochetStructures = (
       (_match, chains: string) => `then ch ${chains} again and`,
     )
     .replace(
-      /(^|(?:[.!?;]\s+)|(?:[\r\n]+\s*))(\d+)\s*(x|dc|tr)\s+örüyoruz\s*([.])?/giu,
+      // Whitespace is consumed only together with the closing period, so
+      // "örüyoruz ve ..." keeps its separator ("Work 6x ve ...").
+      /(^|(?:[.!?;]\s+)|(?:[\r\n]+\s*))(\d+)\s*(x|dc|tr)\s+örüyoruz(?:\s*([.]))?/giu,
       (
         _match,
         prefix: string,

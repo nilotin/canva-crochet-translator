@@ -7322,3 +7322,60 @@ describe("deterministic span carrier keeps \"In\" before FLO/BLO and \"Work\" ou
     expect(valid("5) FLO’dan (3x, 1v)*6 = 30x", "5) In FLO, (4sc, 1inc)*6 = 30sc")).toBe(false);
   });
 });
+
+describe("simple Work rule keeps the separator before provider prose (Task 23D)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+
+  it.each([
+    ["6x örüyoruz ve kenarı dikiyoruz.", "Work 6sc ve kenarı dikiyoruz.", ["ve kenarı dikiyoruz."]],
+    ["3) 6x örüyoruz ve kenarı dikiyoruz.", "3) Work 6sc ve kenarı dikiyoruz.", ["ve kenarı dikiyoruz."]],
+    ["6x örüyoruz\nve kenarı dikiyoruz.", "Work 6sc\nve kenarı dikiyoruz.", ["ve kenarı dikiyoruz."]],
+    [
+      "Kenarı dikip. 6x örüyoruz ve sonra kesiyoruz.",
+      "Kenarı dikip. Work 6sc ve sonra kesiyoruz.",
+      ["Kenarı dikip.", "ve sonra kesiyoruz."],
+    ],
+  ])("%s sends intact prose and never glues words", async (text, expected, prose) => {
+    const echo = new InspectingProvider();
+    const [echoed] = await translateBlocks([{ id: "work-spacing", text }], "en", { provider: echo });
+    expect(echoed).toMatchObject({ translated: expected, valid: true, errors: [] });
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(echoed?.translated).not.toMatch(/\d+(?:sc|x)\p{L}/u);
+
+    const hostile = new RewritingProvider((span) => span.replace(/\bWork\b/gu, "Skip").replace(/kenarı/iu, "EDGE"));
+    const [rewritten] = await translateBlocks([{ id: "work-spacing", text }], "en", { provider: hostile });
+    expect(rewritten?.translated).toContain("Work 6sc");
+    expect(rewritten?.translated).not.toContain("Skip");
+    // The following prose is still provider-owned.
+    expect(rewritten?.translated).toContain("EDGE");
+  });
+
+  it.each([
+    ["6x örüyoruz", "Work 6sc"],
+    ["6x örüyoruz.", "Work 6sc."],
+    ["6x örüyoruz   .", "Work 6sc."],
+    ["6dc örüyoruz.", "Work 6dc."],
+    ["3) 6x örüyoruz.", "3) Work 6sc."],
+  ])("a pure line %s is unchanged and needs no provider", async (text, expected) => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{ id: "work-pure", text }], "en", { provider });
+    expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  it("the validator still checks the count beside the separated prose", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "6x örüyoruz ve kenarı dikiyoruz.";
+    expect(validateTranslation(source, "Work 6sc and sew the edge.", "en", options).valid).toBe(true);
+    expect(validateTranslation(source, "Work 5sc and sew the edge.", "en", options).valid).toBe(false);
+  });
+});
