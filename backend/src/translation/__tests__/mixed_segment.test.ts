@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   classifySegment,
+  isStructuralPunctuationOnly,
   lexMixedSegment,
   reconstructMixedSegment,
   reconstructMixedSegmentWithProjection,
@@ -505,8 +506,12 @@ const COMPATIBILITY_INPUTS: readonly string[] = [
  * lexer before Task 8. It proves Task 8 left the default (no-options) path
  * unchanged. A later, intentional change to the default lexer re-records it in
  * that same reviewed change; it must never be updated just to make a test pass.
+ *
+ * Re-recorded by Task 23A: a span that is only punctuation (the lone "." in
+ * "(6x, v) x 6. FLO örüyoruz.") is now structure instead of a provider span.
+ * That is the only difference from the previous fingerprint.
  */
-const PRE_TASK_8_DIGEST = "06f524f643604e5e27c72cc19f1c5117cc2378b7d2d9b6ea63539ba9f365c4a0";
+const PRE_TASK_8_DIGEST = "ddd7975fe2a2723cabc1badb7a883432522c56cd113febe0e012a7ccdfe06d7f";
 
 const lexerDigest = (lex: (source: string, language: "en" | "es") => LexedMixedSegment): string => {
   const rows = COMPATIBILITY_INPUTS.flatMap((s) =>
@@ -567,5 +572,53 @@ describe("mixed lexer: default path is unchanged", () => {
         expect(lexMixedSegment(source, language, "p", {})).toEqual(legacy);
       }
     }
+  });
+});
+
+describe("punctuation-only spans are structure, not provider text (Task 23A)", () => {
+  it.each([".", "!", "?", " . ", ". .", "...", "?!", "✦", "◆", "•", ",", ";", ":"])(
+    "%j is punctuation-only",
+    (text) => {
+      expect(isStructuralPunctuationOnly(text)).toBe(true);
+    },
+  );
+
+  it.each([
+    ". sık iğneye",
+    "! dikkat",
+    "(buttonhole)",
+    "ch.",
+    "1.",
+    "6x",
+    "__XQAAAAQX__",
+    "Catania.",
+    "…",
+    "",
+    "  ",
+  ])("%j is not punctuation-only", (text) => {
+    expect(isStructuralPunctuationOnly(text)).toBe(false);
+  });
+
+  it.each([
+    ["(6x, v) x 6. FLO örüyoruz.", "."],
+    ["(6x, v) x 6! FLO örüyoruz.", "!"],
+    ["(6x, v) x 6? FLO örüyoruz.", "?"],
+  ])("%s keeps its lone %s as structure, byte-exact", (source, mark) => {
+    const lexed = lexMixedSegment(source, "en", "p");
+    expect(lexed.valid).toBe(true);
+    expect(lexed.spans.map(({ text }) => text)).toEqual(["örüyoruz."]);
+    expect(lexed.tokens.filter((token) => token.kind === "structure" && token.text === mark)).toHaveLength(1);
+    expect(reconstructMixedSource(lexed.tokens)).toBe(source);
+    const ids = new Map(lexed.spans.map(({ id, text }) => [id, text]));
+    expect(reconstructMixedSegment(lexed.tokens, ids)).toBe(source.replace("6x", "6sc").replace(", v)", ", inc)"));
+  });
+
+  it.each([
+    ["6x. sık iğneye ipimizi sabitliyoruz.", ". sık iğneye ipimizi sabitliyoruz."],
+    ["6x ! dikkat edin.", "! dikkat edin."],
+    ["20x, 6v\n__XQAAAFQX__. Sonra devam.", ". Sonra devam."],
+  ])("%s keeps its punctuation-prefixed prose as one provider span", (source, span) => {
+    const lexed = lexMixedSegment(source, "en", "p");
+    expect(lexed.spans.map(({ text }) => text)).toContain(span);
   });
 });

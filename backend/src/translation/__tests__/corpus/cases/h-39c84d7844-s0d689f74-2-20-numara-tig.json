@@ -457,7 +457,7 @@
       }
     ]
   },
-  "id": "h-39c84d7844-sa33dea18-2-20-numara-tig",
+  "id": "h-39c84d7844-s0d689f74-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
@@ -493,10 +493,6 @@
       {
         "source": "sc. Without cutting the yarn",
         "translated": "sc. Without cutting the yarn"
-      },
-      {
-        "source": "✦",
-        "translated": "✦"
       }
     ],
     "mode": "oracle"
@@ -748,17 +744,6 @@
       }
     ],
     "providerCalls": [
-      {
-        "blockIds": [
-          "formatted-hook-and-ambiguous-repetition::format:0::segment:0"
-        ],
-        "blockTexts": [
-          "✦"
-        ],
-        "systemPromptSha256": "0300263dfb638472d7a3bc89f4285840d790cc85c5449ce31a4f16515a2381fb",
-        "targetLanguage": "en",
-        "userPromptSha256": "c7e62ba074f70127db9c12da8a6e8dc0ab364ed1d4b22380dc3ad5fdec65b428"
-      },
       {
         "blockIds": [
           "span-0",

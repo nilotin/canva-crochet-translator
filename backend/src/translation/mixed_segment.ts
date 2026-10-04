@@ -48,6 +48,16 @@ export type LexedMixedSegment = {
 const placeholderPattern = /__XQ[A-Z]{4}QX__/gu;
 const structuralCharacter = /[()[\]{},=*:;+\-/–—✦•]/u;
 
+/**
+ * True when the WHOLE text is sentence punctuation or a decorative bullet
+ * (optionally separated or surrounded by whitespace) and carries no language.
+ * Such text is structure: it is reconstructed verbatim and never offered to
+ * the provider. Text that merely starts with punctuation (". sık iğneye")
+ * is prose and does not match.
+ */
+export const isStructuralPunctuationOnly = (text: string): boolean =>
+  /^\s*[.,;:!?✦◆•]+(?:\s+[.,;:!?✦◆•]+)*\s*$/u.test(text);
+
 const immutableToken = (
   token: ProtectedToken,
   targetLanguage: TargetLanguage,
@@ -381,6 +391,10 @@ const lexProtectedSegment = (
     classifyRepetitionOperators(tokens),
   ).map((token) => {
     if (token.kind !== "natural_language") return token;
+    // A span that is only punctuation (e.g. the "." closing "x 6. FLO") has
+    // nothing to translate; it stays structure instead of a provider span.
+    if (isStructuralPunctuationOnly(token.text))
+      return { kind: "structure" as const, text: token.text };
     const id = `${idPrefix}::text-span:${spanIndex}`;
     spanIndex += 1;
     return { ...token, id };

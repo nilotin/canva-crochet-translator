@@ -6864,8 +6864,8 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
     );
     expect(result).toMatchObject({ translated: "Starting from the seventh chain, work 28sc.", valid: true });
     expect(result?.translated).not.toContain("28x");
-    // Only the sentence's trailing period remains a provider span; the clause never is.
-    expect(provider.protectedTexts).toEqual(["."]);
+    // The trailing period is structure (Task 23A), so nothing reaches the provider.
+    expect(provider.requests).toHaveLength(0);
 
     for (const rewrite of Object.values(hostile)) {
       const hostileProvider = new RewritingProvider(rewrite);
@@ -6874,7 +6874,7 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
         "en",
         { provider: hostileProvider },
       );
-      expect(hostileResult?.translated).toMatch(/^Starting from the seventh chain, work 28sc\.?$/u);
+      expect(hostileResult?.translated).toBe("Starting from the seventh chain, work 28sc.");
     }
   });
 
@@ -6887,7 +6887,7 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
     [
       "Kenarı dikip yedinci zincirden itibaren 28x örüyoruz.",
       "Starting from the seventh chain, work",
-      ["Kenarı dikip", "."],
+      ["Kenarı dikip"],
     ],
   ])("a mixed line %s offers only its prose to the provider", async (text, deterministic, prose) => {
     const echo = new InspectingProvider();
@@ -7115,5 +7115,85 @@ describe("deterministic span carrier keeps buttonhole turn, magic ring and yarn 
     const result = await translate(provider, "12) Sihirli halka içine 6x örüyoruz, sonra kenarı dikiyoruz.");
     expect(occurrences(result?.translated, "6sc into the magic ring")).toBe(1);
     expect(result?.translated.startsWith("12) 6sc into the magic ring ")).toBe(true);
+  });
+});
+
+describe("punctuation-only text is structure, never provider-owned (Task 23A)", () => {
+  // Hostile providers: erase everything, rewrite punctuation, or drop placeholders.
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) => text.replace(/[.!?✦◆]/gu, ";").replace(/sık/u, "SIK").replace(/örüyoruz/u, "ÖRÜYORUZ"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["1) (6x, v) x 6. FLO örüyoruz.", "1) (6sc, inc) x 6. FLO"],
+    ["1) (6x, v) x 6! FLO örüyoruz.", "1) (6sc, inc) x 6! FLO"],
+    ["1) (6x, v) x 6? FLO örüyoruz.", "1) (6sc, inc) x 6? FLO"],
+  ])("%s keeps its lone mark out of the provider and survives every hostile provider", async (text, structural) => {
+    const echo = new InspectingProvider();
+    const [echoed] = await translateBlocks([{ id: "punctuation", text }], "en", { provider: echo });
+    expect(echo.protectedTexts).toEqual(["örüyoruz."]);
+    expect(echoed?.translated).toBe(`${structural} örüyoruz.`);
+
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "punctuation", text }], "en", { provider });
+      expect(result?.translated.startsWith(structural)).toBe(true);
+      expect(occurrences(result?.translated, structural)).toBe(1);
+    }
+    // The adjacent prose is still provider-owned.
+    const [rewritten] = await translateBlocks([{ id: "punctuation", text }], "en", {
+      provider: new RewritingProvider(hostile.rewrite),
+    });
+    expect(rewritten?.translated).toContain("ÖRÜYORUZ");
+  });
+
+  it.each(["✦", "◆"])("a formatting unit holding only %s needs no provider and keeps its region", async (bullet) => {
+    const text = `${bullet} Bu açıklama çevrilsin.`;
+    const formattingRegions = [
+      { id: "fmt-0", start: 0, end: 2 },
+      { id: "fmt-1", start: 2, end: text.length },
+    ];
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "bullet-unit", text, formattingRegions }], "en", { provider });
+      expect(provider.protectedTexts).toEqual(["Bu açıklama çevrilsin."]);
+      expect(result?.translated.startsWith(`${bullet} `)).toBe(true);
+      expect(occurrences(result?.translated, bullet)).toBe(1);
+      expect(result?.targetFormattingRegions?.[0]).toEqual({ id: "fmt-0", start: 0, end: 2 });
+      expect(result?.targetFormattingRegions?.map(({ id }) => id)).toEqual(["fmt-0", "fmt-1"]);
+    }
+  });
+
+  it.each([
+    ["6x. sık iğneye ipimizi sabitliyoruz.", ". sık iğneye ipimizi sabitliyoruz.", "SIK"],
+    ["6x ! dikkat edin.", "! dikkat edin.", ";"],
+  ])("%s keeps its punctuation-prefixed prose provider-owned", async (text, span, marker) => {
+    const echo = new InspectingProvider();
+    await translateBlocks([{ id: "prefixed-prose", text }], "en", { provider: echo });
+    expect(echo.protectedTexts).toEqual([span]);
+    const [rewritten] = await translateBlocks([{ id: "prefixed-prose", text }], "en", {
+      provider: new RewritingProvider(hostile.rewrite),
+    });
+    expect(rewritten?.translated).toContain(marker);
+  });
+
+  it("the validator is unchanged for structural punctuation", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "1) (6x, v) x 6. FLO örüyoruz.";
+    expect(validateTranslation(source, "1) (6sc, inc) x 6. Work in FLO.", "en", options).valid).toBe(true);
+    expect(validateTranslation(source, "1) (5sc, inc) x 6. Work in FLO.", "en", options).valid).toBe(false);
   });
 });

@@ -28,6 +28,7 @@ import {
   restoreLeadingInstruction,
 } from "./instruction_marker.js";
 import {
+  isStructuralPunctuationOnly,
   lexMixedSegment,
   type LexedMixedSegment,
   normalizeMixedProseTranslation,
@@ -788,10 +789,13 @@ const translateFormattingUnits = async (
 
     // Canva frequently stores decorative bullets/separators such as "✦"
     // in their own formatting region. In materials mode these contain no
-    // translatable language and must never consume a provider call.
+    // translatable language and must never consume a provider call. In
+    // pattern mode only a unit that is entirely punctuation or a bullet is
+    // passed through; anything else keeps the normal segment pipeline.
     if (
-      contentKind === "materials" &&
-      !/[\p{L}\p{N}]/u.test(coreText)
+      contentKind === "materials"
+        ? !/[\p{L}\p{N}]/u.test(coreText)
+        : isStructuralPunctuationOnly(coreText)
     ) {
       const translatedUnit =
         leadingWhitespace + coreText + trailingWhitespace;
