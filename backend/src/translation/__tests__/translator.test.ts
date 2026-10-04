@@ -7,6 +7,7 @@ import type {
 import { translateBlocks } from "../translator.js";
 import { validateTranslation } from "../validator.js";
 import { reservedPlaceholder } from "../notation/immutable.js";
+import { extractSourceAtomicNaturalLanguageSpans } from "../natural_language/atomic_spans.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -7377,5 +7378,86 @@ describe("simple Work rule keeps the separator before provider prose (Task 23D)"
     const source = "6x örüyoruz ve kenarı dikiyoruz.";
     expect(validateTranslation(source, "Work 6sc and sew the edge.", "en", options).valid).toBe(true);
     expect(validateTranslation(source, "Work 5sc and sew the edge.", "en", options).valid).toBe(false);
+  });
+});
+
+describe("magic ring and hair continuation have one owner: normalizer + carrier (Task 23F)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text
+        .replace(/hair strands/gu, "beard")
+        .replace(/cutting the yarn/gu, "keeping the thread")
+        .replace(/magic ring/gu, "chain space")
+        .replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string) =>
+    (await translateBlocks([{ id: "single-owner", text }], "en", { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+  const hair = "Without cutting the yarn, continue with the hair strands";
+
+  it.each([
+    ["Sihirli halka içine 6x", "6sc into the magic ring"],
+    ["1) Sihirli halka içine 6x.", "1) 6sc into the magic ring."],
+    ["12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.", `12) 66sc. ${hair}.`],
+    ["66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz", `66sc. ${hair}`],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      expect(await translate(provider, text)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["Kenarı dikip. 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.", `66sc. ${hair}.`, ["Kenarı dikip."]],
+    ["12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz ve kenarı dikiyoruz.", `12) 66sc. ${hair}`, ["ve kenarı dikiyoruz."]],
+    [
+      "Without cutting the yarn, kenarı dikip. 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+      `66sc. ${hair}.`,
+      ["Without cutting the yarn", "kenarı dikip."],
+    ],
+    ["Sihirli halka içine 6x örüyoruz, sonra kenarı dikiyoruz.", "6sc into the magic ring", ["örüyoruz", "sonra kenarı dikiyoruz."]],
+  ])("a mixed line %s offers only its prose to the provider", async (text, carried, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(occurrences(echoed?.translated, carried)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      expect(occurrences(result?.translated, carried)).toBe(1);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    // The surrounding prose, including the source's own English, is still provider-owned.
+    expect((await translate(new RewritingProvider(hostile.rewrite), text))?.translated).toMatch(/EDGE/u);
+  });
+
+  it("neither line is atomically covered, so the style-based provider bypass never applies", () => {
+    for (const text of [
+      "Sihirli halka içine 6x",
+      "1) Sihirli halka içine 6x.",
+      "12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+    ]) {
+      expect(extractSourceAtomicNaturalLanguageSpans(text)).toEqual([]);
+    }
+  });
+
+  it("the validator still checks the count beside the carried continuation", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.";
+    expect(validateTranslation(source, `12) 66sc. ${hair}.`, "en", options).valid).toBe(true);
+    expect(validateTranslation(source, `12) 65sc. ${hair}.`, "en", options).valid).toBe(false);
   });
 });

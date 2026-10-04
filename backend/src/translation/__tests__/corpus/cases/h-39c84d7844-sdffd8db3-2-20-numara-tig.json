@@ -457,7 +457,7 @@
       }
     ]
   },
-  "id": "h-39c84d7844-s18c891a8-2-20-numara-tig",
+  "id": "h-39c84d7844-sdffd8db3-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
@@ -479,16 +479,8 @@
         "translated": ". This will be the beginning of the round"
       },
       {
-        "source": "continue with the hair strands.",
-        "translated": "continue with the hair strands."
-      },
-      {
         "source": "place a stitch marker here.",
         "translated": "place a stitch marker here."
-      },
-      {
-        "source": "sc. Without cutting the yarn",
-        "translated": "sc. Without cutting the yarn"
       }
     ],
     "mode": "oracle"
@@ -752,19 +744,6 @@
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
         "userPromptSha256": "71bba21896ebd98ab00be85ddee5872935aa59b6a11139fd1aa5aa912dd74801"
-      },
-      {
-        "blockIds": [
-          "span-0",
-          "span-1"
-        ],
-        "blockTexts": [
-          "sc. Without cutting the yarn",
-          "continue with the hair strands."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "7de12a19c013d982273b5e019b56f1257f127debd388856b55e55d989dfb3047"
       }
     ]
   }

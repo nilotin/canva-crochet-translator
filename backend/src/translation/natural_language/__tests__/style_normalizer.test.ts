@@ -331,11 +331,6 @@ describe("normalizeTranslationStyle", () => {
     ["12 sıra 66x", "12 round 66sc", "66sc for 12 rounds"],
     ["3 sıra 78x", "3 round 78sc", "78sc for 3 rounds"],
     ["1 sıra 29x", "1 round 29sc", "29sc for 1 round"],
-    [
-      "Sihirli halka içine 6x",
-      "Into the magic ring 6sc",
-      "6sc into the magic ring",
-    ],
   ])(
     "uses source counts to normalize crochet instruction phrasing: %s",
     (source, translated, expected) => {
@@ -421,16 +416,20 @@ describe("normalizeTranslationStyle", () => {
     expect(normalizeTranslationStyle(source, input, "en")).toBe(expected);
   });
 
-  it("normalizes continuing with hair strands", () => {
-    expect(
-      normalizeTranslationStyle(
+  it("no longer rebuilds the magic ring or hair continuation (normalizer + carrier own them, Task 23F)", () => {
+    for (const [source, translated] of [
+      ["Sihirli halka içine 6x", "6sc into the magic ring"],
+      ["1) Sihirli halka içine 6x.", "1) 6sc into the magic ring."],
+      [
         "11) 60x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
-        "11) 60sc We continue crocheting the hair strands without cutting the yarn.",
-        "en",
-      ),
-    ).toBe(
-      "11) 60sc. Without cutting the yarn, continue with the hair strands.",
-    );
+        "11) 60sc. Without cutting the yarn, continue with the hair strands.",
+      ],
+    ] as const) {
+      // The pipeline output passes through unchanged...
+      expect(normalizeTranslationStyle(source, translated, "en")).toBe(translated);
+      // ...and style is no longer a deterministic renderer for these lines.
+      expect(normalizeTranslationStyle(source, "PROBE", "en")).toBe("PROBE");
+    }
   });
 
   it("normalizes a short FLO round", () => {
@@ -752,7 +751,8 @@ describe("normalizeTranslationStyle", () => {
     expect(
       normalizeTranslationStyle(
         "Sihirli halka içine 6x — başlangıç noktamız burası olacak işaretleyiciyi buraya takıyoruz.",
-        "Into the magic ring 6sc — This will be our starting point; we attach the marker here.",
+        // The magic-ring prefix arrives already carried from the normalizer (Task 23F).
+        "6sc into the magic ring — This will be our starting point; we attach the marker here.",
         "en",
       ),
     ).toBe(

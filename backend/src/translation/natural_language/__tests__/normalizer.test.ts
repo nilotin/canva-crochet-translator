@@ -1190,7 +1190,8 @@ describe("normalizeSourceNaturalLanguage", () => {
         "en",
       ),
     ).toBe(
-      "60sc. Without cutting the yarn, continue with the hair strands.",
+      // The count stays notation ("60sc" after reconstruction, Task 23F).
+      "60x. Without cutting the yarn, continue with the hair strands.",
     );
   });
 
@@ -2105,5 +2106,40 @@ describe("simple Work rule keeps the separator before following prose (Task 23D)
     const start = text.indexOf("Work");
     expect(result.deterministicSpans.map(({ start: s, end, text: t }) => [s, end, t])).toEqual([[start, start + 4, "Work"]]);
     expect(normalizeSourceNaturalLanguage(source, "es")).toBe(source);
+  });
+});
+
+describe("deterministic span carrier: hair continuation (Task 23F)", () => {
+  it.each([
+    [
+      "12) 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+      "12) 66x. Without cutting the yarn, continue with the hair strands.",
+      [[9, 65]],
+    ],
+    [
+      "Kenarı dikip. 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+      "Kenarı dikip. 66x. Without cutting the yarn, continue with the hair strands.",
+      [[19, 75]],
+    ],
+    [
+      "66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz ve kenarı dikiyoruz.",
+      "66x. Without cutting the yarn, continue with the hair strands ve kenarı dikiyoruz.",
+      [[5, 61]],
+    ],
+    // Earlier identical English from the source is never carried.
+    [
+      "Without cutting the yarn, kenarı dikip. 66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz.",
+      "Without cutting the yarn, kenarı dikip. 66x. Without cutting the yarn, continue with the hair strands.",
+      [[45, 101]],
+    ],
+  ] as const)("%s carries only the English continuation", (source, text, ranges) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end }) => [start, end])).toEqual(ranges);
+    for (const span of result.deterministicSpans) {
+      expect(span.text).toBe("Without cutting the yarn, continue with the hair strands");
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+    }
+    expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
   });
 });

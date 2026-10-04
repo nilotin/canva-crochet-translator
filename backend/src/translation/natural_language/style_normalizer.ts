@@ -559,15 +559,6 @@ const normalizeEnglishCrochetInstructionLine = (
     );
   }
 
-  const hairStrandContinuation =
-    /^(\s*(?:\d+\)\s*)?)(\d+)\s*x\s+örüyoruz\s+ipimizi\s+kesmeden\s+saç\s+telleri\s+ile\s+devam\s+ediyoruz([.]?\s*)$/iu.exec(
-      source,
-    );
-
-  if (hairStrandContinuation) {
-    return `${hairStrandContinuation[1]}${hairStrandContinuation[2]}sc. Without cutting the yarn, continue with the hair strands${hairStrandContinuation[3]}`;
-  }
-
   const hookWithBrandedColorYarn = new RegExp(
     `^(\\s*✦\\s*)?(\\d+(?:[.,]\\d+)?)\\s+(?:numara|no)\\s+tığ\\s*[,，]\\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\\s+renk)?\\s*\\(\\s*([^)]+?)\\s*\\)\\s+ip\\s+ile\\s+örüyoruz[.]?\\s*$`,
     "iu",
@@ -634,14 +625,6 @@ const normalizeEnglishCrochetInstructionLine = (
         sourceStart,
       ),
     );
-  }
-
-  const magicRing =
-    /^(\s*(?:\d+\)\s*)?)sihirli\s+halka\s+içine\s+(\d+)x([.]?\s*)$/iu.exec(
-      source,
-    );
-  if (magicRing) {
-    return `${magicRing[1]}${magicRing[2]}sc into the magic ring${magicRing[3]}`;
   }
 
   const sequence = normalizeCrochetSequenceLine(source);

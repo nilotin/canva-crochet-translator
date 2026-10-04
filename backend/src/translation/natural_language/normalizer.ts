@@ -812,7 +812,11 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(\d+)\s*x\s+örüyoruz\s+ipimizi\s+kesmeden\s+saç\s+telleri\s+ile\s+devam\s+ediyoruz\b/giu,
       (_match, stitches: string) =>
-        `${stitches}sc. Without cutting the yarn, continue with the hair strands`,
+        // The count stays notation (rendered "66sc" downstream); only the
+        // English continuation is carried.
+        `${stitches}x. ${recordDeterministicSpan(
+          "Without cutting the yarn, continue with the hair strands",
+        )}`,
     )
     .replace(
       /\bbaşlangıç\s+noktamız\s+burası\s+olacak\s*[.]\s*[iİ]şaretleyiciyi\s+buraya\s+takıyoruz\b/giu,
