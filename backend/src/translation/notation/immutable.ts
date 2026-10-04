@@ -71,10 +71,19 @@ const diagnostic = (
   message: string,
 ): PlaceholderIntegrityDiagnostic => ({ code, message });
 
+/** A range of text to keep as one opaque token, reconstructed verbatim. */
+export type OpaqueRange = { readonly start: number; readonly end: number };
+
 export const protectImmutablePattern = (
   source: string,
   startIndex = 0,
   profile: "pattern" | "materials" = "pattern",
+  /**
+   * Source data (e.g. a copied yarn brand) that must never be read as
+   * notation, numbers or measurements: each range becomes one structure
+   * token whose placeholder restores the exact text.
+   */
+  opaqueRanges: readonly OpaqueRange[] = [],
 ): ProtectedImmutableText => {
   const measurements = extractMeasurements(source);
   const rounds = profile === "pattern" ? extractRoundReferences(source) : [];
@@ -134,11 +143,40 @@ export const protectImmutablePattern = (
     }
   }
 
+  // Opacity is all-or-nothing: one malformed or overlapping range, or a
+  // recognized occurrence that straddles a range boundary, drops every range
+  // so the text is protected exactly as without opaque ranges (fail closed).
+  const requested = [...opaqueRanges].sort((left, right) => left.start - right.start);
+  const straddles = (occurrence: Occurrence, { start, end }: OpaqueRange) =>
+    occurrence.start < end && occurrence.end > start &&
+    (occurrence.start < start || occurrence.end > end);
+  const opaqueIsSafe = requested.every(
+    ({ start, end }, index) =>
+      Number.isInteger(start) && Number.isInteger(end) &&
+      start >= 0 && end > start && end <= source.length &&
+      start >= (requested[index - 1]?.end ?? 0) &&
+      !occurrences.some((occurrence) => straddles(occurrence, { start, end })),
+  );
+  const opaque = (opaqueIsSafe ? requested : []).map(({ start, end }): Occurrence => ({
+    start,
+    end,
+    token: { kind: "structure", source: source.slice(start, end) },
+  }));
+  const insideOpaque = (occurrence: Occurrence) =>
+    opaque.some(({ start, end }) => occurrence.start < end && occurrence.end > start);
+  const recognized = occurrences.filter((occurrence) => !insideOpaque(occurrence));
+  occurrences.length = 0;
+  occurrences.push(...recognized, ...opaque);
+
   occurrences.sort(
     (left, right) => left.start - right.start || right.end - left.end,
   );
   const nonOverlapping: Occurrence[] = [];
   for (const occurrence of occurrences) {
+    if (opaque.includes(occurrence)) {
+      if (occurrence.start >= (nonOverlapping.at(-1)?.end ?? 0)) nonOverlapping.push(occurrence);
+      continue;
+    }
     if (occurrence.token.kind !== "round_reference" && rounds.some(
       ({ start, end }) => occurrence.start < end && occurrence.end > start,
     )) continue;

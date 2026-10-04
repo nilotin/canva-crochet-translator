@@ -72,7 +72,7 @@ describe("TrackedText records deterministic ranges when they are written (Task 2
     expect(offResult.text).toBe("a Work b");
     expect(offResult.spans()).toEqual([]);
 
-    const source = "a X b";
+    const source = "a \uE000X\uE001 b";
     const guarded = TrackedText.of(source, true);
     const guardedResult = guarded.replace(/X/u, () => guarded.mark("Work"));
     expect(guardedResult.text).toBe(source.replace("X", "Work"));
@@ -94,5 +94,134 @@ describe("TrackedText records deterministic ranges when they are written (Task 2
     expect(TrackedText.of(source, true).replace(pattern, replacement).text).toBe(
       source.replace(pattern, replacement),
     );
+  });
+});
+
+const sourceRanges = (tracked: TrackedText) =>
+  tracked.sourceDataSpans().map(({ start, end, text }) => [start, end, text]);
+
+describe("TrackedText records source-data ranges as a second, independent kind (Task 23K-1)", () => {
+  it("records source data alone without creating a deterministic range", () => {
+    const tracked = TrackedText.of("ip (Alize 3x) ile", true);
+    const result = tracked.replace(/ip \((.+?)\) ile/u, (_match, brand: string) =>
+      `yarn (${tracked.markSourceData(brand)})`,
+    );
+    expect(result.text).toBe("yarn (Alize 3x)");
+    expect(sourceRanges(result)).toEqual([[6, 14, "Alize 3x"]]);
+    expect(result.spans()).toEqual([]);
+  });
+
+  it("records source data nested inside a deterministic rendering, each in its own kind", () => {
+    const tracked = TrackedText.of("> X <", true);
+    const result = tracked.replace(/X/u, () =>
+      tracked.mark(`Start with red yarn (${tracked.markSourceData("Alize 3x")})`),
+    );
+    expect(result.text).toBe("> Start with red yarn (Alize 3x) <");
+    expect(ranges(result)).toEqual([[2, 32, "Start with red yarn (Alize 3x)"]]);
+    expect(sourceRanges(result)).toEqual([[23, 31, "Alize 3x"]]);
+  });
+
+  it("records adjacent source-data marks as separate ranges", () => {
+    const tracked = TrackedText.of("X", true);
+    const result = tracked.replace(/X/u, () => `${tracked.markSourceData("3x")}${tracked.markSourceData("1v")}`);
+    expect(sourceRanges(result)).toEqual([
+      [0, 2, "3x"],
+      [2, 4, "1v"],
+    ]);
+  });
+
+  it("shifts source data through later edits before it and ignores edits after it", () => {
+    const tracked = TrackedText.of("a X b", true);
+    const result = tracked
+      .replace(/X/u, () => tracked.markSourceData("Alize 3x"))
+      .replace(/^a/u, "longer start")
+      .replace(/b$/u, "end")
+      .replace(/^/u, ">> ");
+    expect(result.text).toBe(">> longer start Alize 3x end");
+    expect(sourceRanges(result)).toEqual([[16, 24, "Alize 3x"]]);
+  });
+
+  it("breaks only the kind a later edit touches", () => {
+    const tracked = TrackedText.of("D S", true);
+    const marked = tracked
+      .replace(/D/u, () => tracked.mark("Work"))
+      .replace(/S/u, () => tracked.markSourceData("Alize 3x"));
+    expect(ranges(marked)).toEqual([[0, 4, "Work"]]);
+    expect(sourceRanges(marked)).toEqual([[5, 13, "Alize 3x"]]);
+
+    const sourceTouched = marked.replace(/3x/u, "3sc");
+    expect(sourceTouched.text).toBe("Work Alize 3sc");
+    expect(sourceRanges(sourceTouched)).toEqual([]);
+    expect(ranges(sourceTouched)).toEqual([[0, 4, "Work"]]);
+
+    const deterministicTouched = marked.replace(/ork/u, "alk");
+    expect(ranges(deterministicTouched)).toEqual([]);
+    expect(sourceRanges(deterministicTouched)).toEqual([[5, 13, "Alize 3x"]]);
+
+    // An insertion strictly inside a source range breaks it; one at its edge does not.
+    expect(sourceRanges(marked.replace(/(?<=Alize)/u, "-"))).toEqual([]);
+    expect(sourceRanges(marked.replace(/(?<=Alize 3x)/u, "!"))).toEqual([[5, 13, "Alize 3x"]]);
+  });
+
+  it("breaks only the kind whose marks are unbalanced", () => {
+    const tracked = TrackedText.of("X Y", true);
+    const brokenSource = tracked.replace(/X/u, () => tracked.mark("Work")).replace(/Y/u, () =>
+      tracked.markSourceData("Alize").slice(0, -1),
+    );
+    expect(brokenSource.text).toBe("Work Alize");
+    expect(sourceRanges(brokenSource)).toEqual([]);
+    expect(ranges(brokenSource)).toEqual([[0, 4, "Work"]]);
+
+    const brokenDeterministic = tracked
+      .replace(/X/u, () => tracked.mark("Work").slice(1))
+      .replace(/Y/u, () => tracked.markSourceData("Alize"));
+    expect(brokenDeterministic.text).toBe("Work Alize");
+    expect(ranges(brokenDeterministic)).toEqual([]);
+    expect(sourceRanges(brokenDeterministic)).toEqual([[5, 10, "Alize"]]);
+
+    const nestedSameKind = tracked.replace(/X/u, () =>
+      tracked.markSourceData(`a ${tracked.markSourceData("b")}`),
+    );
+    expect(sourceRanges(nestedSameKind)).toEqual([]);
+  });
+
+  it("does not mark source data when not recording", () => {
+    const off = TrackedText.of("a X b", false);
+    expect(off.markSourceData("Alize 3x")).toBe("Alize 3x");
+    const result = off.replace(/X/u, () => off.markSourceData("Alize 3x"));
+    expect(result.text).toBe("a Alize 3x b");
+    expect(result.sourceDataSpans()).toEqual([]);
+  });
+
+  it.each(["\uE000", "\uE001", "\uE002", "\uE003"])(
+    "never reads a %j already in the text as a mark, and keeps it byte-exact",
+    (sentinel) => {
+      const source = `a ${sentinel}Alize 3x${sentinel} b`;
+      for (const record of [true, false]) {
+        const tracked = TrackedText.of(source, record);
+        // The match copies the sentinels into the replacement (via a callback and `$1`).
+        const viaCallback = tracked.replace(/a (.*) b/u, (_match, inner: string) =>
+          tracked.markSourceData(`[${inner}]`),
+        );
+        const viaPattern = tracked.replace(/a (.*) b/u, "<$1>");
+        expect(viaCallback.text).toBe(`[${sentinel}Alize 3x${sentinel}]`);
+        expect(viaPattern.text).toBe(source.replace(/a (.*) b/u, "<$1>"));
+        for (const result of [viaCallback, viaPattern]) {
+          expect(result.spans()).toEqual([]);
+          expect(result.sourceDataSpans()).toEqual([]);
+        }
+      }
+    },
+  );
+
+  it("keeps the deterministic ranges of Task 23B unchanged when source data is also recorded", () => {
+    const plain = TrackedText.of("a X b X", true);
+    const withSource = TrackedText.of("a X b X", true);
+    const deterministicOnly = plain.replace(/X/gu, () => plain.mark("Work"));
+    const both = withSource
+      .replace(/X/gu, () => withSource.mark("Work"))
+      .replace(/b/u, () => withSource.markSourceData("b"));
+    expect(both.text).toBe(deterministicOnly.text);
+    expect(both.spans()).toEqual(deterministicOnly.spans());
   });
 });

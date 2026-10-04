@@ -1260,3 +1260,69 @@ describe("inflected chain-and-skip notation validation", () => {
     expect(errorCodes(result)).toContain("LOST_PATTERN_NOTATION");
   });
 });
+
+describe("structural source data creates no notation requirement (Task 23K-1)", () => {
+  const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+  const codes = (source: string, target: string, language: "en" | "es" = "en") =>
+    validateTranslation(source, target, language, options).errors.map(({ code }) => code);
+  const tool = (brand: string, tail = "") => `2.20 numara tığ, siyah (${brand}) ip ile örüyoruz${tail}.`;
+  const toolEn = (brand: string, tail = "") =>
+    `Using a 2.20 mm crochet hook and black yarn (${brand}), work as follows${tail}.`;
+
+  it.each(["Alize 3x", "Alize 1v", "Brand 3x 1v", "3x", "Alize 110", "110", "Alize Cotton Gold", "Brand 2a"])(
+    "an exactly copied brand %s validates",
+    (brand) => {
+      expect(codes(tool(brand), toolEn(brand))).toEqual([]);
+      const yarn = `Kırmızı renk ip (${brand}) ile başlıyoruz.`;
+      expect(codes(yarn, `Start with red yarn (${brand}).`)).toEqual([]);
+    },
+  );
+
+  it("still requires real notation outside the brand", () => {
+    const source = tool("Alize 3x", " ve 3x örüyoruz");
+    expect(codes(source, toolEn("Alize 3x", " and work 3sc"))).toEqual([]);
+    expect(codes(source, toolEn("Alize 3x", " and work 3x"))).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes(source, toolEn("Alize 3x", " and work"))).toEqual(["NUMBER_MISMATCH", "LOST_PATTERN_NOTATION"]);
+    expect(codes(source, toolEn("Alize 3x", " and work 4sc"))).toEqual(["NUMBER_MISMATCH"]);
+    const increase = tool("Alize 1v", " ve 2v örüyoruz");
+    expect(codes(increase, toolEn("Alize 1v", " and work 2inc"))).toEqual([]);
+    expect(codes(increase, toolEn("Alize 1v", " and work 2v"))).toEqual(["LOST_PATTERN_NOTATION"]);
+    const yarn = "Kırmızı renk ip (Alize 3x) ile başlıyoruz ve 6x örüyoruz.";
+    expect(codes(yarn, "Start with red yarn (Alize 3x) and work 6sc.")).toEqual([]);
+    expect(codes(yarn, "Start with red yarn (Alize 3x) and work 6x.")).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes(yarn, "Start with red yarn (Alize 3x) and work 7sc.")).toEqual(["NUMBER_MISMATCH"]);
+    expect(codes(tool("Alize 110", " ve 3x örüyoruz"), toolEn("Alize 111", " and work 3sc"))).toEqual(["NUMBER_MISMATCH"]);
+  });
+
+  it("counts the brand's notation again when the brand was not copied exactly", () => {
+    const source = tool("Alize 3x", " ve 3x örüyoruz");
+    // A rewritten brand can never stand in for the lost instruction.
+    expect(codes(source, toolEn("Alize 3sc", " and work 3x"))).toEqual(["LOST_PATTERN_NOTATION"]);
+    // Pre-23K-1 counting: a brand converted like notation is accepted as before.
+    expect(codes(source, toolEn("Alize 3sc", " and work 3sc"))).toEqual([]);
+    // A brand whose exact text also occurs as real notation is counted conservatively.
+    expect(codes(tool("3x", " ve 3x örüyoruz"), toolEn("3sc", " and work 3x"))).toEqual(["LOST_PATTERN_NOTATION"]);
+  });
+
+  it.each(["sc", "inc", "dec", "FLO", "BLO", "3sc", "sc sc"])(
+    "a copied brand holding the target abbreviation %j neither inflates nor hides target counts",
+    (abbreviation) => {
+      const brand = `Brand ${abbreviation}`;
+      const source = tool(brand, " ve 2v, 2a, FLO, BLO, 3x örüyoruz");
+      expect(codes(source, toolEn(brand, " and work 2inc, 2dec, FLO, BLO, 3sc"))).toEqual([]);
+      expect(codes(source, toolEn(brand, " and work 2inc, 2dec, FLO, 3sc"))).toEqual(["LOST_PATTERN_NOTATION"]);
+      expect(codes(source, toolEn(brand, " and work 2inc, 2dec, FLO, BLO, 3x"))).toEqual(["LOST_PATTERN_NOTATION"]);
+    },
+  );
+
+  it("never treats an arbitrary parenthetical or an unmapped description as source data", () => {
+    expect(codes("(Alize 3x) 3x örüyoruz.", "(Alize 3x) work 3sc.")).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes("Pamuk ip (Alize 3x) ile örüyoruz.", "Work with cotton yarn (Alize 3x).")).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes("2 numara tığ, pamuk ip (Alize 3x) ile örüyoruz.", "Using a 2 mm crochet hook and pamuk Alize 3x yarn, work as follows.")).toEqual(["LOST_PATTERN_NOTATION"]);
+  });
+
+  it("leaves Spanish validation unchanged", () => {
+    expect(codes(tool("Alize 3x"), "Con un ganchillo de 2.20 mm y hilo negro (Alize 3x), tejemos de la siguiente manera.", "es")).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes(tool("Alize 3x"), "Con un ganchillo de 2.20 mm y hilo negro (Alize 3pb), tejemos de la siguiente manera.", "es")).toEqual([]);
+  });
+});

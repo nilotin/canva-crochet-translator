@@ -62,6 +62,25 @@ export type SourceNaturalLanguageNormalization = {
    * or when any recorded range was invalidated by a later rule (fail closed).
    */
   deterministicSpans: readonly DeterministicSpan[];
+  /**
+   * Source text copied verbatim into `text` by a deterministic family (today
+   * the brand of a branded yarn or tool intro). It is data, never crochet
+   * notation: the translator keeps it opaque and the validator does not count
+   * notation inside it. Empty when the rendered ranges and the source scan
+   * (`scanSourceDataRanges`) do not agree exactly (fail closed).
+   */
+  sourceDataSpans: readonly SourceDataSpan[];
+};
+
+/** A source-data range in both coordinate spaces; `text` is identical in both. */
+export type SourceDataSpan = {
+  /** Range in the normalizer's `source` argument. */
+  readonly sourceStart: number;
+  readonly sourceEnd: number;
+  /** Range in the normalized `text`. */
+  readonly renderedStart: number;
+  readonly renderedEnd: number;
+  readonly text: string;
 };
 
 const englishOrdinal = (raw: string): string => {
@@ -692,10 +711,7 @@ const normalizeEnglishCrochetStructures = (
       "This will be the beginning of the round; place a stitch marker here",
     )
     .replace(
-      new RegExp(
-        `(^|[^\\p{L}\\p{N}_])(${TURKISH_YARN_COLOR_PATTERN})\\s+(?:renk\\s+)?ip\\s*\\(\\s*([^)]+?)\\s*\\)\\s+ile\\s+başlıyoruz\\b`,
-        "giu",
-      ),
+      yarnIntroPattern(),
       (
         _match,
         prefix: string,
@@ -706,7 +722,7 @@ const normalizeEnglishCrochetStructures = (
 
         return color
           ? `${prefix}${recordDeterministicSpan(
-              `Start with ${color} yarn (${brand.trim()})`,
+              `Start with ${color} yarn (${tracked.markSourceData(brand.trim())})`,
             )}`
           : _match;
       },
@@ -1241,6 +1257,55 @@ const BRANDED_COLOR_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s+(?:numara|no)\s+t�
 const HOOK_ONLY_WORK_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+ile\s+örüyoruz`;
 const HOOK_ONLY_USE_SOURCE = String.raw`${HOOK_SIZE_SOURCE}\s*(?:mm\s+|(?:numara|no)\s+)?tığ\s+kullanıyoruz`;
 
+// Branded intro grammars. Each is shared by its renderer and by
+// `scanSourceDataRanges`, so the brand the renderer copies and the brand the
+// validator excludes are found by the same expression. Group 3 is the brand.
+const yarnIntroPattern = (flags = "giu"): RegExp =>
+  new RegExp(
+    String.raw`(^|[^\p{L}\p{N}_])(${TURKISH_YARN_COLOR_PATTERN})\s+(?:renk\s+)?ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b`,
+    flags,
+  );
+const descriptionBrandAfterIlePattern = (flags = "giu"): RegExp =>
+  new RegExp(String.raw`\b${DESCRIPTION_BRAND_AFTER_ILE_SOURCE}\b`, flags);
+const descriptionBrandBeforeIlePattern = (flags = "giu"): RegExp =>
+  new RegExp(String.raw`\b${DESCRIPTION_BRAND_BEFORE_ILE_SOURCE}\b`, flags);
+const brandedColorHookPattern = (flags = "giu"): RegExp =>
+  new RegExp(String.raw`(?<!\p{L})${BRANDED_COLOR_SOURCE}(?!\p{L})`, flags);
+
+/** True when a whole free description is a mapped colour (deterministic). */
+const isMappedColorDescription = (description: string): boolean =>
+  translateTurkishYarnColor(description.trim(), "en") !== undefined;
+
+/**
+ * The brands that the branded yarn/tool intro renderers copy verbatim, as
+ * ranges of `source`. Only deterministic shapes count: a mapped colour, or a
+ * free description that is exactly a mapped colour. English only, like the
+ * renderers' source-data marks.
+ */
+export const scanSourceDataRanges = (
+  source: string,
+  targetLanguage: TargetLanguage,
+): { sourceStart: number; sourceEnd: number; text: string }[] => {
+  if (targetLanguage !== "en") return [];
+  const ranges: { sourceStart: number; sourceEnd: number; text: string }[] = [];
+  const collect = (pattern: RegExp, deterministic: (match: RegExpExecArray) => boolean) => {
+    for (const match of source.matchAll(pattern)) {
+      const brand = match.indices?.[3];
+      if (brand && deterministic(match)) {
+        ranges.push({ sourceStart: brand[0], sourceEnd: brand[1], text: source.slice(brand[0], brand[1]) });
+      }
+    }
+  };
+  collect(yarnIntroPattern("giud"), (match) => translateTurkishYarnColor(match[2] ?? "", "en") !== undefined);
+  collect(descriptionBrandAfterIlePattern("giud"), (match) => isMappedColorDescription(match[2] ?? ""));
+  collect(descriptionBrandBeforeIlePattern("giud"), (match) => isMappedColorDescription(match[2] ?? ""));
+  collect(brandedColorHookPattern("giud"), () => true);
+  ranges.sort((left, right) => left.sourceStart - right.sourceStart);
+  return ranges.every((range, index) => index === 0 || range.sourceStart >= (ranges[index - 1]?.sourceEnd ?? 0))
+    ? ranges
+    : [];
+};
+
 /**
  * A free yarn description becomes English only when the WHOLE description is
  * a mapped colour; anything else ("pamuk", "simli", "simli siyah") stays as
@@ -1260,8 +1325,14 @@ const normalizeToolMaterialIntro = (
 ): TrackedText => {
   let normalized = source;
 
+  // A brand is source data only where the whole intro is deterministic.
+  const brandOf = (yarnBrand: string, deterministic: boolean): string =>
+    targetLanguage === "en" && deterministic
+      ? source.markSourceData(yarnBrand.trim())
+      : yarnBrand.trim();
+
   normalized = normalized.replace(
-    new RegExp(String.raw`\b${DESCRIPTION_BRAND_AFTER_ILE_SOURCE}\b`, "giu"),
+    descriptionBrandAfterIlePattern(),
     (
       _match,
       size: string,
@@ -1269,7 +1340,7 @@ const normalizeToolMaterialIntro = (
       yarnBrand: string,
     ) => {
       const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
-      const brand = yarnBrand.trim();
+      const brand = brandOf(yarnBrand, isMappedColorDescription(yarnDescription));
 
       return targetLanguage === "en"
         ? `Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`
@@ -1278,7 +1349,7 @@ const normalizeToolMaterialIntro = (
   );
 
   normalized = normalized.replace(
-    new RegExp(String.raw`\b${DESCRIPTION_BRAND_BEFORE_ILE_SOURCE}\b`, "giu"),
+    descriptionBrandBeforeIlePattern(),
     (
       _match,
       size: string,
@@ -1286,7 +1357,7 @@ const normalizeToolMaterialIntro = (
       yarnBrand: string,
     ) => {
       const description = toolIntroDescription(yarnDescription.trim(), targetLanguage);
-      const brand = yarnBrand.trim();
+      const brand = brandOf(yarnBrand, isMappedColorDescription(yarnDescription));
 
       return targetLanguage === "en"
         ? `Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`
@@ -1294,19 +1365,14 @@ const normalizeToolMaterialIntro = (
     },
   );
 
-  const brandedColorHookPattern = new RegExp(
-    String.raw`(?<!\p{L})${BRANDED_COLOR_SOURCE}(?!\p{L})`,
-    "giu",
-  );
-
   normalized = normalized.replace(
-    brandedColorHookPattern,
+    brandedColorHookPattern(),
     (_match, size: string, color: string, brand: string) => {
       const translatedColor =
         translateTurkishYarnColor(color, targetLanguage) ?? color.trim();
 
       return targetLanguage === "en"
-        ? `Using a ${size} mm crochet hook and ${translatedColor} yarn (${brand.trim()}), work as follows`
+        ? `Using a ${size} mm crochet hook and ${translatedColor} yarn (${brandOf(brand, true)}), work as follows`
         : `Con un ganchillo de ${size} mm y hilo ${translatedColor} (${brand.trim()}), tejemos de la siguiente manera`;
     },
   );
@@ -1706,6 +1772,30 @@ const fullyResolvedCourseEndTurnPattern =
 const fullyResolvedLongButtonholeGuidancePattern =
   /^\s*\d+\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)\s*$/iu;
 
+/**
+ * Pairs the source-data ranges recorded at render time with the same brands
+ * found by `scanSourceDataRanges` in the source. They must agree one-to-one,
+ * in order and text; otherwise nothing is reported (fail closed).
+ */
+const pairSourceData = (
+  rendered: readonly DeterministicSpan[],
+  source: string,
+  targetLanguage: TargetLanguage,
+): SourceDataSpan[] => {
+  const scanned = scanSourceDataRanges(source, targetLanguage);
+  if (scanned.length !== rendered.length) return [];
+  const pairs = rendered.map((span, index) => ({ span, range: scanned[index] }));
+  return pairs.every(({ span, range }) => range !== undefined && range.text === span.text)
+    ? pairs.map(({ span, range }) => ({
+        sourceStart: range!.sourceStart,
+        sourceEnd: range!.sourceEnd,
+        renderedStart: span.start,
+        renderedEnd: span.end,
+        text: span.text,
+      }))
+    : [];
+};
+
 export const normalizeSourceNaturalLanguageDetailed = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -1762,5 +1852,6 @@ export const normalizeSourceNaturalLanguageDetailed = (
     text: tracked.text,
     fullyResolved,
     deterministicSpans: recordSpans ? tracked.spans() : [],
+    sourceDataSpans: recordSpans ? pairSourceData(tracked.sourceDataSpans(), source, targetLanguage) : [],
   };
 };

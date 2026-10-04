@@ -8,6 +8,7 @@ import { translateBlocks } from "../translator.js";
 import { validateTranslation } from "../validator.js";
 import { reservedPlaceholder } from "../notation/immutable.js";
 import { extractSourceAtomicNaturalLanguageSpans } from "../natural_language/atomic_spans.js";
+import { normalizeTranslationStyle } from "../natural_language/style_normalizer.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -7734,5 +7735,182 @@ describe("legacy FLO/BLO spellings no longer depend on the style repair (Task 23
     expect(valid("5) In FLO, (3sc, 1inc)*6 = 30sc")).toBe(true);
     expect(valid("5) In FLO, (4sc, 1inc)*6 = 30sc")).toBe(false);
     expect(valid("5) In FLO, (3sc, 1dec)*6 = 30sc")).toBe(false);
+  });
+});
+
+describe("notation-like yarn and tool brands stay exact source data and validate (Task 23K-1)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const providers = {
+    echo: () => new InspectingProvider(),
+    rewrite: () =>
+      new RewritingProvider((text) =>
+        text.replace(/\byarn\b/gu, "thread").replace(/Alize|Brand/gu, "acrylic").replace(/kenarı/iu, "EDGE"),
+      ),
+  };
+  const translate = async (
+    text: string,
+    provider: InspectingProvider,
+    formattingRegions?: { id: string; start: number; end: number }[],
+  ) =>
+    (await translateBlocks([{ id: "brand", text, ...(formattingRegions ? { formattingRegions } : {}) }], "en", { provider }))[0];
+  const ORDINARY = "Alize Cotton Gold";
+  const BRANDS = [ORDINARY, "Alize 110", "Alize 3x", "Alize 1v", "Brand 2a", "Brand 3x 1v", "3x", "110"];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  // Every Task 23J dimension of the branded colour tool intro, in one shape list.
+  const toolShapes: { shape: string; size: string }[] = [];
+  for (const prefix of ["", "✦ ", "◆ ", "3) "])
+    for (const size of ["2", "2.20", "2,5"])
+      for (const keyword of ["numara", "NO"])
+        for (const colour of ["siyah", "Açık gri"])
+          for (const renk of ["", " renk"])
+            for (const spacing of [" ", ""])
+              for (const ending of [".", ""])
+                toolShapes.push({ size, shape: `${prefix}${size} ${keyword} tığ, ${colour}${renk} (BRAND)${spacing}ip ile örüyoruz${ending}` });
+  toolShapes.push(
+    { size: "2.20", shape: "  ✦  2.20  numara  tığ ，  siyah  (  BRAND  )  ip  ile  örüyoruz ." },
+    { size: "2.20", shape: "2.20 numara tığ, siyah ip ile (BRAND) örüyoruz." },
+    { size: "2.20", shape: "◆ 2.20 no tığ, siyah ip (BRAND) ile örüyoruz" },
+  );
+
+  it(`keeps every branded tool intro exact, valid and provider-free (${toolShapes.length} shapes x ${BRANDS.length} brands)`, async () => {
+    for (const { shape, size } of toolShapes) {
+      const ordinaryProvider = new InspectingProvider();
+      const ordinary = await translate(shape.replace("BRAND", ORDINARY), ordinaryProvider);
+      for (const brand of BRANDS) {
+        for (const make of Object.values(providers)) {
+          const provider = make();
+          const result = await translate(shape.replace("BRAND", brand), provider);
+          const context = `${shape} / ${brand}`;
+          expect(result?.valid, context).toBe(true);
+          expect(occurrences(result?.translated, brand), context).toBeGreaterThanOrEqual(1);
+          expect(result?.translated, context).toContain(`${size} mm crochet hook`);
+          expect(result?.translated, context).not.toMatch(/\d+(?:sc|inc)\b/u);
+          // Punctuation and bullets are exactly those of the ordinary brand.
+          expect(result?.translated.split(brand).join("<B>"), context).toBe(ordinary?.translated.split(ORDINARY).join("<B>"));
+          expect(provider.requests, context).toHaveLength(ordinaryProvider.requests.length);
+          expect(provider.protectedTexts.join(" "), context).not.toContain(brand);
+        }
+      }
+    }
+  });
+
+  it("covers both the style-covered and the normalizer-only fully-resolved paths", async () => {
+    const styled = "✦ 2.20 numara tığ, Açık gri (Alize 3x) ip ile örüyoruz.";
+    const normalizerOnly = ["◆ 2.20 numara tığ, Açık gri (Alize 3x) ip ile örüyoruz.", "2.20 numara tığ, siyah (Alize 3x)ip ile örüyoruz.", "3) 2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz."];
+    expect(normalizeTranslationStyle(styled, "PROBE", "en")).toBe(
+      "✦ Using a 2.20 mm crochet hook and light gray yarn (Alize 3x), work as follows.",
+    );
+    for (const source of normalizerOnly) expect(normalizeTranslationStyle(source, "PROBE", "en")).toBe("PROBE");
+    for (const source of [styled, ...normalizerOnly]) {
+      const provider = new InspectingProvider();
+      const result = await translate(source, provider);
+      expect(result).toMatchObject({ valid: true, errors: [] });
+      expect(result?.translated).toContain("(Alize 3x), work as follows");
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each(BRANDS)("keeps the yarn intro brand %s exact and the yarn wording deterministic", async (brand) => {
+    for (const [source, expected, prose] of [
+      [`Kırmızı renk ip (${brand}) ile başlıyoruz.`, `Start with red yarn (${brand}).`, []],
+      [`Siyah ip (${brand}) ile başlıyoruz`, `Start with black yarn (${brand})`, []],
+      [`Kırmızı renk ip (${brand}) ile başlıyoruz ve kenarı dikiyoruz.`, `Start with red yarn (${brand}) ve kenarı dikiyoruz.`, ["ve kenarı dikiyoruz."]],
+    ] as const) {
+      const echo = new InspectingProvider();
+      expect(await translate(source, echo)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(echo.protectedTexts).toEqual(prose);
+      const rewritten = await translate(source, providers.rewrite());
+      expect(rewritten?.valid).toBe(true);
+      expect(rewritten?.translated.startsWith(`Start with ${source.startsWith("Siyah") ? "black" : "red"} yarn (${brand})`)).toBe(true);
+    }
+  });
+
+  it("keeps notation-like brands opaque on the whole-block provider path and in a formatted block", async () => {
+    for (const brand of BRANDS) {
+      const intro = `✦ 2.20 numara tığ, Açık gri (${brand}) ip ile örüyoruz.`;
+      const text = `${intro}\n1) Sihirli halka içine 6x\n2) 6v = 12x`;
+      const expected = `✦ Using a 2.20 mm crochet hook and light gray yarn (${brand}), work as follows.\n1) 6sc into the magic ring\n2) 6inc = 12sc`;
+      for (const make of Object.values(providers)) {
+        const provider = make();
+        const result = await translate(text, provider);
+        expect(result?.valid, brand).toBe(true);
+        expect(result?.translated.split("\n").slice(1), brand).toEqual(expected.split("\n").slice(1));
+        expect(result?.translated, brand).toContain(`yarn (${brand})`);
+        expect(provider.requests.length, brand).toBeGreaterThan(0);
+        expect(provider.protectedTexts.join(" "), brand).not.toContain(brand);
+      }
+      const echo = new InspectingProvider();
+      expect((await translate(text, echo))?.translated).toBe(expected);
+      const formatted = await translate(text, new InspectingProvider(), [
+        { id: "fmt-0", start: 0, end: intro.length },
+        { id: "fmt-1", start: intro.length, end: text.length },
+      ]);
+      expect(formatted).toMatchObject({ translated: expected, valid: true });
+    }
+  });
+
+  it("keeps a brand opaque on a mixed tool-intro line and still converts real notation outside it", async () => {
+    const source = "2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz ve 3x örüyoruz.";
+    const provider = new InspectingProvider();
+    const result = await translate(source, provider);
+    expect(result).toMatchObject({
+      translated: "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows ve 3sc örüyoruz.",
+      valid: true,
+    });
+    expect(provider.protectedTexts.join(" ")).not.toContain("Alize");
+    const yarn = await translate("Kırmızı renk ip (Alize 1v) ile başlıyoruz ve 6v örüyoruz.", new InspectingProvider());
+    expect(yarn).toMatchObject({ translated: "Start with red yarn (Alize 1v) ve 6inc örüyoruz.", valid: true });
+    const two = await translate(
+      "2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz. 2.20 numara tığ, siyah (Alize 1v) ip ile örüyoruz.",
+      new InspectingProvider(),
+    );
+    expect(two?.translated).toBe(
+      "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Using a 2.20 mm crochet hook and black yarn (Alize 1v), work as follows.",
+    );
+  });
+
+  it.each([
+    ["2 numara tığ, pamuk ip (Catania) ile örüyoruz.", "Using a 2 mm crochet hook and pamuk Catania yarn, work as follows."],
+    ["Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz.", "Bal kabağı; 2.00 numara tığ, simli ip ile örüyoruz."],
+    ["2.20 numara tığ, simli siyah ip (Catania) ile örüyoruz.", undefined],
+    ["2.20 numara tığ, Turkuaz (Catania) ip ile örüyoruz.", undefined],
+    ["2.20 numara tığ, siyah ip ile örüyoruz.", undefined],
+    ["2.20 numara tığ, siyah (Catania ip ile örüyoruz.", undefined],
+    ["Yumuşak pamuklu bir ip (Catania gibi) kullanabilirsiniz.", undefined],
+  ])("negative control %s keeps the provider path", async (source, echoed) => {
+    const provider = new InspectingProvider();
+    const result = await translate(source, provider);
+    expect(provider.requests.length).toBeGreaterThan(0);
+    if (echoed) expect(result?.translated).toBe(echoed);
+  });
+
+  it("never lets placeholder syntax or tracking sentinels in a brand become internal tokens", async () => {
+    const placeholder = await translate("2.20 numara tığ, siyah (__XQAAAAQX__) ip ile örüyoruz.", new InspectingProvider());
+    expect(placeholder).toMatchObject({ translated: "", valid: false });
+    expect(placeholder?.errors.map(({ code }) => code)).toContain("DUPLICATE_PROTECTED_NOTATION");
+    for (const sentinel of ["\uE000", "\uE001", "\uE002", "\uE003"]) {
+      const brand = `Alize ${sentinel}3x`;
+      const result = await translate(`2.20 numara tığ, siyah (${brand}) ip ile örüyoruz.`, new InspectingProvider());
+      expect(result?.translated).toBe(`Using a 2.20 mm crochet hook and black yarn (${brand}), work as follows.`);
+    }
+  });
+
+  it("leaves Spanish unchanged", async () => {
+    const result = await translateBlocks(
+      [{ id: "es", text: "2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz." }],
+      "es",
+      { provider: new InspectingProvider() },
+    );
+    expect(result[0]?.translated).toBe("Con un ganchillo de 2.20 mm y hilo negro (Alize 3pb), tejemos de la siguiente manera.");
   });
 });

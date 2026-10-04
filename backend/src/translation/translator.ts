@@ -19,6 +19,7 @@ import { pageReadingOrder } from "./reading_order.js";
 import {
   containsReservedPlaceholder,
   isPatternOnlyProtectedText,
+  type OpaqueRange,
   protectImmutablePattern,
   reservedPlaceholder,
   restoreImmutablePattern,
@@ -199,6 +200,7 @@ const deterministicCarrier = (
   targetLanguage: TargetLanguage,
   idPrefix: string,
   flat: LexedMixedSegment,
+  sourceData: readonly OpaqueRange[] = [],
 ): DeterministicCarrier | undefined => {
   if (spans.length === 0 || containsReservedPlaceholder(normalized)) return undefined;
 
@@ -213,8 +215,23 @@ const deterministicCarrier = (
   });
   text += normalized.slice(cursor);
 
+  // Source data inside a carried span is already restored verbatim; source
+  // data outside every span stays opaque at its shifted position. A range
+  // that straddles a span boundary cannot be placed safely (fail closed).
+  const opaqueRanges: OpaqueRange[] = [];
+  for (const range of sourceData) {
+    if (spans.some((span) => range.start >= span.start && range.end <= span.end)) continue;
+    if (spans.some((span) => range.start < span.end && range.end > span.start)) return undefined;
+    let shift = 0;
+    spans.forEach((span, index) => {
+      if (span.end <= range.start) shift += reservedPlaceholder(index).length - (span.end - span.start);
+    });
+    opaqueRanges.push({ start: range.start + shift, end: range.end + shift });
+  }
+
   const lexed = lexMixedSegment(text, targetLanguage, idPrefix, {
     reservedPlaceholders: [...rendered.keys()],
+    ...(opaqueRanges.length > 0 ? { opaqueRanges } : {}),
   });
   if (!lexed.valid) return undefined;
   if (lexed.classification === "pattern_only") {
@@ -290,13 +307,28 @@ const translateSegment = async (
   const skipsProviderTranslation =
     normalization.fullyResolved || isFullyAtomicSource;
   const normalized = normalization.text;
+  // Source data (e.g. a copied yarn brand) is never read as notation on any
+  // path. Text that already holds placeholder syntax is never made opaque, so
+  // user text can never be restored as if it were an internal token.
+  const sourceData: OpaqueRange[] = containsReservedPlaceholder(normalized)
+    ? []
+    : normalization.sourceDataSpans.map(({ renderedStart, renderedEnd }) => ({
+        start: renderedStart,
+        end: renderedEnd,
+      }));
   const protectedSource = protectImmutablePattern(
     normalized,
     0,
     contentKind,
+    sourceData,
   );
   const protectedBlock = { ...block, text: protectedSource.text };
-  const mixed = lexMixedSegment(normalized, targetLanguage, block.id);
+  const mixed = lexMixedSegment(
+    normalized,
+    targetLanguage,
+    block.id,
+    sourceData.length > 0 ? { opaqueRanges: sourceData } : {},
+  );
   const patternOnly = skipsProviderTranslation ||
     isPatternOnlyProtectedText(protectedSource) || (
     protectedSource.tokens.some(({ kind }) => kind === "round_reference") &&
@@ -334,6 +366,7 @@ const translateSegment = async (
           targetLanguage,
           block.id,
           mixed,
+          sourceData,
         )
       : undefined;
     const lexed = carrier?.lexed ?? mixed;

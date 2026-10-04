@@ -622,3 +622,37 @@ describe("punctuation-only spans are structure, not provider text (Task 23A)", (
     expect(lexed.spans.map(({ text }) => text)).toContain(span);
   });
 });
+
+describe("opaque source-data ranges in the mixed lexer (Task 23K-1)", () => {
+  const source = "Using yarn (Alize 3x), work 3x ve kenarı dikiyoruz.";
+  const brand = { start: source.indexOf("Alize 3x"), end: source.indexOf("Alize 3x") + "Alize 3x".length };
+
+  it("keeps the brand out of notation and out of the provider spans, and reconstructs it exactly", () => {
+    const lexed = lexMixedSegment(source, "en", "segment", { opaqueRanges: [brand] });
+    expect(lexed.valid).toBe(true);
+    expect(lexed.tokens.filter(({ kind }) => kind === "notation")).toHaveLength(1);
+    expect(lexed.tokens.some((token) => token.kind === "structure" && token.text === "Alize 3x")).toBe(true);
+    expect(lexed.spans.map(({ text }) => text).join(" ")).not.toContain("Alize");
+    expect(reconstructMixedSource(lexed.tokens)).toBe(source);
+    const echo = new Map(lexed.spans.map(({ id, text }) => [id, text]));
+    expect(reconstructMixedSegment(lexed.tokens, echo)).toBe("Using yarn (Alize 3x), work 3sc ve kenarı dikiyoruz.");
+  });
+
+  it("is unchanged without opaque ranges", () => {
+    expect(lexMixedSegment(source, "en", "segment", { opaqueRanges: [] })).toEqual(lexMixedSegment(source, "en", "segment"));
+  });
+
+  it("allocates opaque tokens disjoint from reserved placeholders", () => {
+    const reserved = reservedPlaceholder(0);
+    const text = `${reserved} (Alize 3x) 3x ve kenarı dikiyoruz.`;
+    const start = text.indexOf("Alize 3x");
+    const lexed = lexMixedSegment(text, "en", "segment", {
+      reservedPlaceholders: [reserved],
+      opaqueRanges: [{ start, end: start + "Alize 3x".length }],
+    });
+    expect(lexed.valid).toBe(true);
+    expect(lexed.tokens.filter(({ kind }) => kind === "reserved_placeholder")).toHaveLength(1);
+    expect(lexed.tokens.some((token) => token.kind === "structure" && token.text === "Alize 3x")).toBe(true);
+    expect(reconstructMixedSource(lexed.tokens)).toBe(text);
+  });
+});

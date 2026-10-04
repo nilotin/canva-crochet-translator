@@ -15,6 +15,7 @@ import { validateSemanticAnchors } from "./natural_language/semantic_anchors.js"
 import { findHighRiskInstructionConcepts } from "./review_risk.js";
 import { getLeadingInstructionMarker } from "./instruction_marker.js";
 import { containsReservedPlaceholder } from "./notation/immutable.js";
+import { scanSourceDataRanges } from "./natural_language/normalizer.js";
 import {
   ARM_JOINING_SOURCE_PATTERN,
   legacyCourseUnitResolver,
@@ -856,8 +857,23 @@ export const validateTranslation = (
     );
   }
 
+  // Source data the normalizer copies verbatim (e.g. a yarn brand such as
+  // "Alize 3x") is not crochet notation, so it creates no notation
+  // requirement -- but only while it really is a verbatim copy: the target
+  // must hold its exact text at least as often as the source does. Otherwise
+  // its notation counts as before, so a rewritten brand can never stand in
+  // for a lost instruction. The target side needs no exclusion: the exact
+  // copy adds the same target abbreviations (e.g. "Brand sc") that the
+  // pre-existing count below already finds in the source.
+  const textCount = (text: string, needle: string) => text.split(needle).length - 1;
+  const sourceData = scanSourceDataRanges(source, targetLanguage).filter(
+    ({ text }) => textCount(translated, text) >= textCount(source, text),
+  );
   const notationOccurrences = tokenizeSourceNotation(source).filter(
     (occurrence) =>
+      !sourceData.some(
+        ({ sourceStart, sourceEnd }) => occurrence.start < sourceEnd && occurrence.end > sourceStart,
+      ) &&
       !(
         targetLanguage === "en" &&
         occurrence.entry.tr.abbreviation === "x" &&

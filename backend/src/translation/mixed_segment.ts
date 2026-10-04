@@ -7,6 +7,7 @@ import {
   protectImmutablePattern,
   reservedPlaceholder,
   reservedPlaceholdersIn,
+  type OpaqueRange,
   type ProtectedImmutableText,
   type ProtectedToken,
 } from "./notation/immutable.js";
@@ -240,6 +241,12 @@ export type LexMixedSegmentOptions = {
    * syntax alone. Omitted or empty: the lexer behaves exactly as before.
    */
   readonly reservedPlaceholders?: readonly string[];
+  /**
+   * Source-data ranges of `source` (e.g. a copied yarn brand) kept as single
+   * opaque structure tokens, never read as notation or numbers. Omitted or
+   * empty: the lexer behaves exactly as before.
+   */
+  readonly opaqueRanges?: readonly OpaqueRange[];
 };
 
 const NO_RESERVED: ReadonlySet<string> = new Set();
@@ -296,8 +303,12 @@ const reservedPlaceholderErrors = (
  * tokens never expose immutable placeholders, so the choice has no effect on
  * the lexer's output.
  */
-const disjointImmutableStart = (source: string, reserved: ReadonlySet<string>): number => {
-  const count = protectImmutablePattern(source).tokens.length;
+const disjointImmutableStart = (
+  source: string,
+  reserved: ReadonlySet<string>,
+  opaqueRanges: readonly OpaqueRange[],
+): number => {
+  const count = protectImmutablePattern(source, 0, "pattern", opaqueRanges).tokens.length;
   let start = 0;
   while (
     Array.from({ length: count }, (_unused, index) => reservedPlaceholder(start + index)).some(
@@ -316,15 +327,27 @@ export const lexMixedSegment = (
   options: LexMixedSegmentOptions = {},
 ): LexedMixedSegment => {
   const expected = options.reservedPlaceholders ?? [];
+  const opaqueRanges = options.opaqueRanges ?? [];
   if (expected.length === 0) {
-    return lexProtectedSegment(source, targetLanguage, idPrefix, protectImmutablePattern(source), NO_RESERVED);
+    return lexProtectedSegment(
+      source,
+      targetLanguage,
+      idPrefix,
+      protectImmutablePattern(source, 0, "pattern", opaqueRanges),
+      NO_RESERVED,
+    );
   }
   const errors = reservedPlaceholderErrors(source, expected);
   if (errors.length > 0) {
     return { classification: "mixed", tokens: [], spans: [], valid: false, errors };
   }
   const reserved = new Set(expected);
-  const protectedSource = protectImmutablePattern(source, disjointImmutableStart(source, reserved));
+  const protectedSource = protectImmutablePattern(
+    source,
+    disjointImmutableStart(source, reserved, opaqueRanges),
+    "pattern",
+    opaqueRanges,
+  );
   for (const placeholder of reserved) {
     if (protectedSource.text.split(placeholder).length !== 2) {
       return {

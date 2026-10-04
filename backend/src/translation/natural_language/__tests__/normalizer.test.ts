@@ -3,6 +3,7 @@ import { protectNotation } from "../../notation/protector.js";
 import {
   normalizeSourceNaturalLanguage,
   normalizeSourceNaturalLanguageDetailed,
+  scanSourceDataRanges,
 } from "../normalizer.js";
 import { normalizeTranslationStyle } from "../style_normalizer.js";
 import { validateTranslation } from "../../validator.js";
@@ -2267,5 +2268,83 @@ describe("legacy FLO/BLO spellings render the carried \"In\" in the normalizer (
     expect(normalizeSourceNaturalLanguageDetailed("5) FLOʼdan (3x, 1v)*6 = 30x", "en").deterministicSpans).toEqual([]);
     expect(normalizeSourceNaturalLanguage("5) flodan (3x, 1v)*6 = 30x", "es")).toBe("5) FLO’dan (3x, 1v)*6 = 30x");
     expect(normalizeSourceNaturalLanguageDetailed("5) BLO dan (3x, 1v)*6 = 30x", "es").deterministicSpans).toEqual([]);
+  });
+});
+
+describe("source-data spans name the copied brand in source and rendered coordinates (Task 23K-1)", () => {
+  it.each([
+    // Simple yarn intro (also a deterministic span that contains the brand).
+    ["Kırmızı renk ip (Alize 3x) ile başlıyoruz.", "Start with red yarn (Alize 3x).", [[17, 25, 21, 29, "Alize 3x"]]],
+    // Simple tool intro.
+    ["2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows.", [[24, 32, 45, 53, "Alize 3x"]]],
+    // Bullet, decimal comma, "no", "renk", ")ip", no final period.
+    ["✦ 2,5 no tığ, Açık gri renk (Brand 3x 1v)ip ile örüyoruz", "✦ Using a 2,5 mm crochet hook and light gray yarn (Brand 3x 1v), work as follows", [[29, 40, 51, 62, "Brand 3x 1v"]]],
+    // Numbered marker and the description forms.
+    ["3) 2 numara tığ, siyah ip ile (Alize 1v) örüyoruz.", "3) Using a 2 mm crochet hook and black yarn (Alize 1v), work as follows.", [[31, 39, 45, 53, "Alize 1v"]]],
+    ["2 numara tığ, siyah ip (Alize 110) ile örüyoruz.", "Using a 2 mm crochet hook and black Alize 110 yarn, work as follows.", [[24, 33, 36, 45, "Alize 110"]]],
+    // Transformations before and after the brand shift only the rendered side.
+    ["42x - 5 zincir (düğme iliği) dön. Kırmızı renk ip (Alize 3x) ile başlıyoruz. 1 zincir, dön", "42x, ch 5 (buttonhole) and turn. Start with red yarn (Alize 3x). Ch 1 and turn", [[51, 59, 54, 62, "Alize 3x"]]],
+    // Several intros in one text, brand-only brands.
+    ["Sihirli halka içine 6x örüyoruz. Siyah ip (3x) ile başlıyoruz ve 2.20 numara tığ, Mor (110) ip ile örüyoruz.", "6x into the magic ring örüyoruz. Start with black yarn (3x) ve Using a 2.20 mm crochet hook and purple yarn (110), work as follows.", [[43, 45, 56, 58, "3x"], [87, 90, 109, 112, "110"]]],
+  ] as const)("%s", (source, text, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en", "pattern");
+    expect(result.text).toBe(text);
+    expect(
+      result.sourceDataSpans.map(({ sourceStart, sourceEnd, renderedStart, renderedEnd, text: data }) => [
+        sourceStart, sourceEnd, renderedStart, renderedEnd, data,
+      ]),
+    ).toEqual(expected);
+    for (const span of result.sourceDataSpans) {
+      expect(source.slice(span.sourceStart, span.sourceEnd)).toBe(span.text);
+      expect(result.text.slice(span.renderedStart, span.renderedEnd)).toBe(span.text);
+    }
+    expect(scanSourceDataRanges(source, "en")).toEqual(
+      result.sourceDataSpans.map(({ sourceStart, sourceEnd, text: data }) => ({ sourceStart, sourceEnd, text: data })),
+    );
+  });
+
+  it("nests the yarn-intro brand inside its deterministic span", () => {
+    const result = normalizeSourceNaturalLanguageDetailed("Kırmızı renk ip (Alize 3x) ile başlıyoruz.", "en", "pattern");
+    const [span] = result.deterministicSpans;
+    const [data] = result.sourceDataSpans;
+    expect(span!.start <= data!.renderedStart && data!.renderedEnd <= span!.end).toBe(true);
+  });
+
+  it.each([
+    // Not deterministic: unmapped description, unsupported colour, no brand, malformed parentheses, free text.
+    "2 numara tığ, pamuk ip (Alize 3x) ile örüyoruz.",
+    "2.20 numara tığ, simli ip (Alize 3x) ile örüyoruz.",
+    "2.20 numara tığ, simli siyah ip (Alize 3x) ile örüyoruz.",
+    "2.20 numara tığ, Turkuaz (Alize 3x) ip ile örüyoruz.",
+    "Turkuaz ip (Alize 3x) ile başlıyoruz.",
+    "2.20 numara tığ, siyah ip ile örüyoruz.",
+    "2.20 numara tığ, siyah (Alize 3x ip ile örüyoruz.",
+    "2.20 numara tığ, siyah Alize 3x) ip ile örüyoruz.",
+    "(Alize 3x) 3x örüyoruz.",
+    "Yumuşak pamuklu bir ip (Alize 3x gibi) kullanabilirsiniz.",
+  ])("%s has no source data", (source) => {
+    expect(normalizeSourceNaturalLanguageDetailed(source, "en", "pattern").sourceDataSpans).toEqual([]);
+    expect(scanSourceDataRanges(source, "en")).toEqual([]);
+  });
+
+  it("is English pattern text only", () => {
+    const source = "2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz.";
+    expect(normalizeSourceNaturalLanguageDetailed(source, "es", "pattern").sourceDataSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed(source, "en", "materials").sourceDataSpans).toEqual([]);
+    expect(scanSourceDataRanges(source, "es")).toEqual([]);
+  });
+
+  it.each([
+    // An earlier rule already rewrote the brand: the render and the scan disagree.
+    ["Kırmızı renk ip (Alize 1 zincir, dön) ile başlıyoruz.", "Start with red yarn (Alize Ch 1 and turn)."],
+    ["2.20 numara tığ, siyah (Sihirli halka içine 6x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (6x into the magic ring), work as follows."],
+    // A tracking sentinel in the source disables recording.
+    ["Kırmızı renk ip (Alize \uE002 3x) ile başlıyoruz.", "Start with red yarn (Alize \uE002 3x)."],
+    ["2.20 numara tığ, siyah (\uE000Alize\uE001 3x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (\uE000Alize\uE001 3x), work as follows."],
+  ])("fails closed for %j", (source, text) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en", "pattern");
+    expect(result.text).toBe(text);
+    expect(scanSourceDataRanges(source, "en")).toHaveLength(1);
+    expect(result.sourceDataSpans).toEqual([]);
   });
 });
