@@ -11,11 +11,11 @@
       }
     ]
   },
-  "id": "h-f06d3589ae-s9839f857-sihirli-halka-icine-6x",
+  "id": "h-f06d3589ae-sc70c5c22-sihirli-halka-icine-6x",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -27,13 +27,7 @@
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": "into the magic ring",
-        "translated": "into the magic ring"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -54,18 +48,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0"
-        ],
-        "blockTexts": [
-          "into the magic ring"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "6934909e7c231134e9fde6e21384cc13abcd223b77f538ca1f4de1c6368f373f"
-      }
-    ]
+    "providerCalls": []
   }
 }

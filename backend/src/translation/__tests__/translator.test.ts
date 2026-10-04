@@ -6967,3 +6967,153 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
     expect(result?.translated.startsWith("12) Starting from the seventh chain, work 28sc ")).toBe(true);
   });
 });
+
+describe("deterministic span carrier keeps buttonhole turn, magic ring and yarn intro out of provider ownership (Task 22D)", () => {
+  // Hostile providers: erase everything, paraphrase English, or drop placeholders.
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text
+        .replace(/buttonhole/gu, "picot")
+        .replace(/\bturn\b/gu, "rotate")
+        .replace(/\bch\b/gu, "chain")
+        .replace(/magic ring/gu, "chain space")
+        .replace(/black|red/gu, "white")
+        .replace(/\byarn\b/gu, "thread")
+        .replace(/catania|Alize/gu, "acrylic")
+        .replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string, formattingRegions?: { id: string; start: number; end: number }[]) => {
+    const [result] = await translateBlocks(
+      [{ id: "carrier-22d", text, ...(formattingRegions ? { formattingRegions } : {}) }],
+      "en",
+      { provider },
+    );
+    return result;
+  };
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["42x - 5 zincir (düğme iliği) dön", "42sc, ch 5 (buttonhole) and turn"],
+    ["12) 30x – 3 zincir (düğme iliği) dön", "12) 30sc, ch 3 (buttonhole) and turn"],
+    ["Sihirli halka içine 6x", "6sc into the magic ring"],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const result = await translate(provider, text);
+      expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    [
+      "42x - 5 zincir (düğme iliği) dön ve kenarı dikiyoruz.",
+      "42sc, ch 5 (buttonhole) and turn",
+      ["ve kenarı dikiyoruz."],
+    ],
+    [
+      "Sihirli halka içine 6x örüyoruz, sonra kenarı dikiyoruz.",
+      "6sc into the magic ring",
+      ["örüyoruz", "sonra kenarı dikiyoruz."],
+    ],
+    [
+      "Kırmızı renk ip (Alize Cotton Gold 56) ile başlıyoruz ve kenarı dikiyoruz.",
+      "Start with red yarn (Alize Cotton Gold 56)",
+      ["ve kenarı dikiyoruz."],
+    ],
+  ])("a mixed line %s offers only its prose to the provider", async (text, deterministic, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    // The deterministic text is read-only context, never a translatable span.
+    expect(echo.requests[0]?.userPrompt).toContain(deterministic.replace(/(\d+)sc/u, "$1x"));
+    expect(occurrences(echoed?.translated, deterministic)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const result = await translate(provider, text);
+      // Exactly once, byte-exact, with counts still in target notation.
+      expect(occurrences(result?.translated, deterministic)).toBe(1);
+      expect(result?.translated).not.toMatch(/picot|rotate|chain space|white|thread|acrylic|\d+x\b/u);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    const rewritten = new RewritingProvider(hostile.rewrite);
+    // The prose is still provider-owned.
+    expect((await translate(rewritten, text))?.translated).toContain("EDGE");
+  });
+
+  it("protects the magic ring beside the stitch-marker gloss without duplicating it", async () => {
+    const text = "1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.";
+    const echo = new InspectingProvider();
+    expect((await translate(echo, text))?.translated).toBe(
+      "1) 6sc into the magic ring. This will be the beginning of the round; place a stitch marker here.",
+    );
+    expect(echo.protectedTexts.join(" ")).not.toContain("magic ring");
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      expect(occurrences(result?.translated, "1) 6sc into the magic ring")).toBe(1);
+    }
+  });
+
+  it("keeps the yarn intro beside provider-owned course-end prose", async () => {
+    const text =
+      "Siyah ip (catania 110) ile başlıyoruz. Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.";
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echoed?.translated).toBe(
+      "Start with black yarn (catania 110). At the end of each round, join with sl st, ch 1, and continue to the next round.",
+    );
+    expect(echo.protectedTexts.join(" ")).not.toMatch(/Start with|black|catania/u);
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      expect(result?.translated.startsWith("Start with black yarn (catania 110)")).toBe(true);
+    }
+  });
+
+  it("formatting units still translate and project the mixed magic-ring line", async () => {
+    const text = "Sihirli halka içine 6x örüyoruz, sonra kenarı dikiyoruz.";
+    const split = text.indexOf(" örüyoruz");
+    const provider = new InspectingProvider();
+    const result = await translate(provider, text, [
+      { id: "fmt-0", start: 0, end: split },
+      { id: "fmt-1", start: split, end: text.length },
+    ]);
+    expect(result?.valid).toBe(true);
+    expect(occurrences(result?.translated, "6sc into the magic ring")).toBe(1);
+    expect(provider.protectedTexts.join(" ")).not.toMatch(/magic|ring/u);
+  });
+
+  it("the validator still checks counts beside the carried prose", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const valid = (source: string, target: string) => validateTranslation(source, target, "en", options).valid;
+    expect(valid("42x - 5 zincir (düğme iliği) dön", "42sc, ch 5 (buttonhole) and turn")).toBe(true);
+    expect(valid("42x - 5 zincir (düğme iliği) dön", "42sc, ch 4 (buttonhole) and turn")).toBe(false);
+    expect(valid("42x - 5 zincir (düğme iliği) dön", "41sc, ch 5 (buttonhole) and turn")).toBe(false);
+    const ring = "Sihirli halka içine 6x örüyoruz, sonra ipimizi kesiyoruz.";
+    expect(valid(ring, "6sc into the magic ring, then cut the yarn.")).toBe(true);
+    expect(valid(ring, "5sc into the magic ring, then cut the yarn.")).toBe(false);
+    const yarn = "Kırmızı renk ip (Alize Cotton Gold 56) ile başlıyoruz ve kenarı dikiyoruz.";
+    expect(valid(yarn, "Start with red yarn (Alize Cotton Gold 56) and sew the edge.")).toBe(true);
+    expect(valid(yarn, "Start with red yarn (Alize Cotton Gold 57) and sew the edge.")).toBe(false);
+  });
+
+  it("the style layer receives the restored fragment once and leaves it unchanged", async () => {
+    const provider = new InspectingProvider();
+    const result = await translate(provider, "12) Sihirli halka içine 6x örüyoruz, sonra kenarı dikiyoruz.");
+    expect(occurrences(result?.translated, "6sc into the magic ring")).toBe(1);
+    expect(result?.translated.startsWith("12) 6sc into the magic ring ")).toBe(true);
+  });
+});

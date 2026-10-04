@@ -58,9 +58,10 @@ export type SourceNaturalLanguageNormalization = {
   fullyResolved: boolean;
   /**
    * Ranges of `text` rendered deterministically by a family that opted into
-   * the carrier (chain + turn, word-ordinal chain start), in source order and
-   * non-overlapping. Empty when nothing opted in or when any rendering could
-   * not be located exactly in the final text (fail closed).
+   * the carrier (chain + turn, word-ordinal chain start, buttonhole turn,
+   * magic ring, yarn intro), in source order and non-overlapping. Empty when
+   * nothing opted in or when any rendering could not be located exactly in
+   * the final text (fail closed).
    */
   deterministicSpans: readonly DeterministicSpan[];
 };
@@ -352,7 +353,9 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(\d+)\s*x\s*[-–—]\s*(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
       (_match, stitches: string, chains: string) =>
-        `${stitches}x, ch ${chains} (buttonhole) and turn`,
+        `${stitches}x, ${recordDeterministicSpan(
+          `ch ${chains} (buttonhole) and turn`,
+        )}`,
     )
     .replace(
       // Long-form buttonhole guidance. Resolve the structural skip action and
@@ -608,7 +611,9 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b(\s*[,，])?/giu,
       (_match, stitches: string, separator: string | undefined) =>
-        `${stitches}x into the magic ring${separator ? "." : ""}`,
+        `${stitches}x ${recordDeterministicSpan("into the magic ring")}${
+          separator ? "." : ""
+        }`,
     )
     .replace(
       // Generic "Ch N, skip M sc into the next single crochet, continue to
@@ -690,7 +695,9 @@ const normalizeEnglishCrochetStructures = (
         const color = translateTurkishYarnColor(colorSource, "en");
 
         return color
-          ? `${prefix}Start with ${color} yarn (${brand.trim()})`
+          ? `${prefix}${recordDeterministicSpan(
+              `Start with ${color} yarn (${brand.trim()})`,
+            )}`
           : _match;
       },
     )

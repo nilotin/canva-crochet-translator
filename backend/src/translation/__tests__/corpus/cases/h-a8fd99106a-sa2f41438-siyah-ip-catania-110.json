@@ -14,7 +14,7 @@
       }
     ]
   },
-  "id": "h-a8fd99106a-s7f820d9b-siyah-ip-catania-110",
+  "id": "h-a8fd99106a-sa2f41438-siyah-ip-catania-110",
   "labels": {
     "families": [],
     "hazards": [],
@@ -36,16 +36,8 @@
         "translated": ". At the end of each round"
       },
       {
-        "source": "Start with black yarn",
-        "translated": "Start with black yarn"
-      },
-      {
         "source": "and continue to the next round.",
         "translated": "and continue to the next round."
-      },
-      {
-        "source": "catania",
-        "translated": "catania"
       },
       {
         "source": "ch",
@@ -92,13 +84,9 @@
           "span-0",
           "span-1",
           "span-2",
-          "span-3",
-          "span-4",
-          "span-5"
+          "span-3"
         ],
         "blockTexts": [
-          "Start with black yarn",
-          "catania",
           ". At the end of each round",
           "join with",
           "ch",
@@ -106,7 +94,7 @@
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "2169948aef93d5998d3d5e59b2244d22ae8b887a1c34eb88f1f8a848c118f88e"
+        "userPromptSha256": "834be2eefa3d60023da7c924351d5a5ccddf602b59a34aab1f9b6e41bb8c6bf3"
       }
     ]
   }

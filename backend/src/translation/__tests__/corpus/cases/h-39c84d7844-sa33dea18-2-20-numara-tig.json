@@ -457,7 +457,7 @@
       }
     ]
   },
-  "id": "h-39c84d7844-sae677074-2-20-numara-tig",
+  "id": "h-39c84d7844-sa33dea18-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
@@ -475,16 +475,16 @@
   "provider": {
     "entries": [
       {
+        "source": ". This will be the beginning of the round",
+        "translated": ". This will be the beginning of the round"
+      },
+      {
         "source": "In",
         "translated": "In"
       },
       {
         "source": "continue with the hair strands.",
         "translated": "continue with the hair strands."
-      },
-      {
-        "source": "into the magic ring. This will be the beginning of the round",
-        "translated": "into the magic ring. This will be the beginning of the round"
       },
       {
         "source": "place a stitch marker here.",
@@ -765,12 +765,12 @@
           "span-1"
         ],
         "blockTexts": [
-          "into the magic ring. This will be the beginning of the round",
+          ". This will be the beginning of the round",
           "place a stitch marker here."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "7567f464b593263870d40ea4c074b370b8743ca279d66597abdcc8bcc23bc6cf"
+        "userPromptSha256": "71bba21896ebd98ab00be85ddee5872935aa59b6a11139fd1aa5aa912dd74801"
       },
       {
         "blockIds": [

@@ -11,11 +11,11 @@
       }
     ]
   },
-  "id": "h-3dfc00307b-sdb11fa96-42x-5-zincir-dugme",
+  "id": "h-3dfc00307b-s61447f45-42x-5-zincir-dugme",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -27,21 +27,7 @@
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": "and turn",
-        "translated": "and turn"
-      },
-      {
-        "source": "buttonhole",
-        "translated": "buttonhole"
-      },
-      {
-        "source": "ch",
-        "translated": "ch"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -62,22 +48,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "ch",
-          "buttonhole",
-          "and turn"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "6ee7cd56df3522073531e34817941c22e03f82e83314d4a9bdb7684e003a01b2"
-      }
-    ]
+    "providerCalls": []
   }
 }

@@ -1956,3 +1956,55 @@ describe("deterministic span carrier: word-ordinal chain start (Task 22B)", () =
       .toBe("Starting from the 3rd chain, work 8x");
   });
 });
+
+describe("deterministic span carrier: buttonhole turn, magic ring, yarn intro (Task 22D)", () => {
+  it.each([
+    ["42x - 5 zincir (düğme iliği) dön", "42x, ch 5 (buttonhole) and turn", [[5, 31]]],
+    ["12) 30x – 3 zincir (düğme iliği) dön", "12) 30x, ch 3 (buttonhole) and turn", [[9, 35]]],
+    [
+      "42x - 5 zincir (düğme iliği) dön ve kenarı dikiyoruz.",
+      "42x, ch 5 (buttonhole) and turn ve kenarı dikiyoruz.",
+      [[5, 31]],
+    ],
+    ["Sihirli halka içine 6x", "6x into the magic ring", [[3, 22]]],
+    ["Sihirli halka içine 6x, ipimizi kesiyoruz.", "6x into the magic ring. ipimizi kesiyoruz.", [[3, 22]]],
+    [
+      "Sihirli halka içine 6x örüyoruz, sonra ipimizi kesiyoruz.",
+      "6x into the magic ring örüyoruz, sonra ipimizi kesiyoruz.",
+      [[3, 22]],
+    ],
+    [
+      "1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
+      "1) 6x into the magic ring. This will be the beginning of the round; place a stitch marker here.",
+      [[6, 25]],
+    ],
+    ["Siyah ip (catania 110) ile başlıyoruz.", "Start with black yarn (catania 110).", [[0, 35]]],
+    [
+      "Kırmızı renk ip (Alize Cotton Gold 56) ile başlıyoruz ve kenarı dikiyoruz.",
+      "Start with red yarn (Alize Cotton Gold 56) ve kenarı dikiyoruz.",
+      [[0, 42]],
+    ],
+  ] as const)("%s carries only the deterministic prose", (source, text, ranges) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end }) => [start, end])).toEqual(ranges);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+      // Stitch counts stay notation, outside the carrier.
+      expect(span.text).not.toMatch(/\d+\s*(?:x|hdc|sc|dc|tr)\b/u);
+    }
+  });
+
+  it("leaves neighbouring buttonhole, Spanish and unrelated forms off the carrier", () => {
+    const spansOf = (source: string, language: "en" | "es" = "en") =>
+      normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
+    expect(spansOf("3. sıranın sonunda 2 zincir (düğme iliği) dön")).toEqual([]);
+    expect(spansOf("6 zincir (düğme iliği)")).toEqual([]);
+    expect(spansOf("2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.")).toEqual([]);
+    expect(spansOf("42x - 5 zincir (düğme iliği) dön", "es")).toEqual([]);
+    expect(spansOf("Sihirli halka içine 6x", "es")).toEqual([]);
+    expect(spansOf("Siyah ip (catania 110) ile başlıyoruz.", "es")).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed("Siyah ip (catania 110) ile başlıyoruz.", "en", "materials")
+      .deterministicSpans).toEqual([]);
+  });
+});
