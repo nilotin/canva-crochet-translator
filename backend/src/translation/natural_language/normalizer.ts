@@ -103,6 +103,48 @@ const englishOrdinal = (raw: string): string => {
   return `${value}${suffix}`;
 };
 
+/** Rendered English the normalizer itself decided (a mapped word or ordinal) inside a `carry` template. */
+class Decided {
+  constructor(readonly text: string) {}
+}
+
+/**
+ * Builds deterministic renderings whose English is carried (Task 24A). In a
+ * `carry` template every literal chunk, together with any adjacent `decided`
+ * value, is one carried span; every other value (a count, a stitch in source
+ * notation, a prefix, source data) stays outside so it is still protected,
+ * converted and validated on its own. Chunk-edge whitespace is never carried.
+ * The rendered text is exactly the plain template's.
+ */
+const carrying = (mark: (rendered: string) => string) => {
+  const decided = (text: string) => new Decided(text);
+  const carry = (literals: TemplateStringsArray, ...values: readonly (string | Decided)[]): string => {
+    let rendered = "";
+    let chunk = "";
+    const flush = () => {
+      const lead = /^\s*/u.exec(chunk)?.[0] ?? "";
+      const core = chunk.slice(lead.length).trimEnd();
+      const trail = chunk.slice(lead.length + core.length);
+      rendered += lead + (/\p{L}/u.test(core) ? mark(core) : core) + trail;
+      chunk = "";
+    };
+    literals.forEach((literal, index) => {
+      chunk += literal;
+      if (index >= values.length) return;
+      const value = values[index];
+      if (value instanceof Decided) {
+        chunk += value.text;
+      } else {
+        flush();
+        rendered += value;
+      }
+    });
+    flush();
+    return rendered;
+  };
+  return { carry, decided };
+};
+
 const normalizeMaterialsTerminology = (
   source: string,
   targetLanguage: TargetLanguage,
@@ -130,6 +172,8 @@ const normalizeEnglishRoundCountStructures = (
   sourceContext: string,
   sourceOffset: number,
   resolveCourseUnit: CourseUnitResolver,
+  /** Marks the renderers' deterministic English (Task 24A); identity when not recording. */
+  carry: (text: string) => string = (text) => text,
 ): string => {
   const replacements: OriginalSourceReplacement[] = [];
 
@@ -143,6 +187,7 @@ const normalizeEnglishRoundCountStructures = (
       text: renderEnglishWorkedChainCutSpan(
         span,
         resolveCourseUnit(sourceContext, sourceOffset + span.start),
+        carry,
       ),
     });
   }
@@ -155,6 +200,7 @@ const normalizeEnglishRoundCountStructures = (
       text: renderEnglishWrittenChainCutSpan(
         span,
         resolveCourseUnit(sourceContext, sourceOffset + span.start),
+        carry,
       ),
     });
   }
@@ -170,6 +216,7 @@ const normalizeEnglishRoundCountStructures = (
           sourceContext,
           sourceOffset + span.start,
         ),
+        carry,
       ),
     });
   }
@@ -185,6 +232,7 @@ const normalizeEnglishRoundCountStructures = (
           sourceContext,
           sourceOffset + span.start,
         ),
+        carry,
       ),
     });
   }
@@ -204,6 +252,7 @@ const normalizeEnglishRoundCountStructures = (
           armJoining,
           "x",
           resolveCourseUnit(sourceContext, sourceOffset + line.start),
+          carry,
         ),
       });
       continue;
@@ -222,6 +271,7 @@ const normalizeEnglishRoundCountStructures = (
           sourceContext,
           sourceOffset + line.start,
         ),
+        carry,
       ),
     });
   }
@@ -243,6 +293,7 @@ const normalizeEnglishRoundCountStructures = (
         span,
         "x",
         resolveCourseUnit(sourceContext, sourceOffset + span.start),
+        carry,
       ),
     });
   }
@@ -293,17 +344,21 @@ const normalizeEnglishCrochetStructures = (
 ): TrackedText => {
   if (targetLanguage !== "en") return TrackedText.of(source, false);
 
-  const tracked = TrackedText.of(
+  // Course counts are rendered against the immutable source in one edit, so
+  // the English their renderers decide is recorded like every later rule's.
+  const untracked = TrackedText.of(source, recordSpans);
+  const tracked = untracked.replace(/^[\s\S]+$/u, () =>
     normalizeEnglishRoundCountStructures(
       source,
       sourceContext,
       sourceOffset,
       resolveCourseUnit,
+      (text) => untracked.mark(text),
     ),
-    recordSpans,
   );
   const recordDeterministicSpan = (rendered: string): string =>
     tracked.mark(rendered);
+  const { carry, decided } = carrying(recordDeterministicSpan);
   // "ch N, skip M st(s)": the words are carried, the counts stay numbers.
   const chainSkip = (chains: string, skip: string): string =>
     `${recordDeterministicSpan("ch")} ${chains}, ${recordDeterministicSpan("skip")} ${skip} ${recordDeterministicSpan(
@@ -317,7 +372,7 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /(\d+)\s*x\s+uzunluğunda\s*,\s*aralarında\s+(\d+)\s*x\s+kalacak\s+şekilde\s*,\s*gözden\s+(\d+)\s+sıra\s+üzerinden\s+işliyoruz\b/giu,
       (_match, length: string, spacing: string, rounds: string) =>
-        `Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${rounds === "1" ? "round" : "rounds"} above the eyes`,
+        carry`Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${decided(rounds === "1" ? "round" : "rounds")} above the eyes`,
     )
     .replace(
       /gözün\s+(bir|\d+)\s+sıra\s+(?:altında|altından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+(?:dolama|sarma)\s+yöntemi\s+ile\s+işliyoruz\b/giu,
@@ -327,22 +382,22 @@ const normalizeEnglishCrochetStructures = (
         const roundWord =
           roundCount === "1" || roundCount === "One" ? "round" : "rounds";
 
-        return `${roundCount} ${roundWord} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
+        return carry`${decided(roundCount === "One" ? "One" : "")}${roundCount === "One" ? "" : roundCount} ${decided(roundWord)} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
       },
     )
     .replace(
       /toz\s+pastel\s+ile\s+boyadım\b/giu,
-      "I colored it with soft pastels",
+      () => carry`I colored it with soft pastels`,
     )
     .replace(
       /(?:[iİ]sterseniz|dilerseniz)\s+burnun\s+(\d+)\s+sıra\s+(?:altından|aşağısından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+işleyebilirsiniz\b/giu,
       (_match, rounds: string, stitches: string) =>
-        `If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches`,
+        carry`If you prefer, you can embroider the mouth ${rounds} ${decided(rounds === "1" ? "round" : "rounds")} below the nose over ${stitches} stitches`,
     )
     .replace(
       /kaş(?:lar)?\s*(?:[:;–—-])\s*(\d+)\s*x\s+uzunluğunda\s*,\s*aralarında\s+(\d+)\s*x\s+kalacak\s+şekilde\s*,\s*gözden\s+(\d+)\s+sıra\s+üzerinden\s+işliyoruz\b/giu,
       (_match, length: string, spacing: string, rounds: string) =>
-        `Eyebrow: Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${rounds === "1" ? "round" : "rounds"} above the eyes`,
+        carry`Eyebrow: Embroider the eyebrows ${length} stitches long, ${spacing} stitches apart, ${rounds} ${decided(rounds === "1" ? "round" : "rounds")} above the eyes`,
     )
     .replace(
       /burun\s*(?:[:;–—-])\s*gözün\s+(bir|\d+)\s+sıra\s+(?:altında|altından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+(?:dolama|sarma)\s+yöntemi\s+ile\s+işliyoruz\b/giu,
@@ -353,13 +408,13 @@ const normalizeEnglishCrochetStructures = (
         const roundWord = roundCount === "1" || roundCount === "One"
           ? "round"
           : "rounds";
-        return `Nose: ${roundCount} ${roundWord} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
+        return carry`Nose: ${decided(roundCount === "One" ? "One" : "")}${roundCount === "One" ? "" : roundCount} ${decided(roundWord)} below the eyes, embroider over ${stitches} stitches using the wrap-around method`;
       },
     )
     .replace(
       /ağız\s*(?:[:;–—-])\s*toz\s+pastel\s+ile\s+boyadım\s*\.\s*\(\s*(?:[iİ]sterseniz|dilerseniz)\s+burnun\s+(\d+)\s+sıra\s+(?:altından|aşağısından)\s*,?\s*(\d+)\s*x\s+üzerinden\s+işleyebilirsiniz\s*[.]?\s*\)/giu,
       (_match, rounds: string, stitches: string) =>
-        `Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth ${rounds} ${rounds === "1" ? "round" : "rounds"} below the nose over ${stitches} stitches.)`,
+        carry`Mouth: I colored it with soft pastels. (If you prefer, you can embroider the mouth ${rounds} ${decided(rounds === "1" ? "round" : "rounds")} below the nose over ${stitches} stitches.)`,
     )
     .replace(
       COMPACT_CHAIN_CUT_SOURCE_PATTERN,
@@ -377,7 +432,7 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(\d+)\.\s*sıranın\s+sonunda\s+(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
       (_match, round: string, chains: string) =>
-        `At the end of Round ${round}, ch ${chains} (buttonhole) and turn.`,
+        carry`At the end of Round ${round}, ch ${chains} (buttonhole) and turn.`,
     )
     .replace(
       /\b(\d+)\s*x\s*[-–—]\s*(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
@@ -392,12 +447,12 @@ const normalizeEnglishCrochetStructures = (
       // reconstruct the parenthetical sentence around the deterministic count.
       /\b(\d+)\s+zincir\s+atlıyoruz\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*[.]\s*düğme\s+iliği\s+için\s+çektiğimiz\s+zincir\s+sayısını\s*[,，]?\s*kullanacağınız\s+düğme\s+boyutuna\s+göre\s+(?:artırıp|arttırıp)\s+ya\s+da\s+azaltabilirsiniz\s*[.]?\s*\)/giu,
       (_match, chains: string) =>
-        `Skip ${chains} chains (to form a buttonhole; you can increase or decrease the number of chains depending on the size of the button you will use).`,
+        carry`Skip ${chains} chains (to form a buttonhole; you can increase or decrease the number of chains depending on the size of the button you will use).`,
     )
     .replace(
       // Standalone buttonhole chain annotation, e.g. "6 zincir (düğme iliği)".
       /\b(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)/giu,
-      (_match, chains: string) => `ch ${chains} (buttonhole)`,
+      (_match, chains: string) => carry`ch ${chains} (buttonhole)`,
     )
     .replace(
       /(^|[\r\n])(\s*(?:\d+\)\s*)?)(?:görselde\s+görüldüğü\s+gibi\s+)?dışa\s+kıvırmak\s+için\s+ördüğümüz\s+kısmın\s+çevresini\s+simli\s+ip\s+ile\s+(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*[,，]?\s*yaparak\s+dönüyoruz\s*[.]\s*tüm\s+çevreyi\s+ördükten\s+sonra\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\s*[.]?(?=$|[\r\n])/gimu,
@@ -408,13 +463,14 @@ const normalizeEnglishCrochetStructures = (
         repeatedChains: string,
         finalChains: string,
       ) =>
-        `${lineStart}${prefix}As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch ${repeatedChains} and cc into the next single crochet as you go. ` +
-        `After working around the entire edge, ch ${finalChains} and cut the yarn.`,
+        `${lineStart}${prefix}` +
+        carry`As shown in the image, work around the edge of the section crocheted to fold outward with metallic yarn, making ch ${repeatedChains} and ${"cc"} into the next single crochet as you go. After working around the entire edge, ch ${finalChains} and cut the yarn.`,
     )
     .replace(
       /(^|[\r\n])(\s*(?:\d+\)\s*)?)(?:görselde\s+görüldüğü\s+gibi\s+)?kol\s+boşluğunun\s+arka\s+tarafından\s+ipimizi\s+sabitliyoruz\s*[.]\s*(\d+)\s*x\s+örüyoruz\s*[.]\s*başlangıç\s+noktamız\s+burası\s+olacak\s*[,，]\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\s*[.]?(?=$|[\r\n])/gimu,
       (_match, lineStart: string, prefix: string, stitches: string) =>
-        `${lineStart}${prefix}As shown in the image, attach the yarn from the back of the armhole. Work ${stitches}x. This will be the beginning of the round; place a stitch marker here.`,
+        `${lineStart}${prefix}` +
+        carry`As shown in the image, attach the yarn from the back of the armhole. Work ${`${stitches}x`}. This will be the beginning of the round; place a stitch marker here.`,
     )
     .replace(
       /(^|[\r\n])(\s*(?:\d+\)\s*)?)(\d+)\s*x\s+örüyoruz\s*\(\s*kolun\s+üzerindeki\s+dışa\s+doğru\s+kıvırdığımız\s+kısmı\s+öreceğiz\s*\)\s*[.]\s*görselde\s+görüldüğü\s+gibi\s+ben\s+(\d+)\s*x\s+ördüğümde\s+tam\s+kolun\s+üzerine\s+denk\s+geldi\s*[.]\s*sizde\s+kolun\s+üst\s+kısmına\s+denk\s+gelecek\s+şekilde\s+(\d+)-(\d+)\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örebilirsiniz\s*[.]\s*(\d+)\s+zincir\s+çekip\s+dönüyoruz\s*[.]?(?=$|[\r\n])/gimu,
@@ -428,16 +484,14 @@ const normalizeEnglishCrochetStructures = (
         maxAdjustment: string,
         chains: string,
       ) =>
-        `${lineStart}${prefix}Work ${firstStitches}x (we will crochet the section folded outward over the arm). ` +
-        `As shown in the image, when I worked ${alignedStitches}x, it aligned exactly over the arm. ` +
-        `You can work ${minAdjustment}-${maxAdjustment} fewer or additional single crochet stitches so that it aligns with the top of the arm. ` +
-        `Ch ${chains} and turn.`,
+        `${lineStart}${prefix}` +
+        carry`Work ${`${firstStitches}x`} (we will crochet the section folded outward over the arm). As shown in the image, when I worked ${`${alignedStitches}x`}, it aligned exactly over the arm. You can work ${minAdjustment}-${maxAdjustment} fewer or additional single crochet stitches so that it aligns with the top of the arm. Ch ${chains} and turn.`,
     )
     .replace(
       // "Bütün sıra sonlarında" is explicit back-and-forth row guidance.
       /\bbütün\s+sıra\s+sonlarında\s+(\d+)\s+zincir\s+çekip\s+dönüyoruz\b[.]?/giu,
       (_match, chains: string) =>
-        `At the end of each row, ch ${chains} and turn.`,
+        carry`At the end of each row, ch ${chains} and turn.`,
     )
     .replace(
       // Plain "sıra sonunda/sonlarında ... dönüyoruz" turns at the course end
@@ -447,8 +501,8 @@ const normalizeEnglishCrochetStructures = (
       COURSE_END_TURN_PATTERN,
       (_match, ending: string, chains: string) =>
         ending.toLocaleLowerCase("tr-TR") === "sonunda"
-          ? `When you reach the end, ch ${chains} and turn.`
-          : `Each time you reach the end, ch ${chains} and turn.`,
+          ? carry`When you reach the end, ch ${chains} and turn.`
+          : carry`Each time you reach the end, ch ${chains} and turn.`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
@@ -485,21 +539,21 @@ const normalizeEnglishCrochetStructures = (
         const ordinal =
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Skip ${chains} chains (to form a buttonhole), then work ${stitches}x starting from the ${ordinal} chain`;
+        return `${prefix}` + carry`Skip ${chains} chains (to form a buttonhole), then work ${`${stitches}x`} starting from the ${decided(ordinal ?? "")} chain`;
       },
     )
     .replace(
       /\b(\d+)\s+zincir\s+atlayıp\b/giu,
-      (_match, count: string) => `Skip ${count} chains and`,
+      (_match, count: string) => carry`Skip ${count} chains and`,
     )
     .replace(
       /\b(\d+)\s+zincir\s+atlıyoruz\b/giu,
-      (_match, count: string) => `skip ${count} chains`,
+      (_match, count: string) => carry`skip ${count} chains`,
     )
     .replace(
       /\b(?:zincir\s+üzerine\s+)?(\d+)\.\s*zincirden\s+itibaren\s+(\d+)\s*x\b/giu,
       (_match, chain: string, stitches: string) =>
-        `Starting from the ${englishOrdinal(chain)} chain, work ${stitches}x`,
+        carry`Starting from the ${decided(englishOrdinal(chain))} chain, work ${`${stitches}x`}`,
     )
     .replace(
       // Optional "zincir üzerine" prefix (as the numeric-ordinal sibling
@@ -540,31 +594,31 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+(\d+)\s*x\s+örüyoruz\b/giu,
       (_match, stitches: string) =>
-        `Starting from the second chain, work ${stitches}x along the chain`,
+        carry`Starting from the second chain, work ${`${stitches}x`} along the chain`,
     )
     .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren(?=\s+\d+\s*x\b)/giu,
-      "Starting from the second chain,",
+      () => carry`Starting from the second chain,`,
     )
     .replace(
       /\b(?:zincir\s+üzerine\s+)?ikinci\s+zincirden\s+itibaren\b/giu,
-      "Starting from the second chain",
+      () => carry`Starting from the second chain`,
     )
     .replace(
       /\bzincir\s+üzerine\s+(\d+)\s*x\b/giu,
-      (_match, stitches: string) => `work ${stitches}x along the chain`,
+      (_match, stitches: string) => carry`work ${`${stitches}x`} along the chain`,
     )
     .replace(
       /\baynı\s+ilmek\s+içine\s+(\d+)\s*x\b/giu,
-      (_match, count: string) => `${count}sc in the same stitch`,
+      (_match, count: string) => carry`${`${count}sc`} in the same stitch`,
     )
     .replace(
       /\baynı\s+ilmek\s+içine\s+(\d+)\s*tr\b/giu,
-      (_match, count: string) => `${count}tr in the same stitch`,
+      (_match, count: string) => carry`${`${count}tr`} in the same stitch`,
     )
     .replace(
       /\bzincirin\s+diğer\s+tarafından\s+devam\s+ediyoruz\b/giu,
-      "continue along the other side of the chain",
+      () => carry`continue along the other side of the chain`,
     )
     .replace(
       /\b(\d+)\s+zincir\s+çekip\s+ördüğümüz\s+parçanın\s+iki\s+ucunu\s*[,，]?\s*görselde\s+görüldüğü\s+gibi\s+(cc|x|dc|tr)\s+ile\s+birleştiriyoruz\b/giu,
@@ -573,7 +627,7 @@ const normalizeEnglishCrochetStructures = (
         chains: string,
         stitch: string,
       ) =>
-        `Ch ${chains} and join the two ends of the piece with ${stitch} as shown in the image`,
+        carry`Ch ${chains} and join the two ends of the piece with ${stitch} as shown in the image`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(?:(görselde\s+görüldüğü\s+gibi)\s+)?başlangıç\s+noktamıza\s+(cc|x|dc|tr)\s+ile\s+birleştiriyoruz\b/giu,
@@ -583,7 +637,7 @@ const normalizeEnglishCrochetStructures = (
         imageReference: string | undefined,
         stitch: string,
       ) =>
-        `${prefix}Join to the starting point with ${stitch}${imageReference ? " as shown in the image" : ""}`,
+        `${prefix}` + carry`Join to the starting point with ${stitch}${decided(imageReference ? " as shown in the image" : "")}`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(?:yine\s+bütün\s+)?sıra\s+sonlarında\s+(cc|x|dc|tr)\s+ile\s+birleştirip\s*[,，]?\s*(\d+)\s+zincir\s+çekip\s+bir\s+üst\s+sıraya\s+geçiyoruz\b/giu,
@@ -593,17 +647,17 @@ const normalizeEnglishCrochetStructures = (
         stitch: string,
         chains: string,
       ) =>
-        `${prefix}At the end of each round, join with ${stitch}, ch ${chains}, and continue to the next round`,
+        `${prefix}` + carry`At the end of each round, join with ${stitch}, ch ${chains}, and continue to the next round`,
     )
     .replace(
       /\b(\d+)\s+zincir\s+çekip\s*[,，]?\s*bir\s+üst\s+sıradan\s+devam\s+ediyoruz\b/giu,
       (_match, chains: string) =>
-        `Ch ${chains} and continue with the next round`,
+        carry`Ch ${chains} and continue with the next round`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+çekip\s+devam\s+ediyoruz\b/giu,
       (_match, prefix: string, chains: string) =>
-        `${prefix}Ch ${chains} and continue`,
+        `${prefix}` + carry`Ch ${chains} and continue`,
     )
     .replace(
       /\bM\s*\(\s*aynı\s+anda\s+(bir|iki|üç|dört|beş|\d+)\s+ilmeği\s+birlikte\s+kesmek\s*\)/giu,
@@ -618,7 +672,7 @@ const normalizeEnglishCrochetStructures = (
         const count =
           wordCounts[countRaw.toLocaleLowerCase("tr-TR")] ?? countRaw;
 
-        return `M (decrease ${count} stitches together)`;
+        return carry`M (decrease ${count} stitches together)`;
       },
     )
     .replace(
@@ -627,15 +681,15 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /(\d+)\s*x\s+BLO(?:['’]?dan)?\b/giu,
-      (_match, stitches: string) => `${stitches}sc in BLO`,
+      (_match, stitches: string) => carry`${`${stitches}sc`} in BLO`,
     )
     .replace(
       /BLO(?:['’]?dan)?\s+(\d+)\s*x\b/giu,
-      (_match, stitches: string) => `${stitches}sc in BLO`,
+      (_match, stitches: string) => carry`${`${stitches}sc`} in BLO`,
     )
     .replace(
       /aynı\s+sık\s+iğne(?:nin|ye)?\s+içine\s+(\d+)\s*tr\b/giu,
-      (_match, count: string) => `${count}tr in the same stitch`,
+      (_match, count: string) => carry`${`${count}tr`} in the same stitch`,
     )
     .replace(
       /\bsihirli\s+halka\s+içine\s+(\d+)\s*x\b(\s*[,，])?/giu,
@@ -663,7 +717,7 @@ const normalizeEnglishCrochetStructures = (
         // immediately followed by "atla" from its expected sc-count tally,
         // so rendering the skip count as "sc" here would introduce an
         // extra, unexpected "sc" and trip LOST_PATTERN_NOTATION.
-        `Ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}, work ${work}sc in the next single crochet. Continue in this way to the end of the round.`,
+        carry`Ch ${chains}, skip ${skip} ${decided(skip === "1" ? "st" : "sts")}, work ${`${work}sc`} in the next single crochet. Continue in this way to the end of the round.`,
     )
     .replace(
       // Inflected sibling used in prose-style pattern instructions:
@@ -696,19 +750,19 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(?:görselde\s+görüldüğü\s+gibi\s+)?kol\s+boşluğunun\s+arka\s+tarafından\s+ipimizi\s+sabitliyoruz\b[.]?/giu,
       (_match) =>
-        "As shown in the image, attach the yarn from the back of the armhole.",
+        carry`As shown in the image, attach the yarn from the back of the armhole.`,
     )
     .replace(
       /\baynı\s+zincir\s+içine\s+(\d+)\s*x\b/giu,
-      "$1sc in the same chain",
+      (_match, count: string) => carry`${`${count}sc`} in the same chain`,
     )
     .replace(
       /\bzincir\s+içine\s+(\d+)\s*x\b/giu,
-      "$1x into the chain space",
+      (_match, count: string) => carry`${`${count}x`} into the chain space`,
     )
     .replace(
       /\b(?:bu(?:ras[ıi])?\s+(?:bizim\s+)?başlangıç\s+noktamız(?:dır|\s+olacak)?|burası\s+başlangıç\s+noktamız(?:dır|\s+olacak)?|başlangıç\s+noktamız\s+burası\s+olacak)\s*[;,.]?\s*(?:işaretleyiciyi|işaretleyicimizi|markerı|markeri)\s+buraya\s+(?:takıyoruz|yerleştiriyoruz|koyuyoruz)\b/giu,
-      "This will be the beginning of the round; place a stitch marker here",
+      () => carry`This will be the beginning of the round; place a stitch marker here`,
     )
     .replace(
       yarnIntroPattern(),
@@ -730,12 +784,12 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bekru\s+renk\s+ip\s*\(\s*([^)]+?)\s*\)\s+ile\s+başlıyoruz\b/giu,
       (_match, brand: string) =>
-        `Start with ecru yarn (${brand.trim()})`,
+        carry`Start with ecru yarn (${brand.trim()})`,
     )
     .replace(
       /\bturuncu\s+ipimize\s*\(\s*([^)]+?)\s*\)\s+geçiyoruz\b/giu,
       (_match, brand: string) =>
-        `Switch to orange yarn (${brand.trim()})`,
+        carry`Switch to orange yarn (${brand.trim()})`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])ördüğümüz\s+(tabanın|parçanın)\s+ters\s+yüzünü\s+çeviriyoruz\b/giu,
@@ -752,17 +806,17 @@ const normalizeEnglishCrochetStructures = (
         const item =
           items[itemSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Turn the crocheted ${item} inside out`;
+        return `${prefix}` + carry`Turn the crocheted ${decided(item ?? "")} inside out`;
       },
     )
     .replace(
       /(^|[^\p{L}\p{N}_])sık\s+iğnelerin\s+ters\s+yüzü\s+dışarıda\s*[,，]\s*düz\s+yüzü\s+içeride\s+kalacak\b/giu,
       (_match, prefix: string) =>
-        `${prefix}The back of the single crochet stitches should face outward, and the front should face inward`,
+        `${prefix}` + carry`The back of the single crochet stitches should face outward, and the front should face inward`,
     )
     .replace(
       /\brenk\s+geçişlerinde\s+bir\s+önceki\s+ipi\s+kesmeden\s*[,，]\s*içeride\s+beklemeye\s+alıyoruz\b/giu,
-      "When changing colors, do not cut the previous yarn; leave it inside until needed again",
+      () => carry`When changing colors, do not cut the previous yarn; leave it inside until needed again`,
     )
     .replace(
       /\bekru\s+renk\s+ip\s+ile\s*[;:]?\s*\(\s*turuncu\s+ipimizi\s+kesiyoruz\s*[.]?\s*\)/giu,
@@ -770,29 +824,29 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /\bekru\s+renk\s+ip\s+ile\b/giu,
-      "With ecru yarn",
+      () => carry`With ecru yarn`,
     )
     .replace(
       /\bturuncu\s+ip\s+ile\b/giu,
-      "With orange yarn",
+      () => carry`With orange yarn`,
     )
     .replace(
       /\bbacakları\s+örerken\s+(\d+)-(\d+)\s+sırada\s+bir\s+dolum\s+yapalım\b/giu,
       (_match, start: string, end: string) =>
-        `While crocheting the legs, add stuffing every ${start}-${end} rounds`,
+        carry`While crocheting the legs, add stuffing every ${start}-${end} rounds`,
     )
     .replace(
       /\bdoldururken\s+görselde\s+görüldüğü\s+gibi\s+örgünün\s+dönmemesine\s+dikkat\s+edelim\b/giu,
-      "While stuffing, make sure the work does not twist, as shown in the image",
+      () => carry`While stuffing, make sure the work does not twist, as shown in the image`,
     )
     .replace(
       /\bdolum\s+yaptıkça\s+elimizle\s+örgüyü\s+sürekli\s+düzeltirsek\s*[,，]\s*örgümüz\s+dönmez\s+ve\s+bacaklar\s+çok\s+muntazam\s+olur\b/giu,
-      "If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater",
+      () => carry`If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater`,
     )
     .replace(
       /(?<!\p{L})[iİ]kinci\s+bacakta\s+(?:da\s+)?ilk\s+(\d+)\s+sırayı\s+aynı\s+şekilde\s+örüyoruz(?!\p{L})/giu,
       (_match, rounds: string) =>
-        `On the second leg, work the first ${rounds} ${rounds === "1" ? "round" : "rounds"} in the same way`,
+        carry`On the second leg, work the first ${rounds} ${decided(rounds === "1" ? "round" : "rounds")} in the same way`,
     )
     .replace(
       /\b(\d+)\s*x\s+örüyoruz\s*[,，]\s*ipimizi\s+kesmeden\s+gövde\s+ile\s+devam\s+ediyoruz\b/giu,
@@ -819,23 +873,23 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /(\d+)\s*x\s*\(\s*ilk\s+bacak\s*\)/giu,
-      "$1sc (first leg)",
+      (_match, count: string) => carry`${`${count}sc`} (first leg)`,
     )
     .replace(
       /(\d+)\s*x\s*\(\s*ikinci\s+bacak\s*\)/giu,
-      "$1sc (second leg)",
+      (_match, count: string) => carry`${`${count}sc`} (second leg)`,
     )
     .replace(
       /(\d+)\s*x\s*\(\s*zincir\s+üstü\s*\)/giu,
-      "$1sc (along the chain)",
+      (_match, count: string) => carry`${`${count}sc`} (along the chain)`,
     )
     .replace(
       /⊱\s*kol\s+b[iİIı]rleşt[iİIı]rme\s*⊰/giu,
-      "⊱ARM JOINING⊰",
+      () => carry`⊱ARM JOINING⊰`,
     )
     .replace(
       /[,，]\s*[iİ]pimizi\s+kesmeden\s+kol\s+birleştirme\s+ile\s+devam\s+ediyoruz\b/giu,
-      ". Without cutting the yarn, continue by joining the arms",
+      () => `.${carry` Without cutting the yarn, continue by joining the arms`}`,
     )
     .replace(
       // The apostrophe is optional so legacy "flodan", "FLOdan" and "BLO dan"
@@ -855,11 +909,11 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /\bbaşlangıç\s+noktamız\s+burası\s+olacak\s*[.]\s*[iİ]şaretleyiciyi\s+buraya\s+takıyoruz\b/giu,
-      "This will be the beginning of the round; place a stitch marker here",
+      () => carry`This will be the beginning of the round; place a stitch marker here`,
     )
     .replace(
       /\byeniden\s+(\d+)\s+zincir\s+çekip\b/giu,
-      (_match, chains: string) => `then ch ${chains} again and`,
+      (_match, chains: string) => carry`then ch ${chains} again and`,
     )
     .replace(
       // Whitespace is consumed only together with the closing period, so
@@ -888,16 +942,16 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (_match, chains: string) =>
-        `At the end of the round, ch ${chains} and cut the yarn`,
+        carry`At the end of the round, ch ${chains} and cut the yarn`,
     )
     .replace(
       /\btüm\s+çevreyi\s+ördükten\s+sonra\s+(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
       (_match, chains: string) =>
-        `After working around the entire edge, ch ${chains} and cut the yarn`,
+        carry`After working around the entire edge, ch ${chains} and cut the yarn`,
     )
     .replace(
       /\b(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu,
-      (_match, chains: string) => `ch ${chains} and cut the yarn`,
+      (_match, chains: string) => carry`ch ${chains} and cut the yarn`,
     )
     .replace(
       // "sıradaki sık iğneye cc" (single crochet, specifically) and its
@@ -906,7 +960,7 @@ const normalizeEnglishCrochetStructures = (
       // particular construction, so there is nothing to disambiguate.
       /\b(\d+)\s*x\s+atla\s*[,，]?\s*sıradaki\s+(?:sık\s+iğneye|ilmeğe)\s+cc\b/giu,
       (_match, count: string) =>
-        `skip ${count}x, cc into the next stitch`,
+        carry`skip ${`${count}x`}, ${"cc"} into the next stitch`,
     )
     .replace(
       // Standalone "tekrar sıradaki X'e cc yapıyoruz" (again, sl st into the
@@ -918,39 +972,39 @@ const normalizeEnglishCrochetStructures = (
       // "tekrar ... yapıyoruz".
       /\btekrar\s+(?:sıradaki|sırdaki)\s+(sık\s+iğneye|ilmeğe)\s+cc(?:\s+yapıyoruz)?\b/giu,
       (_match, stitchWord: string) =>
-        `then cc into the following ${
-          /ilmeğe/iu.test(stitchWord) ? "stitch" : "single crochet"
-        }`,
+        carry`then ${"cc"} into the following ${decided(
+          /ilmeğe/iu.test(stitchWord) ? "stitch" : "single crochet",
+        )}`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*[,，]?\s*yaparak\s+dönüyoruz\b/giu,
       (_match, chains: string) =>
-        `making ch ${chains} and cc into the next single crochet as you go`,
+        carry`making ch ${chains} and ${"cc"} into the next single crochet as you go`,
     )
     .replace(
       /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+cc\s*\)/giu,
       (_match, chains: string) =>
-        `(ch ${chains}, cc into the next single crochet)`,
+        carry`(ch ${chains}, ${"cc"} into the next single crochet)`,
     )
     .replace(
       /\bsıradaki\s+sık\s+iğneye\s+cc\b/giu,
-      "cc into the next single crochet",
+      () => carry`${"cc"} into the next single crochet`,
     )
-    .replace(/\bsıradaki\s+ilmeğe\s+cc\b/giu, "cc into the next stitch")
+    .replace(/\bsıradaki\s+ilmeğe\s+cc\b/giu, () => carry`${"cc"} into the next stitch`)
     .replace(
       // Standalone "bu şekilde sıra sonuna kadar devam ediyoruz" -- reuses
       // the same wording already used for this meaning inside the larger
       // composite continuation templates elsewhere in this file, so a
       // stand-alone occurrence of the clause renders identically.
       /\bbu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\b/giu,
-      "Continue in this way to the end of the round",
+      () => carry`Continue in this way to the end of the round`,
     )
     .replace(
       // No-yarn-cut sibling of the "sıra sonuna geldiğimizde N zincir çekip
       // ipimizi kesiyoruz" family above, for a mid-pattern round transition
       // that just chains N without finishing the piece.
       /\bsıra\s+sonuna\s+geldiğimizde\s+(\d+)\s+zincir\s+çekiyoruz\b/giu,
-      (_match, chains: string) => `At the end of the round, ch ${chains}`,
+      (_match, chains: string) => carry`At the end of the round, ch ${chains}`,
     )
     .replace(
       /(^|[,;]\s+|[.!?]\s+)([^.!?;,]+?)\s+yerden\s+(\d+)\s*(cc|x|dc|tr)\s+atlıyoruz\b/giu,
@@ -961,7 +1015,7 @@ const normalizeEnglishCrochetStructures = (
         count: string,
         stitch: string,
       ) =>
-        `${prefix}Skip ${count}${stitch} from ${location.trim()} yer`,
+        `${prefix}${carry`Skip ${`${count}${stitch}`} from`} ${location.trim()} yer`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s*(cc|x|dc|tr)\s+atlıyoruz\b/giu,
@@ -970,7 +1024,7 @@ const normalizeEnglishCrochetStructures = (
         prefix: string,
         count: string,
         stitch: string,
-      ) => `${prefix}Skip ${count}${stitch}`,
+      ) => `${prefix}${carry`Skip ${`${count}${stitch}`}`}`,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(birinci|[iİ]kinci|[üÜ]çüncü|dördüncü|beşinci|altıncı)\s+bacağın\s+bittiği\s+yerin\s+yanındaki\s+ilk\s+sık\s+iğneden\s+ipimizi\s+sabitliyoruz\b/giu,
@@ -991,7 +1045,7 @@ const normalizeEnglishCrochetStructures = (
         const ordinal =
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Attach the yarn to the first single crochet next to where the ${ordinal} leg ends`;
+        return `${prefix}` + carry`Attach the yarn to the first single crochet next to where the ${decided(ordinal ?? "")} leg ends`;
       },
     )
     .replace(
@@ -1025,11 +1079,8 @@ const normalizeEnglishCrochetStructures = (
           colors[colorSource.toLocaleLowerCase("tr-TR")];
 
         return (
-          `${prefix}Attach the ${color} yarn to the ${attachmentLoop.toUpperCase()} ` +
-          `of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}` +
-          `${imageReference ? " as shown in the image" : ""} ` +
-          `(because the base was turned inside out, the FLO loops remained on the inside), ` +
-          `then work ${stitches}x`
+          `${prefix}` +
+          carry`Attach the ${decided(color ?? "")} yarn to the ${attachmentLoop.toUpperCase()} of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}${decided(imageReference ? " as shown in the image" : "")} (because the base was turned inside out, the ${"FLO"} loops remained on the inside), then work ${`${stitches}x`}`
         );
       },
     )
@@ -1065,9 +1116,8 @@ const normalizeEnglishCrochetStructures = (
         const yarnPhrase = color ? `the ${color} yarn` : "the yarn";
 
         return (
-          `${prefix}Attach ${yarnPhrase} to the ${attachmentLoop.toUpperCase()} ` +
-          `of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}` +
-          `${imageReference ? " as shown in the image" : ""}`
+          `${prefix}` +
+          carry`Attach ${decided(yarnPhrase)} to the ${attachmentLoop.toUpperCase()} of the single crochet stitches worked in the ${workedLoop.toUpperCase()} of Round ${round}${decided(imageReference ? " as shown in the image" : "")}`
         );
       },
     )
@@ -1091,10 +1141,8 @@ const normalizeEnglishCrochetStructures = (
         // this construction has multiple trailing numbers, so where the
         // round number lands in the sentence is not just a style choice.
         return (
-          `${prefix}In Round ${round}${imageReference ? " (as shown in the image)" : ""}, ` +
-          `work ${firstStitches}x in the ${currentLoop.toUpperCase()} of the single crochet stitches ` +
-          `worked in the ${workedLoop.toUpperCase()}, then continue with ${continuationStitches}x` +
-          `${total ? ` = ${total}x` : ""}`
+          `${prefix}` +
+          carry`In Round ${round}${decided(imageReference ? " (as shown in the image)" : "")}, work ${`${firstStitches}x`} in the ${currentLoop.toUpperCase()} of the single crochet stitches worked in the ${workedLoop.toUpperCase()}, then continue with ${`${continuationStitches}x`}${total ? ` = ${total}x` : ""}`
         );
       },
     )
@@ -1119,7 +1167,7 @@ const normalizeEnglishCrochetStructures = (
         const ordinal =
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Attach the yarn to the ${loop.toUpperCase()} of the ${ordinal} ${stitch}`;
+        return `${prefix}` + carry`Attach the yarn to the ${loop.toUpperCase()} of the ${decided(ordinal ?? "")} ${stitch}`;
       },
     )
     .replace(
@@ -1151,9 +1199,8 @@ const normalizeEnglishCrochetStructures = (
           colors[colorSource.toLocaleLowerCase("tr-TR")];
 
         return (
-          `${prefix}Using ${color} yarn, work slip stitches over the single crochet stitches ` +
-          `worked in the ${loop.toUpperCase()} of Round ${round}` +
-          `${imageReference ? " as shown in the image" : ""}`
+          `${prefix}` +
+          carry`Using ${decided(color ?? "")} yarn, work slip stitches over the single crochet stitches worked in the ${loop.toUpperCase()} of Round ${round}${decided(imageReference ? " as shown in the image" : "")}`
         );
       },
     )
@@ -1166,26 +1213,26 @@ const normalizeEnglishCrochetStructures = (
         loop: string,
         stitches: string,
       ) =>
-        `${prefix}Work ${stitches}x in the ${loop.toUpperCase()} of the slip stitches`,
+        `${prefix}` + carry`Work ${`${stitches}x`} in the ${loop.toUpperCase()} of the slip stitches`,
     )
     .replace(
       /\b(\d+)\s*cc\s*\(\s*ilmek\s+kaydırma\s*\)\s*yapıyoruz\s*[.]?/giu,
       (_match, stitches: string) =>
-        `Work ${stitches}cc (slip stitches).`,
+        carry`Work ${`${stitches}cc`} (slip stitches).`,
     )
     .replace(
       /\(\s*(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s*\)/giu,
       (_match, chains: string, stitches: string) =>
-        `(ch ${chains}, ${stitches}x in the next single crochet)`,
+        carry`(ch ${chains}, ${`${stitches}x`} in the next single crochet)`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*[,，]\s*sıradaki\s+sık\s+iğneye\s+(\d+)\s*x\s+yaparak\b/giu,
       (_match, chains: string, stitches: string) =>
-        `Ch ${chains} and work ${stitches}x in the next single crochet while`,
+        carry`Ch ${chains} and work ${`${stitches}x`} in the next single crochet while`,
     )
     .replace(
       /\b(\d+)\s+zincir\s*[,，]\s*(?=sıradaki\s+sık\s+iğneye\b)/giu,
-      (_match, chains: string) => `Ch ${chains}, `,
+      (_match, chains: string) => `${carry`Ch ${chains},`} `,
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(iki|üç|dört)\s+parça\s+arasındaki\s+(cc|x|dc|tr)\s+üzerine\s+yine\s+\3\s+yapıyoruz\b/giu,
@@ -1204,42 +1251,44 @@ const normalizeEnglishCrochetStructures = (
         const pieceCount =
           pieceCounts[pieceCountSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Work another ${stitch} into the ${stitch} between the ${pieceCount} pieces`;
+        return `${prefix}` + carry`Work another ${stitch} into the ${stitch} between the ${decided(pieceCount ?? "")} pieces`;
       },
     )
     .replace(
       /\bsıradaki\s+sık\s+iğneye\s+(\d+)\s*x\b/giu,
       (_match, stitches: string) =>
-        `${stitches}x in the next single crochet`,
+        carry`${`${stitches}x`} in the next single crochet`,
     )
     .replace(
       /[,，]\s*(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,
       (_match, count: string) =>
-        `. After making ${count} long hair strands, work the bangs`,
+        `.${carry` After making ${count} long hair strands, work the bangs`}`,
     )
     .replace(
       /\b(\d+)\s+tane\s+uzun\s+saç\s+teli\s+ördükten\s+sonra\s+kahkülleri\s+öreceğiz\b/giu,
       (_match, count: string) =>
-        `After making ${count} long hair strands, work the bangs`,
+        carry`After making ${count} long hair strands, work the bangs`,
     )
     .replace(
       /\btoplamda\s+(\d+)\s+tane\s+kahkülümüz\s+olacak\b/giu,
       (_match, count: string) =>
-        `We will have ${count} bangs in total`,
+        carry`We will have ${count} bangs in total`,
     )
     .replace(
       /\btoplamda\s+(\d+)\s+tane\s+kahkülümüz\s+olacak[.]\s*tekrar\s+uzun\s+saç\s+tellerini\s+örmeye\s+devam\s+ediyoruz\b/giu,
       (_match, count: string) =>
-        `We will have ${count} bangs in total. Continue making the long hair strands`,
+        carry`We will have ${count} bangs in total. Continue making the long hair strands`,
     )
     .replace(
       /\btekrar\s+uzun\s+saç\s+tellerini\s+örmeye\s+devam\s+ediyoruz\b/giu,
-      "Continue making the long hair strands",
+      () => carry`Continue making the long hair strands`,
     )
     .replace(
       /\bfotoğraf\s+temsilidir\b/giu,
-      "The images are for reference only",
+      () => carry`The images are for reference only`,
     )
+    // Word-level fallbacks inside provider-owned Turkish prose stay provider-owned:
+    // carrying them would only cut that sentence into fragments.
     .replace(/\bgözleri\s+takacağız\b/giu, "we will insert the eyes")
     .replace(
       /\bgözleri\s+yerleştirebiliriz\b/giu,
@@ -1386,7 +1435,7 @@ const normalizeToolMaterialIntro = (
     new RegExp(String.raw`\b${HOOK_ONLY_WORK_SOURCE}\b`, "giu"),
     (_match, size: string) =>
       targetLanguage === "en"
-        ? `Using a ${size} mm crochet hook, work as follows`
+        ? source.mark(`Using a ${size} mm crochet hook, work as follows`)
         : `Con un ganchillo de ${size} mm, tejemos de la siguiente manera`,
   );
 
@@ -1394,7 +1443,7 @@ const normalizeToolMaterialIntro = (
     new RegExp(String.raw`\b${HOOK_ONLY_USE_SOURCE}\b`, "giu"),
     (_match, size: string) =>
       targetLanguage === "en"
-        ? `Use a ${size} mm crochet hook`
+        ? source.mark(`Use a ${size} mm crochet hook`)
         : `Usa un ganchillo de ${size} mm`,
   );
 
@@ -1470,8 +1519,9 @@ const normalizeConditionalTechnique = (
 const normalizeConditionalLoopInstruction = (
   source: TrackedText,
   targetLanguage: TargetLanguage,
-): TrackedText =>
-  source.replace(
+): TrackedText => {
+  const { carry, decided } = carrying((rendered) => source.mark(rendered));
+  return source.replace(
     /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\s*\(\s*([^(),]+?)\s*,?\s*(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örecekler\s*\)(\s*[,.;:]?\s*)?/giu,
     (
       match,
@@ -1494,7 +1544,7 @@ const normalizeConditionalLoopInstruction = (
 
       const translated =
         targetLanguage === "en"
-          ? `Work in ${defaultLoop}. If ${technique}, work in ${alternativeLoop} instead.`
+          ? carry`Work in ${defaultLoop}. If ${decided(technique)}, work in ${alternativeLoop} instead.`
           : `Trabaja en ${defaultLoop}. Si ${technique}, trabaja en ${alternativeLoop} en su lugar.`;
 
       const continuesAfterInstruction =
@@ -1504,12 +1554,14 @@ const normalizeConditionalLoopInstruction = (
       return `${translated}${continuesAfterInstruction ? " " : ""}`;
     },
   );
+};
 
 const normalizeSimpleLoopInstruction = (
   source: TrackedText,
   targetLanguage: TargetLanguage,
-): TrackedText =>
-  source.replace(
+): TrackedText => {
+  const { carry } = carrying((rendered) => source.mark(rendered));
+  return source.replace(
     // "bu sırayı" ("this course") names the current course without saying
     // whether it is a row or a round, and nothing here knows which (turned
     // rows use it too). Both languages therefore stay unit-neutral, like the
@@ -1517,9 +1569,10 @@ const normalizeSimpleLoopInstruction = (
     /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\b/giu,
     (_match, loopRaw: string) =>
       targetLanguage === "en"
-        ? `Work in ${loopRaw.toUpperCase()}`
+        ? carry`Work in ${loopRaw.toUpperCase()}`
         : `Trabaja en ${loopRaw.toUpperCase()}`,
   );
+};
 
 const normalizeSourceNaturalLanguageBase = (
   source: string,
@@ -1529,8 +1582,8 @@ const normalizeSourceNaturalLanguageBase = (
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
   recordSpans = false,
-): TrackedText =>
-  normalizeSimpleLoopInstruction(
+): TrackedText => {
+  const loops = normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
       normalizeToolMaterialIntro(
         normalizeEnglishCrochetStructures(
@@ -1546,19 +1599,25 @@ const normalizeSourceNaturalLanguageBase = (
       targetLanguage,
     ),
     targetLanguage,
-  )
+  );
+  // English the tail rules decide is carried too; Spanish never records.
+  const { carry, decided } = carrying((rendered) => loops.mark(rendered));
+  // Clause-level renderings are carried; the word-level fallbacks at the end of
+  // this chain ("count N stitches", "over N stitches", "two chains", ...) sit
+  // inside provider-owned Turkish sentences and stay provider-owned.
+  return loops
     .replace(
       /\b(kaşları\s+ve\s+)?kirpikleri\s+görsele\s+bakarak\s+işleyebiliriz\b/giu,
       (_match, eyebrowsPrefix: string | undefined) =>
         eyebrowsPrefix
           ? targetPhrase(
               targetLanguage,
-              "Embroider the eyebrows and eyelashes following the reference image",
+              carry`Embroider the eyebrows and eyelashes following the reference image`,
               "Borda las cejas y las pestañas siguiendo la imagen de referencia",
             )
           : targetPhrase(
               targetLanguage,
-              "Embroider the eyelashes following the reference image",
+              carry`Embroider the eyelashes following the reference image`,
               "Borda las pestañas siguiendo la imagen de referencia",
             ),
     )
@@ -1573,29 +1632,29 @@ const normalizeSourceNaturalLanguageBase = (
       ) =>
         targetPhrase(
           targetLanguage,
-          `Count ${offset} ${offset === "1" ? "stitch" : "stitches"} from the end of the eyelashes. Work ${firstSc}sc, ${dc}dc, ${lastSc}sc from top to bottom`,
+          carry`Count ${offset} ${decided(offset === "1" ? "stitch" : "stitches")} from the end of the eyelashes. Work ${`${firstSc}sc`}, ${`${dc}dc`}, ${`${lastSc}sc`} from top to bottom`,
           `Cuenta ${offset} ${offset === "1" ? "punto" : "puntos"} desde el final de las pestañas. Teje ${firstSc} pb, ${dc} pa, ${lastSc} pb de arriba hacia abajo`,
         ),
     )
     .replace(
       /diğer\s+kulağı\s+da\s+aynı\s+şekilde\s+aşağıdan\s+yukarı\s+doğru\s+örüyoruz\b/giu,
-      targetPhrase(
+      () => targetPhrase(
         targetLanguage,
-        "Work the other ear in the same way, from bottom to top",
+        carry`Work the other ear in the same way, from bottom to top`,
         "Teje la otra oreja de la misma manera, de abajo hacia arriba",
       ),
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+çekip\s+ipimizi\s+dikiş\s+için\s+uzun\s+kesiyoruz\b/giu,
       (_match, prefix: string, chains: string) =>
-        `${prefix}Ch ${chains} and cut the yarn, leaving a long tail for sewing`,
+        `${prefix}` + carry`Ch ${chains} and cut the yarn, leaving a long tail for sewing`,
     )
     .replace(
       /(\d+)\s+zincir\s+çekip\s+kafaya\s+dikmek\s+için\s+ipimizi\s+uzun\s+kesiyoruz\b/giu,
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `ch ${count}. Cut the yarn, leaving a long tail for sewing the ear to the head`,
+          carry`ch ${count}. Cut the yarn, leaving a long tail for sewing the ear to the head`,
           `${count} cad. Corta el hilo dejando una hebra larga para coser la oreja a la cabeza`,
         ),
     )
@@ -1604,7 +1663,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Count ${count} stitches from the upper eyelash and mark that point`,
+          carry`Count ${count} stitches from the upper eyelash and mark that point`,
           `Cuenta ${count} puntos desde la pestaña superior y marca ese punto`,
         ),
     )
@@ -1613,7 +1672,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Count ${count} stitches downward and mark that point as well`,
+          carry`Count ${count} stitches downward and mark that point as well`,
           `Cuenta ${count} puntos hacia abajo y marca también ese punto`,
         ),
     )
@@ -1622,7 +1681,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Sew the ears along these ${count} stitches`,
+          carry`Sew the ears along these ${count} stitches`,
           `Cose las orejas a lo largo de estos ${count} puntos`,
         ),
     )
@@ -1631,7 +1690,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Count ${count} stitches from the eyelash and mark that point`,
+          carry`Count ${count} stitches from the eyelash and mark that point`,
           `Cuenta ${count} puntos desde la pestaña y marca ese punto`,
         ),
     )
@@ -1640,7 +1699,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Count ${count} stitches downward and mark that point as well`,
+          carry`Count ${count} stitches downward and mark that point as well`,
           `Cuenta ${count} puntos hacia abajo y marca también ese punto`,
         ),
     )
@@ -1649,7 +1708,7 @@ const normalizeSourceNaturalLanguageBase = (
       (_match, count: string) =>
         targetPhrase(
           targetLanguage,
-          `Sew the ears along these ${count} stitches`,
+          carry`Sew the ears along these ${count} stitches`,
           `Cose las orejas a lo largo de estos ${count} puntos`,
         ),
     )
@@ -1700,7 +1759,7 @@ const normalizeSourceNaturalLanguageBase = (
         `${count} filas por encima del ojo`,
       ),
     );
-
+};
 
 /** Options shared by the source normalizers. */
 export type SourceNormalizationOptions = {

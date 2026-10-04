@@ -11,11 +11,11 @@
       }
     ]
   },
-  "id": "h-2c5ac91027-sdcbc9dbb-1-28x-oruyoruz-1",
+  "id": "h-2c5ac91027-s7ae3c212-1-28x-oruyoruz-1",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -24,24 +24,16 @@
       "file": "src/translation/__tests__/translator.test.ts",
       "kind": "test",
       "test": "Page 15 collar turning-row regression > preserves both turning instructions and uses row terminology through the full pipeline"
+    },
+    {
+      "callIndex": 11,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": "At the end of each row",
-        "translated": "At the end of each row"
-      },
-      {
-        "source": "and turn.",
-        "translated": "and turn."
-      },
-      {
-        "source": "ch",
-        "translated": "ch"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -62,22 +54,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "At the end of each row",
-          "ch",
-          "and turn."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "83f41a948c3304638ef84f910598d4bd8982895c0b573df12f09c2f34db13378"
-      }
-    ]
+    "providerCalls": []
   }
 }

@@ -1,0 +1,88 @@
+{
+  "expected": {
+    "results": [
+      {
+        "errorCodes": [],
+        "id": "live-page22-block1",
+        "source": "10) Görselde görüldüğü gibi yeşil ipimizi, 9. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan (tabanın ters yüzünü çevirdiğimiz için flo’ lar iç kısımda kaldı) sabitliyoruz, 32x. Yine bütün sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
+        "translated": "10) Attach the green yarn to the FLO of the single crochet stitches worked in the BLO of Round 9 as shown in the image (because the base was turned inside out, the FLO loops remained on the inside), then work 32sc. At the end of each round, join with sl st, ch 1, and continue to the next round.",
+        "valid": true,
+        "warningCodes": [
+          "MANUAL_REVIEW_RECOMMENDED",
+          "MANUAL_REVIEW_RECOMMENDED"
+        ]
+      },
+      {
+        "errorCodes": [],
+        "id": "live-page22-block3",
+        "source": "✦ Görselde görüldüğü gibi, 9. sırada Blo’dan ördüğümüz sık iğnelerin üzerine yeşil ipimizle ilmek kaydırma yapıyoruz.",
+        "translated": "✦ Using green yarn, work slip stitches over the single crochet stitches worked in the BLO of Round 9 as shown in the image.",
+        "valid": true,
+        "warningCodes": []
+      }
+    ]
+  },
+  "id": "h-dc75bac5d1-s8455cf14-10-gorselde-goruldugu-gibi",
+  "labels": {
+    "families": [],
+    "hazards": [],
+    "zeroProvider": true
+  },
+  "lane": "harvested",
+  "origins": [
+    {
+      "callIndex": 0,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "crochet instruction phrasing > normalizes referenced-loop attachment and surface slip stitches from real Canva source text with authoring variance"
+    },
+    {
+      "callIndex": 35,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
+    }
+  ],
+  "provider": {
+    "mode": "none"
+  },
+  "request": {
+    "blocks": [
+      {
+        "id": "live-page22-block1",
+        "text": "10) Görselde görüldüğü gibi yeşil ipimizi, 9. sırada Blo’dan ördüğümüz sık iğnelerin Flo’sundan (tabanın ters yüzünü çevirdiğimiz için flo’ lar iç kısımda kaldı) sabitliyoruz, 32x. Yine bütün sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz."
+      },
+      {
+        "id": "live-page22-block3",
+        "text": "✦ Görselde görüldüğü gibi, 9. sırada Blo’dan ördüğümüz sık iğnelerin üzerine yeşil ipimizle ilmek kaydırma yapıyoruz."
+      }
+    ],
+    "targetLanguage": "en"
+  },
+  "schema": 1,
+  "status": "characterized",
+  "trace": {
+    "diagnostics": [
+      {
+        "errors": [],
+        "id": "live-page22-block1",
+        "warnings": [
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Segment 1: Manual review recommended because the source combines spatial or directional concepts: üst, iç, sıra."
+          },
+          {
+            "code": "MANUAL_REVIEW_RECOMMENDED",
+            "message": "Manual review recommended because the source combines spatial or directional concepts: üst, iç, sıra."
+          }
+        ]
+      },
+      {
+        "errors": [],
+        "id": "live-page22-block3",
+        "warnings": []
+      }
+    ],
+    "providerCalls": []
+  }
+}

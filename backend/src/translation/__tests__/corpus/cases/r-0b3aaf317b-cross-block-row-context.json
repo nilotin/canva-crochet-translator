@@ -37,7 +37,7 @@
     "hazards": [
       "cross-block-context"
     ],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "repro",
   "origins": [
@@ -77,22 +77,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "At the end of each row",
-          "ch",
-          "and turn."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "b2e7e560538e37f7eca1cc3bc2ff8c9f13e98b983f8f494e8265ed9436e59f06"
-      }
-    ]
+    "providerCalls": []
   }
 }

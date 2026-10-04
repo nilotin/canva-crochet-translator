@@ -11,7 +11,7 @@
       }
     ]
   },
-  "id": "h-127de8dd49-s66b882dd-bluz-kolu-1-gorselde",
+  "id": "h-127de8dd49-s372191dd-bluz-kolu-1-gorselde",
   "labels": {
     "families": [],
     "hazards": [],
@@ -24,29 +24,19 @@
       "file": "src/translation/__tests__/translator.test.ts",
       "kind": "test",
       "test": "Page 14 exact saved Block 1 including heading > keeps the sleeve instruction deterministic while allowing only the heading prose onto the provider path"
+    },
+    {
+      "callIndex": 6,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
     }
   ],
   "provider": {
     "entries": [
       {
-        "source": ". This will be the beginning of the round",
-        "translated": ". This will be the beginning of the round"
-      },
-      {
-        "source": "As shown in the image",
-        "translated": "As shown in the image"
-      },
-      {
         "source": "Bluz kolu",
         "translated": "Bluz kolu"
-      },
-      {
-        "source": "attach the yarn from the back of the armhole. Work",
-        "translated": "attach the yarn from the back of the armhole. Work"
-      },
-      {
-        "source": "place a stitch marker here.",
-        "translated": "place a stitch marker here."
       }
     ],
     "mode": "oracle"
@@ -73,22 +63,14 @@
     "providerCalls": [
       {
         "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2",
-          "span-3",
-          "span-4"
+          "span-0"
         ],
         "blockTexts": [
-          "Bluz kolu",
-          "As shown in the image",
-          "attach the yarn from the back of the armhole. Work",
-          ". This will be the beginning of the round",
-          "place a stitch marker here."
+          "Bluz kolu"
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "e8360954146ae5231d03219d362076914774e2a3b934efa62b6c1815d5edff31"
+        "userPromptSha256": "028dfb777d404f8aa8cec1b9e757b265ae0ac79263e58ed03be6137c23dd430e"
       }
     ]
   }

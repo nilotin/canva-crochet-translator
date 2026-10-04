@@ -1904,10 +1904,11 @@ describe("deterministic span carrier: chain + turn (Task 21B)", () => {
       .toBe("Ch 1 and turn. sonra");
   });
 
-  it("other families and other languages expose no carrier spans", () => {
-    expect(normalizeSourceNaturalLanguageDetailed("Bütün sıra sonlarında 1 zincir çekip dönüyoruz.", "en")
-      .deterministicSpans).toEqual([]);
-    expect(normalizeSourceNaturalLanguageDetailed("13) 5 sıra 16x", "en").deterministicSpans).toEqual([]);
+  it("turning-row and course-count words are carried (Task 24A); other languages expose no carrier spans", () => {
+    const words = (source: string) =>
+      normalizeSourceNaturalLanguageDetailed(source, "en").deterministicSpans.map(({ text }) => text);
+    expect(words("Bütün sıra sonlarında 1 zincir çekip dönüyoruz.")).toEqual(["At the end of each row, ch", "and turn."]);
+    expect(words("13) 5 sıra 16x")).toEqual(["for", "rounds"]);
     expect(normalizeSourceNaturalLanguageDetailed("1 zincir çekip dönüyoruz.", "es").deterministicSpans).toEqual([]);
     expect(normalizeSourceNaturalLanguageDetailed("1 zincir çekip dönüyoruz.", "en", "materials").deterministicSpans)
       .toEqual([]);
@@ -1944,16 +1945,18 @@ describe("deterministic span carrier: word-ordinal chain start (Task 22B)", () =
     expect(result.deterministicSpans.at(-1)?.text).toMatch(/^Starting from the \w+ chain, work$/u);
   });
 
-  it("leaves second-chain, numeric-ordinal and Spanish forms off the carrier", () => {
+  it("carries second-chain and recognized numeric-ordinal wording (Task 24A), never unrecognized forms or Spanish", () => {
     const spansOf = (source: string, language: "en" | "es" = "en") =>
       normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
-    expect(spansOf("ikinci zincirden itibaren 5x")).toEqual([]);
+    expect(spansOf("ikinci zincirden itibaren 5x")).toEqual(["Starting from the second chain,"]);
+    // Not rendered at all, so nothing to carry.
     expect(spansOf("İkinci zincirden itibaren 5x örüyoruz.")).toEqual([]);
-    expect(spansOf("3. zincirden itibaren 8x")).toEqual([]);
+    expect(spansOf("3. zincirden itibaren 8x")).toEqual(["Starting from the 3rd chain, work"]);
+    // A stitch ordinal has no renderer (beta blocker #3): nothing is carried.
     expect(spansOf("7. sık iğneye ipimizi sabitliyoruz.")).toEqual([]);
     expect(
       spansOf("12 zincir çekip geriye dönüyoruz. 4 zincir atlıyoruz. 3. zincirden itibaren 18x. zincir üzerine 5x"),
-    ).toEqual(["Ch 12 and turn."]);
+    ).toEqual(["Ch 12 and turn.", "skip", "chains", "Starting from the 3rd chain, work", "work", "along the chain"]);
     expect(spansOf("Yedinci zincirden itibaren 28x örüyoruz.", "es")).toEqual([]);
     expect(normalizeSourceNaturalLanguage("ikinci zincirden itibaren 5x", "en"))
       .toBe("Starting from the second chain, 5x");
@@ -1981,7 +1984,7 @@ describe("deterministic span carrier: buttonhole turn, magic ring, yarn intro (T
     [
       "1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz.",
       "1) 6x into the magic ring. This will be the beginning of the round; place a stitch marker here.",
-      [[6, 25]],
+      [[6, 25], [27, 94]],
     ],
     ["Siyah ip (catania 110) ile başlıyoruz.", "Start with black yarn (catania 110).", [[0, 35]]],
     [
@@ -2003,8 +2006,13 @@ describe("deterministic span carrier: buttonhole turn, magic ring, yarn intro (T
   it("leaves neighbouring buttonhole, Spanish and unrelated forms off the carrier", () => {
     const spansOf = (source: string, language: "en" | "es" = "en") =>
       normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
-    expect(spansOf("3. sıranın sonunda 2 zincir (düğme iliği) dön")).toEqual([]);
-    expect(spansOf("6 zincir (düğme iliği)")).toEqual([]);
+    // The neighbouring buttonhole forms are carried word by word since Task 24A.
+    expect(spansOf("3. sıranın sonunda 2 zincir (düğme iliği) dön")).toEqual([
+      "At the end of Round",
+      ", ch",
+      "(buttonhole) and turn.",
+    ]);
+    expect(spansOf("6 zincir (düğme iliği)")).toEqual(["ch", "(buttonhole)"]);
     // The branded tool intro joined the carrier in Task 23K-2 (see below); Spanish stays off.
     expect(spansOf("2.20 numara tığ, Açık gri (Gazzal Giza 2456) ip ile örüyoruz.", "es")).toEqual([]);
     expect(spansOf("42x - 5 zincir (düğme iliği) dön", "es")).toEqual([]);
@@ -2085,8 +2093,9 @@ describe("deterministic span carrier: \"In\" before FLO/BLO and \"Work\" before 
       normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
     expect(spansOf("5) FLO’dan (3x, 1v)*6 = 30x", "es")).toEqual([]);
     expect(spansOf("6x örüyoruz", "es")).toEqual([]);
-    expect(spansOf("BLO’dan 6x örüyoruz")).toEqual([]);
-    expect(spansOf("Bu sırayı FLO’dan örüyoruz.")).toEqual([]);
+    // Neighbouring loop forms are carried since Task 24A; the count stays notation.
+    expect(spansOf("BLO’dan 6x örüyoruz")).toEqual(["in BLO"]);
+    expect(spansOf("Bu sırayı FLO’dan örüyoruz.")).toEqual(["Work in"]);
     expect(spansOf("Sonra 6dc örüyoruz.")).toEqual([]);
   });
 });
@@ -2185,8 +2194,11 @@ describe("deterministic span carrier: neutral leg templates (Task 23G)", () => {
     expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
   });
 
-  it("leaves the round-sensitive leg sentences off the carrier", () => {
-    expect(spansOf("✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.")).toEqual([]);
+  it("carries the leg sentences exactly as rendered, round wording included (Task 24A)", () => {
+    expect(spansOf("✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.")).toEqual([
+      [2, 35, "On the second leg, work the first"],
+      [39, 61, "rounds in the same way"],
+    ]);
     expect(normalizeSourceNaturalLanguage("✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.", "en")).toBe(
       "✦ On the second leg, work the first 51 rounds in the same way.",
     );
@@ -2194,7 +2206,12 @@ describe("deterministic span carrier: neutral leg templates (Task 23G)", () => {
       spansOf(
         "1) 26x(ilk bacak), 3x (zincir üstü), 26x (ikinci bacak), 3x (zincir üstü) ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak = 58x",
       ),
-    ).toEqual([]);
+    ).toEqual([
+      [8, 19, "(first leg)"],
+      [25, 42, "(along the chain)"],
+      [49, 61, "(second leg)"],
+      [67, 84, "(along the chain)"],
+    ]);
   });
 });
 
@@ -2230,14 +2247,19 @@ describe("deterministic span carrier: ch/skip fragment (Task 23H)", () => {
     expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
   });
 
-  it("leaves the round-worded chain/skip sentence off the carrier", () => {
+  it("carries the words of the round-worded chain/skip sentence, counts outside (Task 24A)", () => {
     const source =
       "3 zincir, 2x atla, sıradaki sık iğneye 1x, bu şekilde sıra sonuna kadar devam ediyoruz.";
     const result = normalizeSourceNaturalLanguageDetailed(source, "en");
     expect(result.text).toBe(
       "Ch 3, skip 2 sts, work 1sc in the next single crochet. Continue in this way to the end of the round.",
     );
-    expect(result.deterministicSpans).toEqual([]);
+    expect(result.deterministicSpans.map(({ text }) => text)).toEqual([
+      "Ch",
+      ", skip",
+      "sts, work",
+      "in the next single crochet. Continue in this way to the end of the round.",
+    ]);
   });
 });
 

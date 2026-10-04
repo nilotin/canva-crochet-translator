@@ -9,6 +9,8 @@ import { validateTranslation } from "../validator.js";
 import { reservedPlaceholder } from "../notation/immutable.js";
 import { extractSourceAtomicNaturalLanguageSpans } from "../natural_language/atomic_spans.js";
 import { normalizeTranslationStyle } from "../natural_language/style_normalizer.js";
+import { normalizeSourceNaturalLanguageDetailed } from "../natural_language/normalizer.js";
+import { loadCorpus } from "./corpus/load_corpus.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -6933,7 +6935,7 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
     expect(paraphrased?.translated).toContain("EDGE");
   });
 
-  it("leaves second-chain and numeric-ordinal forms provider-exposed as before", async () => {
+  it("carries second-chain wording (Task 24A); a block-leading numeric ordinal stays as before (blocker #3)", async () => {
     const second = new InspectingProvider();
     const [secondResult] = await translateBlocks(
       [{ id: "second-chain", text: "ikinci zincirden itibaren 5x" }],
@@ -6941,7 +6943,7 @@ describe("deterministic span carrier keeps word-ordinal chain start out of provi
       { provider: second },
     );
     expect(secondResult?.translated).toBe("Starting from the second chain, 5sc");
-    expect(second.protectedTexts).toEqual(["Starting from the second chain"]);
+    expect(second.protectedTexts).toEqual([]);
 
     const numeric = new InspectingProvider();
     const [numericResult] = await translateBlocks(
@@ -7565,11 +7567,11 @@ describe("neutral leg templates have one owner: normalizer + carrier (Task 23G)"
     }
   });
 
-  it("leaves the round-sensitive leg sentences as before", async () => {
+  it("carries the leg sentence exactly as rendered, so it needs no provider (Task 24A)", async () => {
     const provider = new InspectingProvider();
     const result = await translate(provider, "✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.");
     expect(result?.translated).toBe("✦ On the second leg, work the first 51 rounds in the same way.");
-    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(provider.requests).toHaveLength(0);
   });
 
   it("the validator still checks stitch and chain counts beside the carried words", () => {
@@ -8151,5 +8153,139 @@ describe("brands holding tracking sentinels stay exact source data on every intr
     const result = await translate(text, new InspectingProvider());
     expect(result?.translated).toBe("\uE001 Not: Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Sonra \uE003");
     expect(result?.valid).toBe(true);
+  });
+});
+
+describe("normalizer-rendered crochet English never reaches the provider (Task 24A)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  // Flips every crochet meaning it can find, and rewrites the free Turkish prose ("kenarı").
+  const hostile = (text: string) =>
+    text
+      .replace(/\brounds?\b/gu, (word) => word.replace("round", "row")).replace(/\brow(s?)\b(?!X)/gu, "round$1")
+      .replace(/\bturn\b/gu, "do not turn").replace(/\bjoin\b/giu, "separate").replace(/cut the yarn/gu, "keep the yarn")
+      .replace(/\bAttach\b/gu, "Remove").replace(/\bskip\b/giu, "work").replace(/single crochet/gu, "double crochet")
+      .replace(/beginning/gu, "end").replace(/place a stitch marker/gu, "remove the stitch marker")
+      .replace(/\bFLO\b/gu, "BLO").replace(/\bleg\b/gu, "arm").replace(/\bCh\b/gu, "Sl st").replace(/\bch\b/gu, "sl st")
+      .replace(/kenarı/giu, "EDGE");
+  const translate = async (text: string, provider: InspectingProvider) =>
+    (await translateBlocks([{ id: "carried-24a", text }], "en", { provider }))[0];
+
+  // Renderings that stay provider-owned on purpose: word-level fallbacks inside
+  // a Turkish sentence the provider translates, and tool intros whose yarn
+  // description is not a mapped colour (Task 23J).
+  const PROVIDER_OWNED_RENDERINGS = [
+    /\biki\s+zincir\b/iu,
+    /\d+\s*x\s+sayıyoruz\b/iu,
+    /\d+\s*x(?:\s*[’']\s*in)?\s+üzerinden\b/iu,
+    /\d+\s*x\s+uzunluğunda/iu,
+    /aralarında\s+\d+\s*x\s+kalacak/iu,
+    /gözden\s+\d+\s+sıra\s+üzerinden/iu,
+    /gözleri\s+(?:takacağız|yerleştirebiliriz)/iu,
+    /numara\s+tığ\s*,\s*(?:pamuk|simli)/iu,
+  ];
+  const families: [string, string][] = [
+    ["course-end join", "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz ve kenarı dikiyoruz."],
+    ["course-end join after prose", "Kenarı dikiyoruz. Sıra sonlarında cc ile birleştirip, 2 zincir çekip bir üst sıraya geçiyoruz."],
+    ["course-end join numbered", "5) Siyah ip (catania 110) ile başlıyoruz. Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz."],
+    ["join to the start", "1) 45x örüyoruz. Başlangıç noktamıza cc ile birleştiriyoruz ve kenarı dikiyoruz."],
+    ["turning row", "1) 28x örüyoruz, 1 zincir çekip dönüyoruz. Bütün sıra sonlarında 1 zincir çekip dönüyoruz.\n2) 5 sıra 16x\n3) Kenarı dikiyoruz."],
+    ["ch and turn in prose", "Sıra sonunda 1 zincir çekip dönüyoruz ve kenarı dikiyoruz."],
+    ["sl st into the next sc", "1x atla, sıradaki sık iğneye cc ve kenarı dikiyoruz."],
+    ["repeated sl st", "(1 zincir, sıradaki sık iğneye cc)*6 ve kenarı dikiyoruz."],
+    ["attach yarn mixed", "Görselde görüldüğü gibi 5. sırada Flo’dan ördüğümüz sık iğnelerin Blo’sundan yeşil ipimizi sabitliyoruz. Kenarı dikiyoruz."],
+    ["attach yarn next to the leg", "Birinci bacağın bittiği yerin yanındaki ilk sık iğneden ipimizi sabitliyoruz ve kenarı dikiyoruz."],
+    ["marker with notation", "1) Sihirli halka içine 6x , Başlangıç noktamız burası olacak. İşaretleyiciyi buraya takıyoruz. Kenarı dikiyoruz."],
+    ["marker alone", "Burası başlangıç noktamız olacak; işaretleyicimizi buraya takıyoruz ve kenarı dikiyoruz."],
+    ["cut the yarn", "48) 24x örüyoruz, 1 zincir çekip ipimizi kesiyoruz ve kenarı dikiyoruz."],
+    ["round end cut", "Sıra sonuna geldiğimizde 1 zincir çekip ipimizi kesiyoruz ve kenarı dikiyoruz."],
+    ["continue without cutting", "66x örüyoruz ipimizi kesmeden saç telleri ile devam ediyoruz ve kenarı dikiyoruz."],
+    ["numeric ordinal already recognized", "1) 8 zincir çekip dönüyoruz. 3. zincirden itibaren 6x ve kenarı dikiyoruz."],
+    ["ch/skip leftovers", "12 zincir çekip geriye dönüyoruz. 4 zincir atlıyoruz. 3. zincirden itibaren 18x. zincir üzerine 5x ve kenarı dikiyoruz."],
+    ["course count in a mixed block", "2-5) 4 sıra 12x\n6) Kenarı dikiyoruz."],
+    ["second leg", "✦ İkinci bacakta da ilk 5 sırayı aynı şekilde örüyoruz ve kenarı dikiyoruz."],
+  ];
+
+  it.each(families)("%s: a hostile provider can rewrite only the free prose", async (_name, text) => {
+    const echoed = await translate(text, new InspectingProvider());
+    expect(echoed?.valid).toBe(true);
+    const provider = new RewritingProvider(hostile);
+    const rewritten = await translate(text, provider);
+    // Every carried meaning survives byte-exactly; only "kenarı" (free prose) changed.
+    expect(rewritten?.translated).toBe(echoed?.translated.replace(/kenarı/giu, "EDGE"));
+    expect(rewritten?.valid).toBe(true);
+    if (/kenarı/iu.test(text)) expect(provider.protectedTexts.join(" ")).toMatch(/kenarı/iu);
+  });
+
+  it.each(families)("%s: an empty or placeholder-dropping provider cannot remove carried English", async (_name, text) => {
+    const echoed = await translate(text, new InspectingProvider());
+    const carried = (await import("../natural_language/normalizer.js"))
+      .normalizeSourceNaturalLanguageDetailed(text, "en")
+      .deterministicSpans.map(({ text: span }) => span);
+    for (const rewrite of [() => "", (output: string) => output.replace(/__XQ[A-Z]+QX__\s?/gu, "")]) {
+      const result = await translate(text, new RewritingProvider(rewrite));
+      // Either the result is rejected, or every carried phrase is still there.
+      if (result?.valid) for (const span of carried) expect(result.translated, span).toContain(span);
+    }
+    expect(echoed?.valid).toBe(true);
+  });
+
+  it("keeps the normalizer's row or round exactly as rendered", async () => {
+    const row = await translate("1) 28x örüyoruz, 1 zincir çekip dönüyoruz. Bütün sıra sonlarında 1 zincir çekip dönüyoruz. Kenarı dikiyoruz.", new RewritingProvider(hostile));
+    expect(row?.translated).toContain("At the end of each row, ch 1 and turn.");
+    const round = await translate("Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz ve kenarı dikiyoruz.", new RewritingProvider(hostile));
+    expect(round?.translated).toContain("At the end of each round, join with sl st, ch 1, and continue to the next round");
+  });
+
+  it("leaves word-level fallbacks inside provider-owned Turkish prose provider-owned", async () => {
+    const provider = new InspectingProvider();
+    await translate("Sıra sonlarında iki zincir çekip bir üst sıraya geçiyoruz.", provider);
+    // "two chains" is a word substitution inside a Turkish sentence: carrying it would only fragment that sentence.
+    expect(provider.protectedTexts).toEqual(["Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz."]);
+  });
+
+  it("ratchet: no provider block holds English the normalizer recorded as deterministic", async () => {
+    const requests = [
+      ...loadCorpus().executable.map(({ value }) => value.request),
+      ...families.map(([, text]) => ({ blocks: [{ id: "family", text }], targetLanguage: "en" as const })),
+    ];
+    for (const request of requests) {
+      if (request.targetLanguage !== "en") continue;
+      const provider = new InspectingProvider();
+      await translateBlocks(structuredClone(request.blocks) as Parameters<typeof translateBlocks>[0], "en", {
+        provider,
+        ...("contentKind" in request && request.contentKind ? { contentKind: request.contentKind } : {}),
+      });
+      const sent = provider.protectedTexts.join("\n");
+      const source = request.blocks.map(({ text }) => text).join("\n");
+      const sourceWords = new Set(source.match(/[A-Za-z]{3,}/gu) ?? []);
+      for (const block of request.blocks) {
+        for (const line of block.text.split("\n")) {
+          const normalization = normalizeSourceNaturalLanguageDetailed(line, "en");
+          // 1. No recorded deterministic span is sent.
+          for (const { text } of normalization.deterministicSpans) {
+            if (text.length < 3 || !/\p{L}{3}/u.test(text)) continue;
+            expect(sent, `${JSON.stringify(text)} from ${JSON.stringify(line)}`).not.toContain(text);
+          }
+          // 2. Independently of marks: no English word the normalizer introduced is
+          // sent, unless the line is one of the documented provider-owned shapes.
+          if (PROVIDER_OWNED_RENDERINGS.some((shape) => shape.test(line))) continue;
+          for (const word of new Set(normalization.text.match(/[A-Za-z]{3,}/gu) ?? [])) {
+            if (sourceWords.has(word)) continue;
+            expect(sent, `${JSON.stringify(word)} rendered from ${JSON.stringify(line)}`).not.toMatch(
+              new RegExp(`(?<![A-Za-z])${word}(?![A-Za-z])`, "u"),
+            );
+          }
+        }
+      }
+    }
   });
 });

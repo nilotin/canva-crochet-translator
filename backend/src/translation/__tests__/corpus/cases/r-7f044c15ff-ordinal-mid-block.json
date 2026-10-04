@@ -68,20 +68,16 @@
         "blockIds": [
           "span-0",
           "span-1",
-          "span-2",
-          "span-3",
-          "span-4"
+          "span-2"
         ],
         "blockTexts": [
           "Görselde görüldüğü gibi birinci parçanın bittiği yerden",
           "sayıp atlıyoruz.",
-          ". sık iğneye ipimizi sabitliyoruz.\nAt the end of each row",
-          "ch",
-          "and turn."
+          ". sık iğneye ipimizi sabitliyoruz."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "19b96c15915e2c428132a60459428e0e36603222565f76a6cee13790d4f91008"
+        "userPromptSha256": "f2e7b6247b51770aab52d84845e4017f8c22b013402fd5b416c476d73dbe3bcd"
       }
     ]
   }

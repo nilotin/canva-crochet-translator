@@ -14,11 +14,11 @@
       }
     ]
   },
-  "id": "h-a8fd99106a-sa2f41438-siyah-ip-catania-110",
+  "id": "h-a8fd99106a-sa3fece60-siyah-ip-catania-110",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -27,28 +27,16 @@
       "file": "src/translation/__tests__/translator.test.ts",
       "kind": "test",
       "test": "crochet instruction phrasing > normalizes yarn start and round-end joining through the full pipeline"
+    },
+    {
+      "callIndex": 28,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": ". At the end of each round",
-        "translated": ". At the end of each round"
-      },
-      {
-        "source": "and continue to the next round.",
-        "translated": "and continue to the next round."
-      },
-      {
-        "source": "ch",
-        "translated": "ch"
-      },
-      {
-        "source": "join with",
-        "translated": "join with"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -78,24 +66,6 @@
         ]
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2",
-          "span-3"
-        ],
-        "blockTexts": [
-          ". At the end of each round",
-          "join with",
-          "ch",
-          "and continue to the next round."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "834be2eefa3d60023da7c924351d5a5ccddf602b59a34aab1f9b6e41bb8c6bf3"
-      }
-    ]
+    "providerCalls": []
   }
 }

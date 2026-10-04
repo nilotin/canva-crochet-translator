@@ -457,11 +457,11 @@
       }
     ]
   },
-  "id": "h-39c84d7844-sdffd8db3-2-20-numara-tig",
+  "id": "h-39c84d7844-sb1350349-2-20-numara-tig",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -470,20 +470,16 @@
       "file": "src/translation/__tests__/translator.test.ts",
       "kind": "test",
       "test": "crochet instruction phrasing > canonicalizes the hook intro and warns about literal ambiguous notation in the formatted full block"
+    },
+    {
+      "callIndex": 15,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": ". This will be the beginning of the round",
-        "translated": ". This will be the beginning of the round"
-      },
-      {
-        "source": "place a stitch marker here.",
-        "translated": "place a stitch marker here."
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -731,20 +727,6 @@
         ]
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1"
-        ],
-        "blockTexts": [
-          ". This will be the beginning of the round",
-          "place a stitch marker here."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "71bba21896ebd98ab00be85ddee5872935aa59b6a11139fd1aa5aa912dd74801"
-      }
-    ]
+    "providerCalls": []
   }
 }

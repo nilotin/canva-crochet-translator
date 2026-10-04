@@ -140,9 +140,11 @@ export const renderEnglishBareRoundCountLine = (
   source: BareRoundCountSourceLine,
   stitchNotation: "x" | "sc",
   unit: CrochetCountUnit = "round",
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string => {
   const unitWord = crochetCountUnitWord(source.rounds, unit);
-  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${unitWord}${source.suffix}`;
+  return `${source.prefix}${source.stitches}${stitchNotation} ${carry("for")} ${source.rounds} ${carry(unitWord)}${source.suffix}`;
 };
 
 const captureSpan = (
@@ -267,16 +269,18 @@ export const renderEnglishRoundCountTrailingActionSpan = (
   source: RoundCountTrailingActionSourceSpan,
   stitchNotation: "x" | "sc",
   unit: CrochetCountUnit = "round",
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string => {
   const unitWord = crochetCountUnitWord(source.rounds, unit);
   const core =
-    `${source.prefix}${source.stitches}${stitchNotation} for ` +
-    `${source.rounds} ${unitWord}, ch ${source.chains}`;
+    `${source.prefix}${source.stitches}${stitchNotation} ${carry("for")} ` +
+    `${source.rounds} ${carry(`${unitWord}, ch`)} ${source.chains}`;
 
   const action =
     source.kind === "buttonhole_chain"
-      ? " (buttonhole)"
-      : " and cut the yarn.";
+      ? ` ${carry("(buttonhole)")}`
+      : ` ${carry("and cut the yarn.")}`;
 
   return `${core}${action}${source.suffix}`;
 };
@@ -399,9 +403,11 @@ export const renderEnglishRoundCountYarnCutSpan = (
   source: RoundCountYarnCutSourceSpan,
   stitchNotation: "x" | "sc",
   unit: CrochetCountUnit = "round",
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string => {
   const unitWord = crochetCountUnitWord(source.rounds, unit);
-  return `${source.prefix}${source.stitches}${stitchNotation} for ${source.rounds} ${unitWord} — cut the yarn.${source.suffix}`;
+  return `${source.prefix}${source.stitches}${stitchNotation} ${carry("for")} ${source.rounds} ${carry(`${unitWord} — cut the yarn.`)}${source.suffix}`;
 };
 
 export const normalizeRoundCountYarnCutSourceSpans = (
@@ -521,15 +527,19 @@ export const scanWrittenChainCutSourceSpans = (
 export const renderEnglishWrittenChainCutSpan = (
   source: CourseCountClauseSource,
   unit: CrochetCountUnit,
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string =>
-  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}sc. Ch 1 and cut the yarn${source.suffix}`;
+  `${source.prefix}${source.rounds} ${carry(`${crochetCountUnitWord(source.rounds, unit)},`)} ${source.stitches}sc. ${carry("Ch 1 and cut the yarn")}${source.suffix}`;
 
 export const renderEnglishArmJoiningSpan = (
   source: CourseCountClauseSource,
   stitchNotation: "x" | "sc",
   unit: CrochetCountUnit,
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string =>
-  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}${stitchNotation}. Without cutting the yarn, continue by joining the arms${source.suffix}`;
+  `${source.prefix}${source.rounds} ${carry(`${crochetCountUnitWord(source.rounds, unit)},`)} ${source.stitches}${stitchNotation}. ${carry("Without cutting the yarn, continue by joining the arms")}${source.suffix}`;
 
 /**
  * "Mx, K zincir çekip ipimizi kesiyoruz": a compact chain-cut the normalizer
@@ -566,8 +576,10 @@ export const renderEnglishGenericCourseCountSpan = (
   source: CourseCountClauseSource,
   stitchNotation: "x" | "sc",
   unit: CrochetCountUnit,
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string =>
-  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches}${stitchNotation}${source.suffix}`;
+  `${source.prefix}${source.rounds} ${carry(`${crochetCountUnitWord(source.rounds, unit)},`)} ${source.stitches}${stitchNotation}${source.suffix}`;
 
 const WORKED_CHAIN_CUT_SOURCE_PATTERN =
   /((?:\d+(?:-\d+)?\)\s*)?)(\d+)\s+sıra\s+(\d+)\s*x\s+örüyoruz\s*,\s*(\d+)\s+zincir\s+çekip\s+ipimizi\s+kesiyoruz\b/giu;
@@ -591,8 +603,10 @@ export const scanWorkedChainCutSourceSpans = (
 export const renderEnglishWorkedChainCutSpan = (
   source: WorkedChainCutSource,
   unit: CrochetCountUnit,
+  /** Marks deterministic English for the normalizer's carrier; identity elsewhere. */
+  carry: (text: string) => string = (text) => text,
 ): string =>
-  `${source.prefix}${source.rounds} ${crochetCountUnitWord(source.rounds, unit)}, ${source.stitches} sc. Ch ${source.chains} and cut the yarn${source.suffix}`;
+  `${source.prefix}${source.rounds} ${carry(`${crochetCountUnitWord(source.rounds, unit)},`)} ${source.stitches} ${carry("sc. Ch")} ${source.chains} ${carry("and cut the yarn")}${source.suffix}`;
 
 /** Parses one whole line with a line-anchored clause pattern (arm-joining, written-chain). */
 export const parseCourseCountClauseLine = (

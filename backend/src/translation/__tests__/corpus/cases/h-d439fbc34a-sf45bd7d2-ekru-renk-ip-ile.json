@@ -43,7 +43,7 @@
       }
     ]
   },
-  "id": "h-d439fbc34a-s686d62b2-ekru-renk-ip-ile",
+  "id": "h-d439fbc34a-sf45bd7d2-ekru-renk-ip-ile",
   "labels": {
     "families": [],
     "hazards": [],
@@ -56,41 +56,23 @@
       "file": "src/translation/__tests__/translator.test.ts",
       "kind": "test",
       "test": "crochet instruction phrasing > normalizes Page 8 leg and body instructions through the full pipeline"
+    },
+    {
+      "callIndex": 34,
+      "file": "src/translation/__tests__/translator.test.ts",
+      "kind": "test",
+      "test": "normalizer-rendered crochet English never reaches the provider (Task 24A) > ratchet: no provider block holds English the normalizer recorded as deterministic"
     }
   ],
   "provider": {
     "entries": [
       {
-        "source": "On the second leg",
-        "translated": "On the second leg"
-      },
-      {
-        "source": "along the chain",
-        "translated": "along the chain"
-      },
-      {
-        "source": "first leg",
-        "translated": "first leg"
-      },
-      {
         "source": "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak",
         "translated": "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak"
       },
       {
-        "source": "rounds in the same way.",
-        "translated": "rounds in the same way."
-      },
-      {
         "source": "sc",
         "translated": "sc"
-      },
-      {
-        "source": "second leg",
-        "translated": "second leg"
-      },
-      {
-        "source": "work the first",
-        "translated": "work the first"
       }
     ],
     "mode": "oracle"
@@ -155,43 +137,20 @@
         "blockIds": [
           "span-0",
           "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "On the second leg",
-          "work the first",
-          "rounds in the same way."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "cdbd96b53391d780b36018b68926045b57405b0f11fe47d6db4001b9bcf3bd9a"
-      },
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
           "span-2",
           "span-3",
-          "span-4",
-          "span-5",
-          "span-6",
-          "span-7",
-          "span-8"
+          "span-4"
         ],
         "blockTexts": [
           "sc",
-          "first leg",
           "sc",
-          "along the chain",
           "sc",
-          "second leg",
           "sc",
-          "along the chain",
           "ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak"
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "3545590c33344fa8730f3c0ffe0c3e43b9ae1724955174dd8d25188ec47523a7"
+        "userPromptSha256": "1fbd3be352ecb77fced69f0c75bed9626b5ede59a09096bcfdadf8e37f080f9f"
       }
     ]
   }
