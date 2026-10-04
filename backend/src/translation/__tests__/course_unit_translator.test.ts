@@ -738,7 +738,8 @@ describe("generic course-count resolver ownership (Task 14H)", () => {
     const resolver = vi.fn(() => "row" as const);
     const source = "13) 5 sıra 16x, 1 zincir çekip ipimizi kesiyoruz, sonra dikiyoruz.";
     expect(normalizeSourceNaturalLanguageDetailed(source, "en", "pattern", source, 0,
-      { resolveCourseUnit: resolver }).text).toBe("13) 5 sıra 16sc. Ch 1 and cut the yarn, sonra dikiyoruz.");
+      // The count stays notation in the normalizer output ("16sc" after reconstruction, Task 23G).
+      { resolveCourseUnit: resolver }).text).toBe("13) 5 sıra 16x. Ch 1 and cut the yarn, sonra dikiyoruz.");
     expect(resolver).not.toHaveBeenCalled();
   });
 

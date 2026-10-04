@@ -43,7 +43,7 @@
       }
     ]
   },
-  "id": "h-d439fbc34a-sf1556f01-ekru-renk-ip-ile",
+  "id": "h-d439fbc34a-s686d62b2-ekru-renk-ip-ile",
   "labels": {
     "families": [],
     "hazards": [],
@@ -61,48 +61,12 @@
   "provider": {
     "entries": [
       {
-        "source": "Cut the orange yarn.",
-        "translated": "Cut the orange yarn."
-      },
-      {
-        "source": "For me",
-        "translated": "For me"
-      },
-      {
-        "source": "From the second leg",
-        "translated": "From the second leg"
-      },
-      {
         "source": "On the second leg",
         "translated": "On the second leg"
       },
       {
-        "source": "With ecru yarn",
-        "translated": "With ecru yarn"
-      },
-      {
-        "source": "Work",
-        "translated": "Work"
-      },
-      {
         "source": "along the chain",
         "translated": "along the chain"
-      },
-      {
-        "source": "and cut the yarn.",
-        "translated": "and cut the yarn."
-      },
-      {
-        "source": "and join to the first leg with the backs of the legs facing you.",
-        "translated": "and join to the first leg with the backs of the legs facing you."
-      },
-      {
-        "source": "ch",
-        "translated": "ch"
-      },
-      {
-        "source": "fewer or additional single crochet stitches to reach the center.",
-        "translated": "fewer or additional single crochet stitches to reach the center."
       },
       {
         "source": "first leg",
@@ -121,24 +85,8 @@
         "translated": "sc"
       },
       {
-        "source": "sc. Ch",
-        "translated": "sc. Ch"
-      },
-      {
         "source": "second leg",
         "translated": "second leg"
-      },
-      {
-        "source": "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align",
-        "translated": "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align"
-      },
-      {
-        "source": "then continue with the body without cutting the yarn.",
-        "translated": "then continue with the body without cutting the yarn."
-      },
-      {
-        "source": "work",
-        "translated": "work"
       },
       {
         "source": "work the first",
@@ -207,71 +155,16 @@
         "blockIds": [
           "span-0",
           "span-1",
-          "span-2",
-          "span-3"
-        ],
-        "blockTexts": [
-          "With ecru yarn",
-          "Cut the orange yarn.",
-          "sc. Ch",
-          "and cut the yarn."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "81965ba7111efa7af2dea5a30b311b17ecf0a9d0f52daa437270493162599b7e"
-      },
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2",
-          "span-3",
-          "span-4",
-          "span-5"
+          "span-2"
         ],
         "blockTexts": [
           "On the second leg",
           "work the first",
-          "rounds in the same way.",
-          "Work",
-          "sc",
-          "then continue with the body without cutting the yarn."
+          "rounds in the same way."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "3aa66073b71d7a6ba3e9d7ca08cf4924e524f43127f4de1d6b55cf1d1f2fc1b5"
-      },
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2",
-          "span-3"
-        ],
-        "blockTexts": [
-          "For me",
-          "the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align",
-          "work",
-          "fewer or additional single crochet stitches to reach the center."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "8a172f36c7e8f753c2ba5cf8f56c7f085b9931d34ffabbe38fe707859cce48b4"
-      },
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "From the second leg",
-          "ch",
-          "and join to the first leg with the backs of the legs facing you."
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "561d388ca50c473e3c9b5cead8bf3445f152d898293587037bc231782039016c"
+        "userPromptSha256": "cdbd96b53391d780b36018b68926045b57405b0f11fe47d6db4001b9bcf3bd9a"
       },
       {
         "blockIds": [

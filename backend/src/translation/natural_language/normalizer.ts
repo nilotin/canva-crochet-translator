@@ -344,7 +344,11 @@ const normalizeEnglishCrochetStructures = (
         marker: string,
         stitches: string,
         chains: string,
-      ) => `${marker}${stitches}sc. Ch ${chains} and cut the yarn`,
+      ) =>
+        // Counts stay notation/numbers; only the English words are carried.
+        `${marker}${stitches}x. ${recordDeterministicSpan("Ch")} ${chains} ${recordDeterministicSpan(
+          "and cut the yarn",
+        )}`,
     )
     .replace(
       /\b(\d+)\.\s*sıranın\s+sonunda\s+(\d+)\s+zincir\s*\(\s*düğme\s+iliği\s*\)\s*dön\b/giu,
@@ -741,7 +745,7 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /\bekru\s+renk\s+ip\s+ile\s*[;:]?\s*\(\s*turuncu\s+ipimizi\s+kesiyoruz\s*[.]?\s*\)/giu,
-      "With ecru yarn: (Cut the orange yarn.)",
+      () => recordDeterministicSpan("With ecru yarn: (Cut the orange yarn.)"),
     )
     .replace(
       /\bekru\s+renk\s+ip\s+ile\b/giu,
@@ -772,17 +776,25 @@ const normalizeEnglishCrochetStructures = (
     .replace(
       /\b(\d+)\s*x\s+örüyoruz\s*[,，]\s*ipimizi\s+kesmeden\s+gövde\s+ile\s+devam\s+ediyoruz\b/giu,
       (_match, stitches: string) =>
-        `Work ${stitches}sc, then continue with the body without cutting the yarn`,
+        `${recordDeterministicSpan("Work")} ${stitches}x, ${recordDeterministicSpan(
+          "then continue with the body without cutting the yarn",
+        )}`,
     )
     .replace(
       /\bbende\s+her\s+iki\s+bacağın\s+bitiş\s+noktası\s+bacağın\s+iç\s+kısmının\s+ortasına\s+denk\s+geldi[.]\s*sizde\s+denk\s+gelmiyorsa\s+(\d+)-(\d+)\s+sık\s+iğne\s+eksik\s+ya\s+da\s+fazla\s+örerek\s+orta\s+noktaya\s+gelin\b/giu,
       (_match, min: string, max: string) =>
-        `For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work ${min}-${max} fewer or additional single crochet stitches to reach the center`,
+        `${recordDeterministicSpan(
+          "For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work",
+        )} ${min}-${max} ${recordDeterministicSpan(
+          "fewer or additional single crochet stitches to reach the center",
+        )}`,
     )
     .replace(
       /(?<!\p{L})[iİ]kinci\s+bacaktan\s+(\d+)\s+zincir\s+ile\s+bacakların\s+arka\s+tarafı\s+bize\s+dönük\s+olacak\s+şekilde\s+ilk\s+bacak\s+ile\s+birleştiriyoruz(?!\p{L})/giu,
       (_match, chains: string) =>
-        `From the second leg, ch ${chains} and join to the first leg with the backs of the legs facing you`,
+        `${recordDeterministicSpan("From the second leg, ch")} ${chains} ${recordDeterministicSpan(
+          "and join to the first leg with the backs of the legs facing you",
+        )}`,
     )
     .replace(
       /(\d+)\s*x\s*\(\s*ilk\s+bacak\s*\)/giu,

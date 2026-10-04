@@ -7461,3 +7461,108 @@ describe("magic ring and hair continuation have one owner: normalizer + carrier 
     expect(validateTranslation(source, `12) 65sc. ${hair}.`, "en", options).valid).toBe(false);
   });
 });
+
+describe("neutral leg templates have one owner: normalizer + carrier (Task 23G)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text
+        .replace(/\bleg\b/gu, "arm")
+        .replace(/\bch\b|\bCh\b/gu, "chain")
+        .replace(/cut the yarn|cutting the yarn/gu, "keep the thread")
+        .replace(/\bWork\b|\bwork\b/gu, "Skip")
+        .replace(/ecru/gu, "navy")
+        .replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string) =>
+    (await translateBlocks([{ id: "leg", text }], "en", { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+  const join = "From the second leg, ch 3 and join to the first leg with the backs of the legs facing you";
+  const align =
+    "For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center";
+  const sources = {
+    yarn: "✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)",
+    cut: "52) 24x, 1 zincir çekip ipimizi kesiyoruz.",
+    join: "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+    align:
+      "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+    body: "53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+  };
+
+  it.each([
+    [sources.yarn, "✦ With ecru yarn: (Cut the orange yarn.)"],
+    [sources.cut, "52) 24sc. Ch 1 and cut the yarn."],
+    [sources.join, `✦ ${join}.`],
+    [sources.align, `✦ ${align}.`],
+    [sources.body, "53) Work 12sc, then continue with the body without cutting the yarn."],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      expect(await translate(provider, text)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    [`${sources.yarn} ve kenarı dikiyoruz.`, "With ecru yarn: (Cut the orange yarn.)", ["ve kenarı dikiyoruz."]],
+    ["Kenarı dikip. 24x, 1 zincir çekip ipimizi kesiyoruz.", "24sc. Ch 1 and cut the yarn.", ["Kenarı dikip."]],
+    [sources.cut.replace(/\.$/u, " ve kenarı dikiyoruz."), "52) 24sc. Ch 1 and cut the yarn", ["ve kenarı dikiyoruz."]],
+    [sources.join.replace(/\.$/u, " ve kenarı dikiyoruz."), join, ["ve kenarı dikiyoruz."]],
+    [`Kenarı dikip, ${sources.join.slice(2).replace(/^İ/u, "i")}`, join, ["Kenarı dikip"]],
+    [sources.align.replace(/\.$/u, " ve kenarı dikiyoruz."), align, ["ve kenarı dikiyoruz."]],
+    ["Kenarı dikip. 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.", "Work 12sc, then continue with the body without cutting the yarn.", ["Kenarı dikip."]],
+    [sources.body.replace(/\.$/u, " ve kenarı dikiyoruz."), "53) Work 12sc, then continue with the body without cutting the yarn", ["ve kenarı dikiyoruz."]],
+    // The same English already in the source stays provider text.
+    [`From the second leg, kenarı dikip. ${sources.join.slice(2)}`, join, ["From the second leg", "kenarı dikip."]],
+  ])("a mixed line %s offers only its prose to the provider", async (text, carried, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(occurrences(echoed?.translated, carried)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      expect(occurrences(result?.translated, carried)).toBe(1);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    // The surrounding prose is still provider-owned.
+    expect((await translate(new RewritingProvider(hostile.rewrite), text))?.translated).toMatch(/EDGE/u);
+  });
+
+  it("only the compact chain-cut line is atomically covered, so only its style rule stays a bypass renderer", () => {
+    expect(extractSourceAtomicNaturalLanguageSpans(sources.cut)).not.toEqual([]);
+    for (const text of [sources.yarn, sources.join, sources.align, sources.body]) {
+      expect(extractSourceAtomicNaturalLanguageSpans(text)).toEqual([]);
+    }
+  });
+
+  it("leaves the round-sensitive leg sentences as before", async () => {
+    const provider = new InspectingProvider();
+    const result = await translate(provider, "✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.");
+    expect(result?.translated).toBe("✦ On the second leg, work the first 51 rounds in the same way.");
+    expect(provider.requests.length).toBeGreaterThan(0);
+  });
+
+  it("the validator still checks stitch and chain counts beside the carried words", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const valid = (source: string, target: string) => validateTranslation(source, target, "en", options).valid;
+    expect(valid(sources.cut, "52) 24sc. Ch 1 and cut the yarn.")).toBe(true);
+    expect(valid(sources.cut, "52) 23sc. Ch 1 and cut the yarn.")).toBe(false);
+    expect(valid(sources.cut, "52) 24sc. Ch 2 and cut the yarn.")).toBe(false);
+    expect(valid(sources.join, `✦ ${join}.`)).toBe(true);
+    expect(valid(sources.join, `✦ ${join.replace("ch 3", "ch 4")}.`)).toBe(false);
+    expect(valid(sources.body, "53) Work 12sc, then continue with the body without cutting the yarn.")).toBe(true);
+    expect(valid(sources.body, "53) Work 11sc, then continue with the body without cutting the yarn.")).toBe(false);
+  });
+});

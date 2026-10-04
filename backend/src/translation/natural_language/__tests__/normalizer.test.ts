@@ -735,7 +735,8 @@ describe("normalizeSourceNaturalLanguage", () => {
         "52) 24x, 1 zincir çekip ipimizi kesiyoruz.",
         "en",
       ),
-    ).toBe("52) 24sc. Ch 1 and cut the yarn.");
+      // The count stays notation ("24sc" after reconstruction, Task 23G).
+    ).toBe("52) 24x. Ch 1 and cut the yarn.");
   });
 
   it("normalizes a yarn-color heading that also cuts the orange yarn", () => {
@@ -1040,7 +1041,8 @@ describe("normalizeSourceNaturalLanguage", () => {
     ],
     [
       "12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
-      "Work 12sc, then continue with the body without cutting the yarn.",
+      // The count stays notation ("12sc" after reconstruction, Task 23G).
+      "Work 12x, then continue with the body without cutting the yarn.",
     ],
   ])("normalizes reusable second-leg continuation phrasing: %s", (source, expected) => {
     expect(normalizeSourceNaturalLanguage(source, "en")).toBe(expected);
@@ -2141,5 +2143,54 @@ describe("deterministic span carrier: hair continuation (Task 23F)", () => {
       expect(result.text.slice(span.start, span.end)).toBe(span.text);
     }
     expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
+  });
+});
+
+describe("deterministic span carrier: neutral leg templates (Task 23G)", () => {
+  const spansOf = (source: string) =>
+    normalizeSourceNaturalLanguageDetailed(source, "en").deterministicSpans.map(({ start, end, text }) => [start, end, text]);
+  const align =
+    "For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work";
+
+  it.each([
+    ["✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)", [[2, 40, "With ecru yarn: (Cut the orange yarn.)"]]],
+    ["52) 24x, 1 zincir çekip ipimizi kesiyoruz.", [[9, 11, "Ch"], [14, 30, "and cut the yarn"]]],
+    [
+      "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+      [[2, 25, "From the second leg, ch"], [28, 91, "and join to the first leg with the backs of the legs facing you"]],
+    ],
+    [
+      "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+      [[2, 127, align], [132, 195, "fewer or additional single crochet stitches to reach the center"]],
+    ],
+    [
+      "53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+      [[4, 8, "Work"], [14, 66, "then continue with the body without cutting the yarn"]],
+    ],
+    // Earlier identical English from the source is never carried.
+    [
+      "From the second leg, kenarı dikip. İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
+      [[35, 58, "From the second leg, ch"], [61, 124, "and join to the first leg with the backs of the legs facing you"]],
+    ],
+  ] as const)("%s carries only the English words; counts stay outside", (source, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(spansOf(source)).toEqual(expected);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+      expect(span.text).not.toMatch(/\d/u);
+    }
+    expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
+  });
+
+  it("leaves the round-sensitive leg sentences off the carrier", () => {
+    expect(spansOf("✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.")).toEqual([]);
+    expect(normalizeSourceNaturalLanguage("✦ İkinci bacakta da ilk 51 sırayı aynı şekilde örüyoruz.", "en")).toBe(
+      "✦ On the second leg, work the first 51 rounds in the same way.",
+    );
+    expect(
+      spansOf(
+        "1) 26x(ilk bacak), 3x (zincir üstü), 26x (ikinci bacak), 3x (zincir üstü) ilmek belirleyiciyi buraya takıyoruz. Başlangıç noktamız burası olacak = 58x",
+      ),
+    ).toEqual([]);
   });
 });

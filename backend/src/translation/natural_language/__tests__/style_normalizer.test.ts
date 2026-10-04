@@ -592,15 +592,32 @@ describe("normalizeTranslationStyle", () => {
     ).toBe("⊱ARM JOINING⊰");
   });
 
-  it("normalizes joining the second leg to the first leg", () => {
-    expect(
-      normalizeTranslationStyle(
+  it("no longer rebuilds the neutral leg templates (normalizer + carrier own them, Task 23G)", () => {
+    for (const [source, translated] of [
+      ["✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)", "✦ With ecru yarn: (Cut the orange yarn.)"],
+      [
         "✦ İkinci bacaktan 3 zincir ile bacakların arka tarafı bize dönük olacak şekilde ilk bacak ile birleştiriyoruz.",
-        "✦ From the second leg 3 we join it to the first leg with a chain, keeping the backs of the legs facing us.",
-        "en",
-      ),
-    ).toBe(
-      "✦ From the second leg, ch 3 and join to the first leg with the backs of the legs facing you.",
+        "✦ From the second leg, ch 3 and join to the first leg with the backs of the legs facing you.",
+      ],
+      [
+        "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
+        "✦ For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center.",
+      ],
+      [
+        "53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
+        "53) Work 12sc, then continue with the body without cutting the yarn.",
+      ],
+    ] as const) {
+      // The pipeline output passes through unchanged...
+      expect(normalizeTranslationStyle(source, translated, "en")).toBe(translated);
+      // ...and style is no longer a deterministic renderer for these lines.
+      expect(normalizeTranslationStyle(source, "PROBE", "en")).toBe("PROBE");
+    }
+  });
+
+  it("keeps the compact chain-cut rebuild, which the provider bypass still consults", () => {
+    expect(normalizeTranslationStyle("52) 24x, 1 zincir çekip ipimizi kesiyoruz.", "PROBE", "en")).toBe(
+      "52) 24sc. Ch 1 and cut the yarn.",
     );
   });
 
@@ -613,18 +630,6 @@ describe("normalizeTranslationStyle", () => {
       ),
     ).toBe(
       "1) 26sc (first leg), 3sc (along the chain), 26sc (second leg), 3sc (along the chain) = 58sc. This will be the beginning of the round; place a stitch marker here.",
-    );
-  });
-
-  it("normalizes leg-alignment guidance", () => {
-    expect(
-      normalizeTranslationStyle(
-        "✦ Bende her iki bacağın bitiş noktası bacağın iç kısmının ortasına denk geldi. Sizde denk gelmiyorsa 1-2 sık iğne eksik ya da fazla örerek orta noktaya gelin.",
-        "✦ For me, the finishing point of both legs aligned with the center of the inside of the leg. If yours does not align 1-2 reach the center by working fewer or more single crochet stitches.",
-        "en",
-      ),
-    ).toBe(
-      "✦ For me, the finishing point of both legs aligned with the center of the inner side of each leg. If yours does not align, work 1-2 fewer or additional single crochet stitches to reach the center.",
     );
   });
 
@@ -649,18 +654,6 @@ describe("normalizeTranslationStyle", () => {
       ),
     ).toBe(
       "✦ On the second leg, work the first 47 rounds in the same way.",
-    );
-  });
-
-  it("normalizes continuing into the body without cutting the yarn", () => {
-    expect(
-      normalizeTranslationStyle(
-        "53) 12x örüyoruz, ipimizi kesmeden gövde ile devam ediyoruz.",
-        "53) 12sc we crochet, we continue with the body without cutting the yarn.",
-        "en",
-      ),
-    ).toBe(
-      "53) Work 12sc, then continue with the body without cutting the yarn.",
     );
   });
 
@@ -696,16 +689,6 @@ describe("normalizeTranslationStyle", () => {
         "en",
       ),
     ).toBe("52) 24sc. Ch 1 and cut the yarn.");
-  });
-
-  it("normalizes a yarn heading with an explicit orange-yarn cut", () => {
-    expect(
-      normalizeTranslationStyle(
-        "✦ Ekru renk ip ile; (Turuncu ipimizi kesiyoruz.)",
-        "✦ With ecru yarn; (We cut the orange yarn.)",
-        "en",
-      ),
-    ).toBe("✦ With ecru yarn: (Cut the orange yarn.)");
   });
 
   it("normalizes a carried-yarn color change instruction", () => {
