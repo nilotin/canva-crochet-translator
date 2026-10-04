@@ -38,9 +38,10 @@ import {
   type LexedMixedSegment,
   normalizeMixedProseTranslation,
   reconstructMixedSegmentWithProjection,
+  reconstructMixedSource,
   validateMixedProseSpans,
 } from "./mixed_segment.js";
-import { buildMixedSpanPrompt, buildTranslationPrompt } from "./prompt.js";
+import { buildMixedSpanPrompt, buildTranslationPrompt, type CourseUnitGuidance } from "./prompt.js";
 import { createTranslationProvider } from "./providers/index.js";
 import type { TranslationProvider } from "./providers/provider.js";
 import {
@@ -198,6 +199,83 @@ type DeterministicCarrier = {
   readonly restore: (text: string) => string;
 };
 
+/**
+ * The course unit the resolver already decided for each source line of a
+ * segment (Beta Blocker #2): only English pattern text asks the resolver; a
+ * line it does not resolve to row stays "round", the existing fallback.
+ */
+type LineUnits = readonly ("row" | "round")[];
+
+const resolvedLineUnits = (
+  body: string,
+  sourceContext: string,
+  bodyStart: number,
+  resolveCourseUnit: CourseUnitResolver,
+  contentKind: TranslationContentKind,
+  targetLanguage: TargetLanguage,
+): LineUnits => {
+  const lines = body.split("\n");
+  if (contentKind !== "pattern" || targetLanguage !== "en") return lines.map(() => "round");
+  let offset = 0;
+  return lines.map((line) => {
+    const unit = resolveCourseUnit(sourceContext, bodyStart + offset);
+    offset += line.length + 1;
+    return unit === "row" ? "row" : "round";
+  });
+};
+
+/** 0-based line of every offset of `text`, when it has exactly `lineCount` lines. */
+const lineOfOffset = (text: string, lineCount: number): ((offset: number) => number) | undefined => {
+  const starts = [0];
+  for (let index = 0; index < text.length; index += 1) if (text[index] === "\n") starts.push(index + 1);
+  if (starts.length !== lineCount) return undefined;
+  return (offset) => {
+    let line = 0;
+    while (line + 1 < starts.length && (starts[line + 1] ?? Infinity) <= offset) line += 1;
+    return line;
+  };
+};
+
+/**
+ * The resolved unit at an offset of `text`. Undefined -- every reference
+ * stays a round, exactly as before -- when no line resolved to row or when
+ * `text` no longer has one line per source line.
+ */
+const courseUnitLookup = (
+  text: string,
+  units: LineUnits,
+): ((offset: number) => "row" | "round") | undefined => {
+  if (!units.includes("row")) return undefined;
+  const lineOf = lineOfOffset(text, units.length);
+  return lineOf && ((offset) => units[lineOf(offset)] ?? "round");
+};
+
+/** Guidance for one call over `text`: rows by line, neutral when lines cannot be matched. */
+const lineGuidance = (text: string, units: LineUnits): CourseUnitGuidance | undefined => {
+  if (!units.includes("row")) return undefined;
+  if (!lineOfOffset(text, units.length)) return { kind: "context" };
+  if (units.every((unit) => unit === "row")) return { kind: "row" };
+  return { kind: "lines", rowLines: units.flatMap((unit, index) => (unit === "row" ? [index + 1] : [])) };
+};
+
+/** Guidance for one call over prose spans: rows by span ID, neutral when lines cannot be matched. */
+const spanGuidance = (
+  lexed: LexedMixedSegment,
+  providerIdOf: ReadonlyMap<string, string>,
+  units: LineUnits,
+): CourseUnitGuidance | undefined => {
+  if (!units.includes("row")) return undefined;
+  const lineOf = lineOfOffset(reconstructMixedSource(lexed.tokens), units.length);
+  if (!lineOf) return { kind: "context" };
+  const rowSpanIds = lexed.spans.flatMap(({ id }) => {
+    const token = lexed.tokens.find((candidate) => candidate.kind === "natural_language" && candidate.id === id);
+    const providerId = providerIdOf.get(id);
+    return token && providerId !== undefined && units[lineOf(token.start)] === "row" ? [providerId] : [];
+  });
+  if (rowSpanIds.length === 0) return undefined;
+  return rowSpanIds.length === lexed.spans.length ? { kind: "row" } : { kind: "spans", rowSpanIds };
+};
+
 const deterministicCarrier = (
   normalized: string,
   spans: readonly DeterministicSpan[],
@@ -205,14 +283,17 @@ const deterministicCarrier = (
   idPrefix: string,
   flat: LexedMixedSegment,
   sourceData: readonly OpaqueRange[] = [],
+  units: LineUnits = [],
 ): DeterministicCarrier | undefined => {
   const carried = carryDeterministicSpans(normalized, spans, sourceData);
   if (!carried) return undefined;
   const { text, rendered, opaqueRanges } = carried;
+  const courseUnitAt = courseUnitLookup(text, units);
 
   const lexed = lexMixedSegment(text, targetLanguage, idPrefix, {
     reservedPlaceholders: [...rendered.keys()],
     ...(opaqueRanges.length > 0 ? { opaqueRanges } : {}),
+    ...(courseUnitAt ? { courseUnitAt } : {}),
   });
   if (!lexed.valid) return undefined;
   if (lexed.classification === "pattern_only") {
@@ -255,6 +336,17 @@ const translateSegment = async (
   const sourceBody = instruction?.body ?? block.text;
   const sourceBodyStart =
     sourceStart + (block.text.length - sourceBody.length);
+  // The row/round unit the resolver already decided per source line: it
+  // drives round references and the provider's course-unit guidance, so no
+  // layer contradicts it (Beta Blocker #2). It never adds a decision.
+  const lineUnits = resolvedLineUnits(
+    sourceBody,
+    sourceContext,
+    sourceBodyStart,
+    resolveCourseUnit,
+    contentKind,
+    targetLanguage,
+  );
 
   const normalization = normalizeSourceNaturalLanguageDetailed(
     sourceBody,
@@ -297,17 +389,22 @@ const translateSegment = async (
         start: renderedStart,
         end: renderedEnd,
       }));
+  const normalizedCourseUnitAt = courseUnitLookup(normalized, lineUnits);
   const protectedSource = protectImmutablePattern(
     normalized,
     0,
     contentKind,
     sourceData,
+    normalizedCourseUnitAt,
   );
   const mixed = lexMixedSegment(
     normalized,
     targetLanguage,
     block.id,
-    sourceData.length > 0 ? { opaqueRanges: sourceData } : {},
+    {
+      ...(sourceData.length > 0 ? { opaqueRanges: sourceData } : {}),
+      ...(normalizedCourseUnitAt ? { courseUnitAt: normalizedCourseUnitAt } : {}),
+    },
   );
   const patternOnly = skipsProviderTranslation ||
     isPatternOnlyProtectedText(protectedSource) || (
@@ -347,6 +444,7 @@ const translateSegment = async (
           block.id,
           mixed,
           sourceData,
+          lineUnits,
         )
       : undefined;
     const lexed = carrier?.lexed ?? mixed;
@@ -398,6 +496,11 @@ const translateSegment = async (
         targetLanguage,
         normalized,
         providerSpans,
+        spanGuidance(
+          lexed,
+          new Map(lexed.spans.map(({ id }, index) => [id, `span-${index}`])),
+          lineUnits,
+        ),
       );
       const providerResult = await provider.translate({
         targetLanguage,
@@ -466,7 +569,8 @@ const translateSegment = async (
     // restores its exact rendered text, so the provider only ever sees the
     // remaining text. Undefined: the uncarried text, exactly as before.
     const carried = carryDeterministicSpans(normalized, normalization.deterministicSpans, sourceData);
-    const carriedBlock = carried && protectCarriedBlock(carried, contentKind);
+    const carriedBlock =
+      carried && protectCarriedBlock(carried, contentKind, courseUnitLookup(carried.text, lineUnits));
     const blockSource = carriedBlock ?? protectedSource;
     const blockToTranslate = { ...block, text: blockSource.text };
     const blockRoundTokens = blockSource.tokens.filter(
@@ -498,7 +602,7 @@ const translateSegment = async (
         : [];
     const prompt = buildTranslationPrompt(targetLanguage, [blockToTranslate], blockRoundTokens.map((token) => ({
       placeholder: token.placeholder, meaning: renderRoundReference(token, targetLanguage),
-    })), contentKind, materialQuantityGrammar);
+    })), contentKind, materialQuantityGrammar, lineGuidance(blockSource.text, lineUnits));
     const providerResult = blockPatternOnly
       ? { translations: [{ id: block.id, translated: blockSource.text }] }
       : await provider.translate({

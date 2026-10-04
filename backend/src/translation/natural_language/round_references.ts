@@ -7,7 +7,17 @@ export type RoundReference = {
   number: string;
   relation: "round" | "in" | "from" | "of";
   loop?: "FLO" | "BLO";
+  /**
+   * The course unit the course-unit resolver already decided for this
+   * reference's line (Beta Blocker #2). Absent means "round", the existing
+   * fallback; it is never inferred here.
+   */
+  unit?: "row";
 };
+
+/** The English course word for a reference: its resolved unit, else "Round". */
+const englishCourseWord = (reference: Pick<RoundReference, "unit">): "Row" | "Round" =>
+  reference.unit === "row" ? "Row" : "Round";
 
 // Only the crochet-specific sıra construction, never generic ordinals/decimals.
 const roundPattern =
@@ -51,10 +61,10 @@ export const extractRoundReferences = (source: string): RoundReference[] =>
   });
 
 export const renderRoundReference = (
-  reference: Pick<RoundReference, "number" | "relation" | "loop">,
+  reference: Pick<RoundReference, "number" | "relation" | "loop" | "unit">,
   targetLanguage: TargetLanguage,
 ): string => {
-  const round = `${targetLanguage === "en" ? "Round" : "Vuelta"} ${reference.number}`;
+  const round = `${targetLanguage === "en" ? englishCourseWord(reference) : "Vuelta"} ${reference.number}`;
   if (reference.loop)
     return targetLanguage === "en"
       ? `the ${reference.loop} of ${round}`
@@ -70,24 +80,38 @@ export const validateRoundReferences = (
   source: string,
   translated: string,
   targetLanguage: TargetLanguage,
+  /** The resolved unit of each reference in `source`, in order; "round" when absent. */
+  unitOf: (reference: RoundReference, index: number) => "row" | "round" = () => "round",
 ) => {
-  const references = extractRoundReferences(source);
+  const references = extractRoundReferences(source).map((reference, index) =>
+    targetLanguage === "en" && unitOf(reference, index) === "row" ? { ...reference, unit: "row" as const } : reference,
+  );
   if (!references.length) return [];
-  const roundWord = targetLanguage === "en" ? "Round" : "Vuelta";
-  const actual = [
+  // "Row" is only recognized where a reference resolved to row, so a text
+  // with round references alone is checked exactly as before.
+  const anyRow = references.some(({ unit }) => unit === "row");
+  const roundWord = targetLanguage === "en" ? (anyRow ? "Round|Row" : "Round") : "Vuelta";
+  const actualMatches = [
     ...translated.matchAll(
-      new RegExp(`\\b${roundWord}\\s+(\\d+)(?!\\d|[.,]\\d)`, "giu"),
+      new RegExp(`\\b(${roundWord})\\s+(\\d+)(?!\\d|[.,]\\d)`, "giu"),
     ),
-  ].map((match) => match[1]);
+  ];
+  const actual = actualMatches.map((match) => match[2]);
   const validNumbers =
     references.length === actual.length &&
-    references.every((reference, i) => reference.number === actual[i]);
+    references.every((reference, i) => reference.number === actual[i]) &&
+    (!anyRow ||
+      references.every(
+        (reference, i) => actualMatches[i]?.[1]?.toLowerCase() === englishCourseWord(reference).toLowerCase(),
+      ));
   // Check a local grammatical relation, allowing common alternatives around
   // it (attach to / work into / from / in) rather than fixing sentence order.
   const expectedLoops = references.filter(({ loop }) => loop);
   const relationPattern =
     targetLanguage === "en"
-      ? /\b(FLO|BLO)\s+(?:of|in|from|on)\s+(?:the\s+)?Round\s+(\d+)(?!\d|[.,]\d)/gu
+      ? anyRow
+        ? /\b(FLO|BLO)\s+(?:of|in|from|on)\s+(?:the\s+)?(?:Round|Row)\s+(\d+)(?!\d|[.,]\d)/gu
+        : /\b(FLO|BLO)\s+(?:of|in|from|on)\s+(?:the\s+)?Round\s+(\d+)(?!\d|[.,]\d)/gu
       : /\b(Flo|Blo)\s+de\s+la\s+Vuelta\s+(\d+)(?!\d|[.,]\d)/gu;
   const actualLoops = [...translated.matchAll(relationPattern)];
   const validLoops =

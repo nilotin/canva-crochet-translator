@@ -831,7 +831,18 @@ export const validateTranslation = (
     return { valid: errors.length === 0, errors, warnings };
   }
 
-  errors.push(...validateRoundReferences(source, translated, targetLanguage));
+  // A reference on a line the resolver put in rows is checked as "Row N"
+  // (Beta Blocker #2); every other reference is checked as before.
+  const roundReferenceContext = options.sourceContext ?? source;
+  const roundReferenceStart = options.sourceStart ?? 0;
+  const roundReferenceResolver = options.resolveCourseUnit ?? legacyCourseUnitResolver;
+  errors.push(
+    ...validateRoundReferences(source, translated, targetLanguage, (reference) =>
+      targetLanguage === "en" && options.contentKind !== "materials"
+        ? roundReferenceResolver(roundReferenceContext, roundReferenceStart + reference.start)
+        : "round",
+    ),
+  );
 
   for (const ambiguity of findAmbiguousRepetitionNotation(source)) {
     warnings.push(

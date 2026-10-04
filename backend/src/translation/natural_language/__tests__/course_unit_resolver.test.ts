@@ -172,14 +172,18 @@ describe("CourseUnitResolver: text that is not a course count", () => {
       "Sıra sonlarında cc ile birleştirip, 1 zincir çekip bir üst sıraya geçiyoruz.",
       "At the end of each row, join with sl st, ch 1, and continue to the next row.",
     ],
-  ])("is never asked about, and is unaffected by the resolver: %j", (source, translated) => {
+  ])("is not a course count, yet its prose wording never contradicts the resolver: %j", (source, translated) => {
     const { resolver, calls } = recording(alwaysRow);
-    const styled = style(source, translated, resolver);
-    expect(styled).toBe(style(source, translated));
-    expect(styled).toBe(style(source, translated, alwaysRound));
-    expect(normalize(source, source, 0, resolver)).toBe(normalize(source, source, 0));
-    expect(validate(source, translated, resolver)).toEqual(validate(source, translated));
-    expect(calls).toEqual([]);
+    // A round line keeps today's row -> round rewrite...
+    expect(style(source, translated, alwaysRound)).toBe(style(source, translated));
+    // ...and a line the resolver put in rows keeps its row wording (Beta Blocker #2).
+    expect(style(source, translated, resolver)).toBe(translated);
+    expect(calls).toEqual([{ context: source, position: 0 }]);
+    // The normalizer and the validator still never ask about it.
+    const normalizerCalls = recording(alwaysRow);
+    expect(normalize(source, source, 0, normalizerCalls.resolver)).toBe(normalize(source, source, 0));
+    expect(normalizerCalls.calls).toEqual([]);
+    expect(validate(source, translated, alwaysRow)).toEqual(validate(source, translated));
   });
 });
 

@@ -247,6 +247,12 @@ export type LexMixedSegmentOptions = {
    * empty: the lexer behaves exactly as before.
    */
   readonly opaqueRanges?: readonly OpaqueRange[];
+  /**
+   * The course unit the resolver decided at an offset of `source`, so a round
+   * reference on a row line renders as a row (Beta Blocker #2). Omitted: every
+   * reference renders as a round, as before.
+   */
+  readonly courseUnitAt?: (offset: number) => "row" | "round";
 };
 
 const NO_RESERVED: ReadonlySet<string> = new Set();
@@ -333,7 +339,7 @@ export const lexMixedSegment = (
       source,
       targetLanguage,
       idPrefix,
-      protectImmutablePattern(source, 0, "pattern", opaqueRanges),
+      protectImmutablePattern(source, 0, "pattern", opaqueRanges, options.courseUnitAt),
       NO_RESERVED,
     );
   }
@@ -347,6 +353,7 @@ export const lexMixedSegment = (
     disjointImmutableStart(source, reserved, opaqueRanges),
     "pattern",
     opaqueRanges,
+    options.courseUnitAt,
   );
   for (const placeholder of reserved) {
     if (protectedSource.text.split(placeholder).length !== 2) {

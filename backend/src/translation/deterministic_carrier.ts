@@ -90,10 +90,12 @@ export const carryDeterministicSpans = (
 export const protectCarriedBlock = (
   carried: CarriedSpans,
   contentKind: "pattern" | "materials",
+  /** The resolved course unit at an offset of `carried.text`; omitted: round. */
+  courseUnitAt?: (offset: number) => "row" | "round",
 ): ProtectedImmutableText | undefined => {
   const reserved = [...carried.rendered.keys()];
   // Immutable placeholders start after the reserved ones, so they are disjoint.
-  const immutable = protectImmutablePattern(carried.text, reserved.length, contentKind, carried.opaqueRanges);
+  const immutable = protectImmutablePattern(carried.text, reserved.length, contentKind, carried.opaqueRanges, courseUnitAt);
   if (reserved.some((placeholder) => immutable.text.split(placeholder).length !== 2)) return undefined;
   const opaqueKept = carried.opaqueRanges.every(({ start, end }) =>
     immutable.tokens.some(({ kind, source }) => kind === "structure" && source === carried.text.slice(start, end)),

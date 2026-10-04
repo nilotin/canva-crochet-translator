@@ -829,10 +829,15 @@ const normalizeEnglishCrochetInstructions = (
       resolveCourseUnit,
     );
 
+  // A line the resolver already put in rows is never reworded to rounds
+  // (Beta Blocker #2); the segment-wide rewrite stays the fallback elsewhere.
+  const resolvedRow = (index: number): boolean =>
+    resolveCourseUnit(sourceContext, sourceLineStarts[index] ?? sourceStart) === "row";
   const rawTranslatedLines = translated.split("\n");
   if (sourceLines.length !== rawTranslatedLines.length) {
-    // Lines cannot be paired, so protect every resolver rendering verbatim.
-    return roundWording
+    // Lines cannot be paired, so protect every resolver rendering verbatim;
+    // with any row line the rewrite cannot be scoped, so it is skipped.
+    return roundWording && !sourceLines.some((_line, index) => resolvedRow(index))
       ? toRoundWording(
           translated,
           sourceLines.flatMap((_line, index) => renderedCourseCounts(index)),
@@ -840,7 +845,7 @@ const normalizeEnglishCrochetInstructions = (
       : translated;
   }
   const translatedLines = rawTranslatedLines.map((line, index) =>
-    roundWording && !isResolverOwnedCourseCountLine(sourceLines[index] ?? "")
+    roundWording && !isResolverOwnedCourseCountLine(sourceLines[index] ?? "") && !resolvedRow(index)
       ? toRoundWording(line, renderedCourseCounts(index))
       : line,
   );

@@ -11,6 +11,7 @@ import { extractSourceAtomicNaturalLanguageSpans } from "../natural_language/ato
 import { normalizeTranslationStyle } from "../natural_language/style_normalizer.js";
 import { normalizeSourceNaturalLanguageDetailed } from "../natural_language/normalizer.js";
 import { loadCorpus } from "./corpus/load_corpus.js";
+import { buildMixedSpanPrompt, buildTranslationPrompt } from "../prompt.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -8287,5 +8288,115 @@ describe("normalizer-rendered crochet English never reaches the provider (Task 2
         }
       }
     }
+  });
+});
+
+describe("provider row/round guidance follows the resolver and never contradicts it (Beta Blocker #2)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  // A provider that translates the free prose "Bu sırada ..." with the given unit word.
+  const prose = (unit: "row" | "round") => (text: string) =>
+    text.replace(/[Bb]u sırada kenarı dikiyoruz\.?/gu, `Sew the edge in this ${unit}.`);
+  const ROUND_LINE = "- Translate Turkish “sıra” and its inflected forms as “round” or “rounds”, never “row” or “rows”.";
+  const guidanceOf = (request: { systemPrompt: string }) => request.systemPrompt.match(/^.*“sıra”.*$/mu)?.[0];
+  const TURN = "12) Bütün sıra sonlarında 1 zincir çekip dönüyoruz.";
+  const translate = async (text: string, provider: InspectingProvider, formattingRegions?: { id: string; start: number; end: number }[]) =>
+    (await translateBlocks([{ id: "unit", text, ...(formattingRegions ? { formattingRegions } : {}) }], "en", { provider }))[0];
+
+  it("keeps the existing round guidance byte-for-byte when no line resolved to row", () => {
+    expect(buildTranslationPrompt("en", [{ id: "b", text: "x" }]).system).toContain(ROUND_LINE);
+    expect(buildMixedSpanPrompt("en", "x", [{ id: "s", text: "x" }]).system).toContain(ROUND_LINE);
+    expect(buildTranslationPrompt("es", [{ id: "b", text: "x" }]).system).not.toMatch(/“sıra”/u);
+  });
+
+  it("known row: course count, round reference and provider guidance all say row", async () => {
+    const text = `${TURN}\n13) 5 sıra 16x\n14) 7. sıradan itibaren kenarı dikiyoruz.\n15) Bu sırada kenarı dikiyoruz.`;
+    const provider = new RewritingProvider(prose("row"));
+    const result = await translate(text, provider);
+    expect(result).toMatchObject({ valid: true, errors: [] });
+    expect(result?.translated).toBe(
+      "12) At the end of each row, ch 1 and turn.\n13) 16sc for 5 rows\n14) from Row 7 itibaren kenarı dikiyoruz.\n15) Sew the edge in this row.",
+    );
+    expect(provider.requests.map(guidanceOf)).toEqual([
+      "- This part of the pattern is worked in turned rows: translate Turkish “sıra” and its inflected forms as “row” or “rows”, never “round” or “rounds”.",
+    ]);
+  });
+
+  it("known row in its own formatting segment: the provider's row is no longer rewritten to round", async () => {
+    const turn = `${TURN}\n`;
+    const text = `${turn}13) Bu sırada kenarı dikiyoruz.`;
+    const provider = new RewritingProvider(prose("row"));
+    const result = await translate(text, provider, [
+      { id: "fmt-0", start: 0, end: turn.length },
+      { id: "fmt-1", start: turn.length, end: text.length },
+    ]);
+    expect(result?.translated).toBe("12) At the end of each row, ch 1 and turn.\n13) Sew the edge in this row.");
+    expect(provider.requests.map(guidanceOf)).toEqual([
+      "- This part of the pattern is worked in turned rows: translate Turkish “sıra” and its inflected forms as “row” or “rows”, never “round” or “rounds”.",
+    ]);
+  });
+
+  it("known round: guidance, references and the row -> round repair are unchanged", async () => {
+    const text = "1) Sihirli halka içine 6x\n2) 5 sıra 6x\n3) 2. sıradan itibaren kenarı dikiyoruz.\n4) Bu sırada kenarı dikiyoruz.";
+    const provider = new RewritingProvider(prose("row"));
+    const result = await translate(text, provider);
+    expect(result?.translated).toBe(
+      "1) 6sc into the magic ring\n2) 6sc for 5 rounds\n3) from Round 2 itibaren kenarı dikiyoruz.\n4) Sew the edge in this round.",
+    );
+    expect(provider.requests.map(guidanceOf)).toEqual([ROUND_LINE]);
+  });
+
+  it("unknown context keeps today's round fallback and invents no row", async () => {
+    const provider = new RewritingProvider(prose("row"));
+    expect((await translate("Bu sırada kenarı dikiyoruz.", provider))?.translated).toBe("Sew the edge in this round.");
+    expect(provider.requests.map(guidanceOf)).toEqual([ROUND_LINE]);
+  });
+
+  it("mixed prose spans get per-span guidance, never one rule over both", async () => {
+    const text = `${TURN}\n13) Bu sırada kenarı dikiyoruz.\n♦ Yeni bölüm\n1) Bu sırada kenarı dikiyoruz.`;
+    const provider = new InspectingProvider();
+    await translate(text, provider);
+    const [request] = provider.requests;
+    expect(guidanceOf(request!)).toMatch(/courseUnits\.rowSpanIds/u);
+    expect(JSON.parse(request!.userPrompt).courseUnits).toEqual({ rowSpanIds: ["span-0"] });
+    expect(request!.blocks.map(({ id }) => id)).toEqual(["span-0", "span-1"]);
+  });
+
+  it("a mixed whole block gets per-line guidance", async () => {
+    const text = `${TURN}\n13) Bu sırada 5 cm kenarı dikiyoruz.\n♦ Yeni bölüm\n1) Bu sırada 5 cm kenarı dikiyoruz.`;
+    const provider = new InspectingProvider();
+    await translate(text, provider);
+    const [request] = provider.requests;
+    expect(guidanceOf(request!)).toMatch(/courseUnits\.rowLines/u);
+    expect(JSON.parse(request!.userPrompt).courseUnits).toEqual({ rowLines: [2] });
+  });
+
+  it("the validator checks a reference on a row line as Row and leaves round lines as before", () => {
+    const source = `${TURN}\n13) 7. sıradan itibaren kenarı dikiyoruz.`;
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const codes = (target: string) => validateTranslation(source, target, "en", options).errors.map(({ code }) => code);
+    expect(codes("12) At the end of each row, ch 1 and turn.\n13) from Row 7 itibaren kenarı dikiyoruz.")).toEqual([]);
+    expect(codes("12) At the end of each row, ch 1 and turn.\n13) from Round 7 itibaren kenarı dikiyoruz.")).toContain("ROUND_REFERENCE_MISMATCH");
+    const round = "1) 7. sıradan itibaren kenarı dikiyoruz.";
+    expect(validateTranslation(round, "1) from Round 7 itibaren kenarı dikiyoruz.", "en", options).valid).toBe(true);
+    expect(validateTranslation(round, "1) from Row 7 itibaren kenarı dikiyoruz.", "en", options).valid).toBe(false);
+    // Course counts keep their resolver-based unit check.
+    const count = `${TURN}\n13) 5 sıra 16x`;
+    expect(validateTranslation(count, "12) At the end of each row, ch 1 and turn.\n13) 16sc for 5 rounds", "en", options).valid).toBe(false);
+  });
+
+  it("Spanish is unchanged: no course guidance, references stay Vuelta", async () => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{ id: "es", text: `${TURN}\n14) 7. sıradan itibaren kenarı dikiyoruz.` }], "es", { provider });
+    expect(provider.requests.every((request) => !/“sıra”/u.test(request.systemPrompt))).toBe(true);
+    expect(result?.translated).toMatch(/Vuelta 7/u);
   });
 });

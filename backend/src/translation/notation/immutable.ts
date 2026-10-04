@@ -84,9 +84,17 @@ export const protectImmutablePattern = (
    * token whose placeholder restores the exact text.
    */
   opaqueRanges: readonly OpaqueRange[] = [],
+  /**
+   * The course unit the resolver decided at an offset of `source` (Beta
+   * Blocker #2). A round reference on a row line is rendered and checked as a
+   * row; omitted, every reference stays a round exactly as before.
+   */
+  courseUnitAt?: (offset: number) => "row" | "round",
 ): ProtectedImmutableText => {
   const measurements = extractMeasurements(source);
-  const rounds = profile === "pattern" ? extractRoundReferences(source) : [];
+  const rounds = (profile === "pattern" ? extractRoundReferences(source) : []).map((reference) =>
+    courseUnitAt?.(reference.start) === "row" ? { ...reference, unit: "row" as const } : reference,
+  );
   const notation =
     profile === "pattern" ? tokenizeSourceNotation(source) : [];
   const occurrences: Occurrence[] = notation.map(({ entry, start, end }) => ({
@@ -331,7 +339,14 @@ export const restoreImmutablePattern = (
     integritySource.tokens.filter((token) => token.kind === "measurement"),
     restored,
   ));
-  const roundSource = integritySource.tokens.filter(({ kind }) => kind === "round_reference").map(({ source }) => source).join(" ");
-  errors.push(...validateRoundReferences(roundSource, restored, targetLanguage));
+  const roundTokens = integritySource.tokens.filter(
+    (token): token is Extract<ProtectedToken, { kind: "round_reference" }> => token.kind === "round_reference",
+  );
+  const roundSource = roundTokens.map(({ source }) => source).join(" ");
+  errors.push(
+    ...validateRoundReferences(roundSource, restored, targetLanguage, (_reference, index) =>
+      roundTokens[index]?.unit === "row" ? "row" : "round",
+    ),
+  );
   return { text: restored, valid: errors.length === 0, errors };
 };

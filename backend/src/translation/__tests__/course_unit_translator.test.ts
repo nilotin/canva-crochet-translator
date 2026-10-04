@@ -380,8 +380,11 @@ describe("course unit wiring: R3 stays known-bad (no cross-block carry)", () => 
       { translated: TURN_EN, valid: true, errors: [] },
       { translated: "13) 16sc for 5 rounds", valid: true, errors: [] },
     ]);
-    // Only block 2 has a course count; its same-block decision is unknown.
-    expect(new Set(harness.calls.map(({ blockId }) => blockId))).toEqual(new Set(["local-block-2"]));
+    // Block 2's course count has no same-block decision. Since Beta Blocker #2
+    // the translator also asks the resolver for each line's unit (prompt and
+    // round-reference guidance); every answer is still a fallback, so nothing
+    // carries the turning-row evidence across blocks.
+    expect(harness.calls.some(({ blockId }) => blockId === "local-block-2")).toBe(true);
     expect(harness.calls.every(({ source }) => source === "fallback")).toBe(true);
     expect(harness.calls.some(({ reason }) => reason === "unknown_decision")).toBe(true);
   });
@@ -588,27 +591,30 @@ describe("style wording cannot override resolver-owned course counts (Task 14G)"
     expect(calls.every(({ source }) => source === "fallback")).toBe(true);
   });
 
-  it("protection is span-level: unrelated row wording on the same line is still rewritten", () => {
+  it("a line the resolver put in rows keeps all its row wording (Beta Blocker #2)", () => {
     const source = "13) 5 sıra 16x bir zincir çekip ipimizi kesiyoruz. Sıranın sonunu dikiyoruz.";
     const resolver = vi.fn(() => "row" as const);
     expect(normalizeTranslationStyle(
       source,
       "13) 5 rows, 16sc. Ch 1 and cut the yarn. Sew the end of the row.",
       "en", "pattern", source, 0, { resolveCourseUnit: resolver },
-    )).toBe("13) 5 rows, 16sc. Ch 1 and cut the yarn. Sew the end of the round.");
+    )).toBe("13) 5 rows, 16sc. Ch 1 and cut the yarn. Sew the end of the row.");
     expect(resolver).toHaveBeenCalledExactlyOnceWith(source, 0);
   });
 
-  it("text the resolver does not own keeps today's row -> round rewrite", () => {
+  it("prose the resolver puts in rows keeps its row wording; in rounds it is still rewritten", () => {
     const source = "Sıranın sonunu dikiyoruz.";
-    const resolver = vi.fn(() => "row" as const);
+    const row = vi.fn(() => "row" as const);
     expect(normalizeTranslationStyle(source, "Sew the end of the rows.", "en", "pattern",
-      source, 0, { resolveCourseUnit: resolver })).toBe("Sew the end of the rounds.");
-    expect(resolver).not.toHaveBeenCalled();
+      source, 0, { resolveCourseUnit: row })).toBe("Sew the end of the rows.");
+    expect(row).toHaveBeenCalledExactlyOnceWith(source, 0);
+    const round = vi.fn(() => "round" as const);
+    expect(normalizeTranslationStyle(source, "Sew the end of the rows.", "en", "pattern",
+      source, 0, { resolveCourseUnit: round })).toBe("Sew the end of the rounds.");
   });
 
   it.each(["row", "round"] as const)(
-    "unequal line counts: resolver %s renderings survive, other wording is rewritten",
+    "unequal line counts: resolver %s renderings survive; other wording follows the resolved unit",
     (unit) => {
       const source = `13) 5 sıra 16x\n${writtenChain}`;
       const words = `${unit}s`;
@@ -618,9 +624,10 @@ describe("style wording cannot override resolver-owned course counts (Task 14G)"
         source,
         `13) 16x for 5 ${words} 13) 5 ${words}, 16sc. Ch 1 and cut the yarn. Then the next row.`,
         "en", "pattern", source, 0, { resolveCourseUnit: resolver },
-      )).toBe(`13) 16x for 5 ${words} 13) 5 ${words}, 16sc. Ch 1 and cut the yarn. Then the next round.`);
+      )).toBe(`13) 16x for 5 ${words} 13) 5 ${words}, 16sc. Ch 1 and cut the yarn. Then the next ${unit}.`);
       expect(resolver).toHaveBeenCalledWith(source, 0);
-      expect(resolver).toHaveBeenCalledWith(source, source.indexOf(writtenChain));
+      // In rows the rewrite is skipped before its protection list is needed.
+      if (unit === "round") expect(resolver).toHaveBeenCalledWith(source, source.indexOf(writtenChain));
     },
   );
 
@@ -751,14 +758,16 @@ describe("generic course-count resolver ownership (Task 14H)", () => {
     expect(resolver.mock.calls).toEqual([[source, 0]]);
   });
 
-  it("style protection keeps generic rows in the restored sc notation; other wording is still rewritten", () => {
+  it("style protection keeps generic rows in the restored sc notation, and a row line keeps its other row wording", () => {
     const source = `${line}. Sıranın sonunu dikiyoruz.`;
     const resolver = vi.fn(() => "row" as const);
     expect(normalizeTranslationStyle(source,
       `${rendered("rows", "rows")}. Sew the end of the row.`,
       "en", "pattern", source, 0, { resolveCourseUnit: resolver },
-    )).toBe(`${rendered("rows", "rows")}. Sew the end of the round.`);
-    expect(resolver.mock.calls).toEqual([[source, firstCount], [source, secondCount]]);
+    )).toBe(`${rendered("rows", "rows")}. Sew the end of the row.`);
+    // The line's own unit decides first (Beta Blocker #2): in rows the rewrite,
+    // and the protection list it would need, are skipped.
+    expect(resolver.mock.calls).toEqual([[source, 0]]);
   });
 
   it("formatting projection stays exact for the migrated output", async () => {
@@ -852,9 +861,9 @@ describe("örüyoruz chain-cut resolver ownership (Task 14I)", () => {
     const resolver = vi.fn(() => "row" as const);
     expect(normalizeTranslationStyle(source, `${output("rows")} Sew the end of the row.`,
       "en", "pattern", source, 0, { resolveCourseUnit: resolver },
-    )).toBe(`${output("rows")} Sew the end of the round.`);
-    // Asked once for the clause; the generic count inside it is not asked again.
-    expect(resolver.mock.calls).toEqual([[source, 0]]);
+    )).toBe(`${output("rows")} Sew the end of the row.`);
+    // Asked for the clause; the generic count inside it is not asked again.
+    expect((resolver.mock.calls as unknown as [string, number][]).every(([context, position]) => context === source && position === 0)).toBe(true);
   });
 
   it("formatting projection stays exact", async () => {
