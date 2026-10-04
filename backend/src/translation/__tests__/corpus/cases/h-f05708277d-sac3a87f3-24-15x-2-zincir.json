@@ -11,7 +11,7 @@
       }
     ]
   },
-  "id": "h-f05708277d-s840f0c7e-24-15x-2-zincir",
+  "id": "h-f05708277d-sac3a87f3-24-15x-2-zincir",
   "labels": {
     "families": [],
     "hazards": [],
@@ -28,18 +28,6 @@
   ],
   "provider": {
     "entries": [
-      {
-        "source": "ch",
-        "translated": "ch"
-      },
-      {
-        "source": "skip",
-        "translated": "skip"
-      },
-      {
-        "source": "sts",
-        "translated": "sts"
-      },
       {
         "source": "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes",
         "translated": "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes"
@@ -69,26 +57,14 @@
     "providerCalls": [
       {
         "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2",
-          "span-3",
-          "span-4",
-          "span-5",
-          "span-6"
+          "span-0"
         ],
         "blockTexts": [
-          "ch",
-          "skip",
-          "sts",
-          "ch",
-          "skip",
-          "sts",
           "zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes"
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "e8fa6dabf56218df6a03cbecee2a1191a5afc27d1e7690b96d5168d3779b7330"
+        "userPromptSha256": "924a0c9fde28ee1a9ca1d07b2a44a1d4b1b4c6d1c12d8e1b39ff1260a4201015"
       }
     ]
   }

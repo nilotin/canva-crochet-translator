@@ -892,3 +892,15 @@ describe("Page 14 stitch-marker mixed-instruction regression", () => {
     );
   });
 });
+
+describe("the ch/skip sequence style rule keeps its eye-parenthetical responsibility (Task 23H)", () => {
+  it("still renders the whole sequence line, including the eye parenthetical, from the source", () => {
+    expect(
+      normalizeTranslationStyle(
+        "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)",
+        "PROBE",
+        "en",
+      ),
+    ).toBe("24) 15sc, ch 2, skip 2 sts, 9sc, ch 2, skip 2 sts, 38sc (we will insert the eyes into these chain spaces later)");
+  });
+});

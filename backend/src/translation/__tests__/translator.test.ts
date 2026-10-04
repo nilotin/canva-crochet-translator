@@ -1000,18 +1000,29 @@ describe("translateBlocks provider boundary", () => {
   );
 
   it("batches only mixed natural-language spans in one provider call", async () => {
+    // Since Task 23H the "ch N, skip M st" words are carried: the original
+    // line needs no provider at all...
+    const pure = new InspectingProvider();
+    const [pureResult] = await translateBlocks(
+      [{ id: "mixed", text: "24) 25x, 1 zincir, 1x atla, 10x" }],
+      "en",
+      { provider: pure },
+    );
+    expect(pureResult?.translated).toBe("24) 25sc, ch 1, skip 1 st, 10sc");
+    expect(pure.requests).toHaveLength(0);
+
+    // ...so prose on both sides keeps several provider spans to batch.
     const provider = new InspectingProvider();
     await translateBlocks(
-      [{ id: "mixed", text: "24) 25x, 1 zincir, 1x atla, 10x" }],
+      [{ id: "mixed", text: "24) Kenarı dikip, 25x, 1 zincir, 1x atla, 10x, sonra ipimizi kesiyoruz." }],
       "en",
       { provider },
     );
 
     expect(provider.requests).toHaveLength(1);
-    // Skip count is 1 here, so the singular "st" is expected (not the
-    // pluralized "sts") -- see the singular/plural fix in normalizer.ts.
-    expect(provider.protectedTexts).toEqual(["ch", "skip", "st"]);
+    expect(provider.protectedTexts).toEqual(["Kenarı dikip", "sonra ipimizi kesiyoruz."]);
     expect(provider.protectedTexts.join(" ")).not.toContain("24)");
+    expect(provider.protectedTexts.join(" ")).not.toMatch(/\d|\bch\b|skip|\bst\b/u);
     expect(provider.requests[0]?.userPrompt).toContain("proseContext");
   });
 
@@ -1148,12 +1159,15 @@ describe("translateBlocks provider boundary", () => {
       );
       expect(result).toMatchObject({ translated: expected, valid: true });
       expect(result?.errors).toEqual([]);
+      // Since Task 23H the English "ch N, skip M st" words are carried, so the
+      // English line needs no provider; Spanish still reconstructs by span ID.
       expect(seen).toEqual(
         language === "en"
-          ? ["ch", "skip", "st", "ch", "skip", "st"]
+          ? []
           : ["zincir", "atla", "zincir", "atla"],
       );
       expect(seen.join(" ")).not.toMatch(/24|25|1x|10x|29x/u);
+      if (language === "en") return;
 
       const parsedPrompts = prompts.map((prompt) =>
         JSON.parse(prompt) as {
@@ -7564,5 +7578,90 @@ describe("neutral leg templates have one owner: normalizer + carrier (Task 23G)"
     expect(valid(sources.join, `✦ ${join.replace("ch 3", "ch 4")}.`)).toBe(false);
     expect(valid(sources.body, "53) Work 12sc, then continue with the body without cutting the yarn.")).toBe(true);
     expect(valid(sources.body, "53) Work 11sc, then continue with the body without cutting the yarn.")).toBe(false);
+  });
+});
+
+describe("the ch/skip fragment is carried while style keeps the eye parenthetical (Task 23H)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text.replace(/\bch\b/gu, "chain").replace(/\bskip\b/gu, "work").replace(/\bsts?\b/gu, "loops").replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string) =>
+    (await translateBlocks([{ id: "ch-skip", text }], "en", { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["24) 25x, 1 zincir, 1x atla, 10x", "24) 25sc, ch 1, skip 1 st, 10sc"],
+    ["15x, 2 zincir 2x atla, 9x", "15sc, ch 2, skip 2 sts, 9sc"],
+    ["24) 15x, 2 zincir 2x atla, 9x, 3 zincir, 1x atla, 38x", "24) 15sc, ch 2, skip 2 sts, 9sc, ch 3, skip 1 st, 38sc"],
+    ["3 zincir çekip 2x atlıyoruz.", "ch 3, skip 2 sts."],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      expect(await translate(provider, text)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["Kenarı dikip, 25x, 1 zincir, 1x atla, 10x", ["ch 1, skip 1 st"], ["Kenarı dikip"]],
+    ["25x, 1 zincir, 1x atla, 10x ve kenarı dikiyoruz.", ["ch 1, skip 1 st"], ["ve kenarı dikiyoruz."]],
+    ["2 zincir 2x atla, sonra kenarı dikip, 3 zincir 1x atla.", ["ch 2, skip 2 sts", "ch 3, skip 1 st"], ["sonra kenarı dikip"]],
+    // The same English already in the source stays provider text.
+    ["Kenarı dikip, ch 1, skip 1 st. 25x, 1 zincir, 1x atla, 10x", ["25sc, ch 1, skip 1 st, 10sc"], ["Kenarı dikip", "ch", "skip", "st."]],
+  ])("a mixed line %s offers only its prose to the provider", async (text, carried, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(echoed?.valid).toBe(true);
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      for (const fragment of carried) expect(occurrences(result?.translated, fragment)).toBe(1);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    // Order is kept and the surrounding prose is still provider-owned.
+    const rewritten = (await translate(new RewritingProvider(hostile.rewrite), text))?.translated ?? "";
+    expect(rewritten).toMatch(/EDGE/u);
+    if (carried.length === 2) expect(rewritten.indexOf(carried[0]!)).toBeLessThan(rewritten.indexOf(carried[1]!));
+  });
+
+  it("the eye-placement parenthetical stays provider prose rebuilt by the style sequence rule", async () => {
+    const text =
+      "24) 15x, 2 zincir 2x atla, 9x, 2 zincir 2x atla, 38x (zincirlerle oluşturduğumuz boşluklara daha sonra gözleri takacağız)";
+    const expected =
+      "24) 15sc, ch 2, skip 2 sts, 9sc, ch 2, skip 2 sts, 38sc (we will insert the eyes into these chain spaces later)";
+    const echo = new InspectingProvider();
+    expect(await translate(echo, text)).toMatchObject({ translated: expected, valid: true });
+    // Only the parenthetical reaches the provider; the ch/skip words are carried.
+    expect(echo.protectedTexts).toEqual(["zincirlerle oluşturduğumuz boşluklara daha sonra we will insert the eyes"]);
+    // The style sequence rule still owns the parenthetical's wording, whatever the provider says.
+    for (const rewrite of Object.values(hostile)) {
+      expect((await translate(new RewritingProvider(rewrite), text))?.translated).toBe(expected);
+    }
+    expect(extractSourceAtomicNaturalLanguageSpans(text)).toEqual([]);
+    expect(extractSourceAtomicNaturalLanguageSpans("24) 25x, 1 zincir, 1x atla, 10x")).toEqual([]);
+  });
+
+  it("the validator still checks chain counts, skip counts and notation", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "24) 15x, 2 zincir 2x atla, 9x, 3 zincir, 1x atla, 38x";
+    const valid = (target: string) => validateTranslation(source, target, "en", options).valid;
+    expect(valid("24) 15sc, ch 2, skip 2 sts, 9sc, ch 3, skip 1 st, 38sc")).toBe(true);
+    expect(valid("24) 15sc, ch 4, skip 2 sts, 9sc, ch 3, skip 1 st, 38sc")).toBe(false);
+    expect(valid("24) 15sc, ch 2, skip 3 sts, 9sc, ch 3, skip 1 st, 38sc")).toBe(false);
+    expect(valid("24) 15sc, ch, skip 2 sts, 9sc, ch 3, skip 1 st, 38sc")).toBe(false);
+    expect(valid("24) 15sc, ch 2, skip 2 sts, 9dc, ch 3, skip 1 st, 38sc")).toBe(false);
   });
 });

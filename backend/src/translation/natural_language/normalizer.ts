@@ -285,6 +285,11 @@ const normalizeEnglishCrochetStructures = (
   );
   const recordDeterministicSpan = (rendered: string): string =>
     tracked.mark(rendered);
+  // "ch N, skip M st(s)": the words are carried, the counts stay numbers.
+  const chainSkip = (chains: string, skip: string): string =>
+    `${recordDeterministicSpan("ch")} ${chains}, ${recordDeterministicSpan("skip")} ${skip} ${recordDeterministicSpan(
+      skip === "1" ? "st" : "sts",
+    )}`;
 
   return tracked
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
@@ -646,7 +651,7 @@ const normalizeEnglishCrochetStructures = (
       // "N zincir çekip Mx atlıyoruz".
       /\b(\d+)\s+zincir\s+çekip\s+(\d+)\s*x\s+atlıyoruz\b/giu,
       (_match, chains: string, skip: string) =>
-        `ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}`,
+        chainSkip(chains, skip),
     )
     .replace(
       // Narrower sibling of the family above for "N zincir, Mx atla" on its
@@ -656,7 +661,7 @@ const normalizeEnglishCrochetStructures = (
       // count of 1 doesn't produce "skip 1 sts".
       /\b(\d+)\s+zincir\s*,?\s*(\d+)\s*x\s+atla\b/giu,
       (_match, chains: string, skip: string) =>
-        `ch ${chains}, skip ${skip} ${skip === "1" ? "st" : "sts"}`,
+        chainSkip(chains, skip),
     )
     .replace(
       // Sentence boundary after a repeated parenthesized action immediately

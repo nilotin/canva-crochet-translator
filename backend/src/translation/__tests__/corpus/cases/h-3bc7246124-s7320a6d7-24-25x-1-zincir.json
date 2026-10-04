@@ -11,11 +11,11 @@
       }
     ]
   },
-  "id": "h-3bc7246124-s027c1361-24-25x-1-zincir",
+  "id": "h-3bc7246124-s7320a6d7-24-25x-1-zincir",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -27,21 +27,7 @@
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": "ch",
-        "translated": "ch"
-      },
-      {
-        "source": "skip",
-        "translated": "skip"
-      },
-      {
-        "source": "st",
-        "translated": "st"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -62,22 +48,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1",
-          "span-2"
-        ],
-        "blockTexts": [
-          "ch",
-          "skip",
-          "st"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "585db033c65d089c5d0c5c14ec4befbd2f6efea930d52c7e59583e3c30da37b8"
-      }
-    ]
+    "providerCalls": []
   }
 }

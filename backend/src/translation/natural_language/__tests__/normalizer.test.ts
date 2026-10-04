@@ -2194,3 +2194,46 @@ describe("deterministic span carrier: neutral leg templates (Task 23G)", () => {
     ).toEqual([]);
   });
 });
+
+describe("deterministic span carrier: ch/skip fragment (Task 23H)", () => {
+  it.each([
+    ["24) 25x, 1 zincir, 1x atla, 10x", "24) 25x, ch 1, skip 1 st, 10x", [[9, 11, "ch"], [15, 19, "skip"], [22, 24, "st"]]],
+    ["15x, 2 zincir 2x atla, 9x", "15x, ch 2, skip 2 sts, 9x", [[5, 7, "ch"], [11, 15, "skip"], [18, 21, "sts"]]],
+    ["3 zincir çekip 2x atlıyoruz.", "ch 3, skip 2 sts.", [[0, 2, "ch"], [6, 10, "skip"], [13, 16, "sts"]]],
+    [
+      "24) 15x, 2 zincir 2x atla, 9x, 3 zincir, 1x atla, 38x",
+      "24) 15x, ch 2, skip 2 sts, 9x, ch 3, skip 1 st, 38x",
+      [[9, 11, "ch"], [15, 19, "skip"], [22, 25, "sts"], [31, 33, "ch"], [37, 41, "skip"], [44, 46, "st"]],
+    ],
+    [
+      "2 zincir 2x atla, sonra kenarı dikip, 3 zincir 1x atla.",
+      "ch 2, skip 2 sts, sonra kenarı dikip, ch 3, skip 1 st.",
+      [[0, 2, "ch"], [6, 10, "skip"], [13, 16, "sts"], [38, 40, "ch"], [44, 48, "skip"], [51, 53, "st"]],
+    ],
+    // Earlier identical English from the source is never carried.
+    [
+      "ch 1, skip 1 st. 25x, 1 zincir, 1x atla, 10x",
+      "ch 1, skip 1 st. 25x, ch 1, skip 1 st, 10x",
+      [[22, 24, "ch"], [28, 32, "skip"], [35, 37, "st"]],
+    ],
+  ] as const)("%s carries only the words, in order; counts stay numbers", (source, text, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end, text: t }) => [start, end, t])).toEqual(expected);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+      expect(span.text).not.toMatch(/\d/u);
+    }
+    expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
+  });
+
+  it("leaves the round-worded chain/skip sentence off the carrier", () => {
+    const source =
+      "3 zincir, 2x atla, sıradaki sık iğneye 1x, bu şekilde sıra sonuna kadar devam ediyoruz.";
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(
+      "Ch 3, skip 2 sts, work 1sc in the next single crochet. Continue in this way to the end of the round.",
+    );
+    expect(result.deterministicSpans).toEqual([]);
+  });
+});
