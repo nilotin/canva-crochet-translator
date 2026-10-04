@@ -7197,3 +7197,33 @@ describe("punctuation-only text is structure, never provider-owned (Task 23A)", 
     expect(validateTranslation(source, "1) (5sc, inc) x 6. Work in FLO.", "en", options).valid).toBe(false);
   });
 });
+
+describe("the carrier protects the rendered occurrence, not an earlier identical text (Task 23B)", () => {
+  class RewritingProvider extends InspectingProvider {
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return {
+        translations: request.blocks.map(({ id, text }) => ({
+          id,
+          translated: text.replace(/\bturn\b/gu, "rotate").replace(/magic ring/gu, "chain space"),
+        })),
+      };
+    }
+  }
+
+  it.each([
+    ["Ch 1 and turn. ve 1 zincir çekip dönüyoruz.", "ve Ch 1 and turn.", /ve Ch 1 and turn\.$/u],
+    ["6x into the magic ring sonra sihirli halka içine 6x", "sonra 6sc into the magic ring", /sonra 6sc into the magic ring$/u],
+  ])("%s keeps the rendering immutable", async (text, rendered, tail) => {
+    const echo = new InspectingProvider();
+    const [echoed] = await translateBlocks([{ id: "duplicate-text", text }], "en", { provider: echo });
+    expect(echoed?.translated).toMatch(tail);
+    expect(echoed?.translated).toContain(rendered);
+
+    const provider = new RewritingProvider();
+    const [result] = await translateBlocks([{ id: "duplicate-text", text }], "en", { provider });
+    // The rendering survives; only the English that was already in the source is provider text.
+    expect(result?.translated).toMatch(tail);
+  });
+});

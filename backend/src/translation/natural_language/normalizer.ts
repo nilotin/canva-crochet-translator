@@ -26,6 +26,7 @@ import {
   TURKISH_YARN_COLOR_PATTERN,
 } from "./yarn_colors.js";
 import { renderEnglishSleeveInstruction } from "./sleeve_instructions.js";
+import { TrackedText, type DeterministicSpan } from "./tracked_text.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -46,12 +47,9 @@ const fullyResolvedChainTurnSlipStitchContinuationPattern =
 /**
  * An exact range of `text` that a deterministic renderer produced. The carrier
  * keeps it immutable through provider translation; it is never re-rendered.
+ * Ranges are recorded when the rendering is written (see `TrackedText`).
  */
-export type DeterministicSpan = {
-  readonly start: number;
-  readonly end: number;
-  readonly text: string;
-};
+export type { DeterministicSpan };
 
 export type SourceNaturalLanguageNormalization = {
   text: string;
@@ -271,21 +269,24 @@ const normalizeEnglishCrochetStructures = (
   sourceContext: string = source,
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
-  /** Collects the renderings of families that opted into the deterministic carrier. */
-  renderings?: string[],
-): string => {
-  const recordDeterministicSpan = (rendered: string): string => {
-    renderings?.push(rendered);
-    return rendered;
-  };
-  if (targetLanguage !== "en") return source;
+  /** Records the ranges of families that opted into the deterministic carrier. */
+  recordSpans = false,
+): TrackedText => {
+  if (targetLanguage !== "en") return TrackedText.of(source, false);
 
-  return normalizeEnglishRoundCountStructures(
-    source,
-    sourceContext,
-    sourceOffset,
-    resolveCourseUnit,
-  )
+  const tracked = TrackedText.of(
+    normalizeEnglishRoundCountStructures(
+      source,
+      sourceContext,
+      sourceOffset,
+      resolveCourseUnit,
+    ),
+    recordSpans,
+  );
+  const recordDeterministicSpan = (rendered: string): string =>
+    tracked.mark(rendered);
+
+  return tracked
     .replace(/\bkaş(?:lar)?\s*(?:[:;–—-])/giu, "Eyebrow:")
     .replace(/\bburun\s*(?:[:;–—-])/giu, "Nose:")
     .replace(/\bağız\s*(?:[:;–—-])/giu, "Mouth:")
@@ -1226,9 +1227,9 @@ const toolIntroDescription = (
     : description;
 
 const normalizeToolMaterialIntro = (
-  source: string,
+  source: TrackedText,
   targetLanguage: TargetLanguage,
-): string => {
+): TrackedText => {
   let normalized = source;
 
   normalized = normalized.replace(
@@ -1368,9 +1369,9 @@ const normalizeConditionalTechnique = (
 };
 
 const normalizeConditionalLoopInstruction = (
-  source: string,
+  source: TrackedText,
   targetLanguage: TargetLanguage,
-): string =>
+): TrackedText =>
   source.replace(
     /\bbu\s+sırayı\s+(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\s*\(\s*([^(),]+?)\s*,?\s*(FLO|BLO)\s*[’'ʼ]?\s*dan\s+örecekler\s*\)(\s*[,.;:]?\s*)?/giu,
     (
@@ -1406,9 +1407,9 @@ const normalizeConditionalLoopInstruction = (
   );
 
 const normalizeSimpleLoopInstruction = (
-  source: string,
+  source: TrackedText,
   targetLanguage: TargetLanguage,
-): string =>
+): TrackedText =>
   source.replace(
     // "bu sırayı" ("this course") names the current course without saying
     // whether it is a row or a round, and nothing here knows which (turned
@@ -1428,8 +1429,8 @@ const normalizeSourceNaturalLanguageBase = (
   sourceContext: string = source,
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
-  renderings?: string[],
-): string =>
+  recordSpans = false,
+): TrackedText =>
   normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
       normalizeToolMaterialIntro(
@@ -1439,7 +1440,7 @@ const normalizeSourceNaturalLanguageBase = (
           sourceContext,
           sourceOffset,
           resolveCourseUnit,
-          renderings,
+          recordSpans,
         ),
         targetLanguage,
       ),
@@ -1615,13 +1616,13 @@ const normalizeCollectingRenderings = (
   sourceContext: string,
   sourceOffset: number,
   options: SourceNormalizationOptions,
-  renderings?: string[],
-): string => {
+  recordSpans = false,
+): TrackedText => {
   if (contentKind === "pattern" && targetLanguage === "en") {
     const sleeve = renderEnglishSleeveInstruction(source);
 
     if (sleeve) {
-      return sleeve.target;
+      return TrackedText.of(sleeve.target, false);
     }
   }
 
@@ -1632,7 +1633,7 @@ const normalizeCollectingRenderings = (
     sourceContext,
     sourceOffset,
     options.resolveCourseUnit,
-    renderings,
+    recordSpans,
   );
 };
 
@@ -1651,37 +1652,7 @@ export const normalizeSourceNaturalLanguage = (
     sourceContext,
     sourceOffset,
     options,
-  );
-
-/**
- * Locates each collected rendering in the final normalized text: longest
- * first, never overlapping, each exactly as often as it was rendered. If any
- * rendering is missing (a later rule consumed or rewrote it), no span is
- * returned, so the segment keeps today's flat behavior.
- */
-const locateDeterministicRenderings = (
-  text: string,
-  renderings: readonly string[],
-): DeterministicSpan[] => {
-  const needed = new Map<string, number>();
-  for (const rendered of renderings) needed.set(rendered, (needed.get(rendered) ?? 0) + 1);
-  const spans: DeterministicSpan[] = [];
-  for (const [rendered, count] of [...needed].sort(([left], [right]) => right.length - left.length)) {
-    let from = 0;
-    let found = 0;
-    while (found < count) {
-      const start = text.indexOf(rendered, from);
-      if (start < 0) return [];
-      const end = start + rendered.length;
-      if (!spans.some((span) => start < span.end && span.start < end)) {
-        spans.push({ start, end, text: rendered });
-        found += 1;
-      }
-      from = start + 1;
-    }
-  }
-  return spans.sort((left, right) => left.start - right.start);
-};
+  ).text;
 
 const fullyResolvedLoopCompactChainTurnPattern =
   /^\s*(?:\d+\)\s*)?bu\s+sırayı\s+(?:FLO|BLO)\s*[’'ʼ]?\s*dan\s+örüyoruz\s*[.]\s*\d+\s*x\s*[,，]\s*\d+\s*v\s*[,，]\s*\(\s*\d+\s*x\s*[,，]\s*\d+\s*v\s*\)\s*\*\s*\d+\s*[,，]\s*\d+\s*x\s*=\s*\d+\s*x\s*[,，]\s*\d+\s+zincir\s*[,，]\s*dön\s*[,]?\s*$/iu;
@@ -1715,15 +1686,15 @@ export const normalizeSourceNaturalLanguageDetailed = (
   sourceOffset = 0,
   options: SourceNormalizationOptions = {},
 ): SourceNaturalLanguageNormalization => {
-  const renderings: string[] = [];
-  const normalized = normalizeCollectingRenderings(
+  const recordSpans = contentKind === "pattern" && targetLanguage === "en";
+  const tracked = normalizeCollectingRenderings(
     source,
     targetLanguage,
     contentKind,
     sourceContext,
     sourceOffset,
     options,
-    renderings,
+    recordSpans,
   );
 
   const trimmedSource = source.trim();
@@ -1760,11 +1731,8 @@ export const normalizeSourceNaturalLanguageDetailed = (
     );
 
   return {
-    text: normalized,
+    text: tracked.text,
     fullyResolved,
-    deterministicSpans:
-      contentKind === "pattern" && targetLanguage === "en"
-        ? locateDeterministicRenderings(normalized, renderings)
-        : [],
+    deterministicSpans: recordSpans ? tracked.spans() : [],
   };
 };

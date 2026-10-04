@@ -2008,3 +2008,48 @@ describe("deterministic span carrier: buttonhole turn, magic ring, yarn intro (T
       .deterministicSpans).toEqual([]);
   });
 });
+
+describe("deterministic spans are recorded where they are rendered (Task 23B)", () => {
+  it.each([
+    // The same English already appears earlier in the line; only the rendering is carried.
+    ["Ch 1 and turn. ve 1 zincir çekip dönüyoruz.", "Ch 1 and turn. ve Ch 1 and turn.", [[18, 32]]],
+    ["6x into the magic ring sonra sihirli halka içine 6x", "6x into the magic ring sonra 6x into the magic ring", [[32, 51]]],
+    [
+      "Starting from the seventh chain, work 3x. Yedinci zincirden itibaren 28x",
+      "Starting from the seventh chain, work 3x. Starting from the seventh chain, work 28x",
+      [[42, 79]],
+    ],
+    // Several identical renderings in one line are each carried, in order.
+    [
+      "1 zincir çekip dönüyoruz, sonra 1 zincir çekip dönüyoruz.",
+      "Ch 1 and turn. sonra Ch 1 and turn.",
+      [[0, 14], [21, 35]],
+    ],
+    [
+      "2) 24x, 1 zincir, dön,\n3) 24x, 1 zincir, dön,",
+      "2) 24x, Ch 1 and turn,\n3) 24x, Ch 1 and turn,",
+      [[8, 21], [31, 44]],
+    ],
+  ] as const)("%s records the rendered occurrence", (source, text, expected) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end }) => [start, end])).toEqual(expected);
+    let previousEnd = 0;
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+      expect(span.start).toBeGreaterThanOrEqual(previousEnd);
+      previousEnd = span.end;
+    }
+  });
+
+  it("keeps the plain normalizer output identical to the detailed text", () => {
+    for (const source of [
+      "Ch 1 and turn. ve 1 zincir çekip dönüyoruz.",
+      "42x - 5 zincir (düğme iliği) dön ve kenarı dikiyoruz.",
+      "Siyah ip (catania 110) ile başlıyoruz.",
+    ]) {
+      expect(normalizeSourceNaturalLanguage(source, "en")).toBe(normalizeSourceNaturalLanguageDetailed(source, "en").text);
+      expect(normalizeSourceNaturalLanguageDetailed(source, "es").deterministicSpans).toEqual([]);
+    }
+  });
+});
