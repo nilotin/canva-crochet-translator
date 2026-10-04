@@ -6814,3 +6814,156 @@ describe("deterministic span carrier keeps chain + turn out of provider ownershi
     expect(result?.translated.startsWith("12) Ch 1 and turn. ")).toBe(true);
   });
 });
+
+describe("deterministic span carrier keeps word-ordinal chain start out of provider ownership (Task 22B)", () => {
+  // Hostile providers: erase everything, paraphrase English, or drop placeholders.
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text
+        .replace(/seventh|third/gu, "second")
+        .replace(/\bwork\b/gu, "skip")
+        .replace(/Starting from/gu, "Ending at")
+        .replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["Yedinci zincirden itibaren 28x", "Starting from the seventh chain, work 28sc"],
+    ["Üçüncü zincirden itibaren 8hdc", "Starting from the third chain, work 8hdc"],
+    [
+      "1) 10 zincir çekip dönüyoruz. Üçüncü zincirden itibaren 8hdc",
+      "1) Ch 10 and turn. Starting from the third chain, work 8hdc",
+    ],
+  ])("a pure clause %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "chain-start", text }], "en", { provider });
+      expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it("renders the stitch count in target notation, outside the carried prose", async () => {
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks(
+      [{ id: "chain-start-count", text: "Yedinci zincirden itibaren 28x örüyoruz." }],
+      "en",
+      { provider },
+    );
+    expect(result).toMatchObject({ translated: "Starting from the seventh chain, work 28sc.", valid: true });
+    expect(result?.translated).not.toContain("28x");
+    // Only the sentence's trailing period remains a provider span; the clause never is.
+    expect(provider.protectedTexts).toEqual(["."]);
+
+    for (const rewrite of Object.values(hostile)) {
+      const hostileProvider = new RewritingProvider(rewrite);
+      const [hostileResult] = await translateBlocks(
+        [{ id: "chain-start-count", text: "Yedinci zincirden itibaren 28x örüyoruz." }],
+        "en",
+        { provider: hostileProvider },
+      );
+      expect(hostileResult?.translated).toMatch(/^Starting from the seventh chain, work 28sc\.?$/u);
+    }
+  });
+
+  it.each([
+    [
+      "Yedinci zincirden itibaren 28x örüyoruz ve kenarı dikiyoruz.",
+      "Starting from the seventh chain, work",
+      ["ve kenarı dikiyoruz."],
+    ],
+    [
+      "Kenarı dikip yedinci zincirden itibaren 28x örüyoruz.",
+      "Starting from the seventh chain, work",
+      ["Kenarı dikip", "."],
+    ],
+  ])("a mixed line %s offers only its prose to the provider", async (text, deterministic, prose) => {
+    const echo = new InspectingProvider();
+    const [echoed] = await translateBlocks([{ id: "chain-start", text }], "en", { provider: echo });
+    expect(echo.protectedTexts).toEqual(prose);
+    // The deterministic text is read-only context, never a translatable span.
+    expect(echo.requests[0]?.userPrompt).toContain(deterministic);
+    expect(occurrences(echoed?.translated, deterministic)).toBe(1);
+    expect(echoed?.translated).toContain(`${deterministic} 28sc`);
+    expect(echoed?.valid).toBe(true);
+
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "chain-start", text }], "en", { provider });
+      // Exactly once, byte-exact, with the count still in target notation.
+      expect(occurrences(result?.translated, `${deterministic} 28sc`)).toBe(1);
+      expect(result?.translated).not.toMatch(/second|skip|Ending at|28x/u);
+    }
+    const rewritten = new RewritingProvider(hostile.rewrite);
+    const [paraphrased] = await translateBlocks([{ id: "chain-start", text }], "en", { provider: rewritten });
+    // The prose is still provider-owned.
+    expect(paraphrased?.translated).toContain("EDGE");
+  });
+
+  it("leaves second-chain and numeric-ordinal forms provider-exposed as before", async () => {
+    const second = new InspectingProvider();
+    const [secondResult] = await translateBlocks(
+      [{ id: "second-chain", text: "ikinci zincirden itibaren 5x" }],
+      "en",
+      { provider: second },
+    );
+    expect(secondResult?.translated).toBe("Starting from the second chain, 5sc");
+    expect(second.protectedTexts).toEqual(["Starting from the second chain"]);
+
+    const numeric = new InspectingProvider();
+    const [numericResult] = await translateBlocks(
+      [{ id: "numeric-ordinal", text: "3. zincirden itibaren 8x" }],
+      "en",
+      { provider: numeric },
+    );
+    expect(numericResult?.translated).toBe("3. zincirden itibaren 8sc");
+    expect(numeric.protectedTexts).toEqual(["zincirden itibaren"]);
+  });
+
+  it("formatting units still translate and project the mixed line", async () => {
+    const text = "Yedinci zincirden itibaren 28x örüyoruz ve kenarı dikiyoruz.";
+    const split = text.indexOf(" ve ");
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{
+      id: "chain-start-formatted", text,
+      formattingRegions: [
+        { id: "fmt-0", start: 0, end: split },
+        { id: "fmt-1", start: split, end: text.length },
+      ],
+    }], "en", { provider });
+    expect(result?.valid).toBe(true);
+    expect(occurrences(result?.translated, "Starting from the seventh chain, work 28sc")).toBe(1);
+    expect(provider.protectedTexts.join(" ")).not.toMatch(/Starting|chain|work/u);
+  });
+
+  it("the validator still checks the restored stitch count", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "Yedinci zincirden itibaren 28x örüyoruz ve kenarı dikiyoruz.";
+    expect(
+      validateTranslation(source, "Starting from the seventh chain, work 28sc and sew the edge.", "en", options).valid,
+    ).toBe(true);
+    expect(
+      validateTranslation(source, "Starting from the seventh chain, work 27sc and sew the edge.", "en", options).valid,
+    ).toBe(false);
+  });
+
+  it("the style layer receives the restored fragment once and leaves it unchanged", async () => {
+    const provider = new InspectingProvider();
+    const text = "12) Yedinci zincirden itibaren 28x örüyoruz ve sıranın sonunu dikiyoruz.";
+    const [result] = await translateBlocks([{ id: "chain-start-style", text }], "en", { provider });
+    expect(occurrences(result?.translated, "Starting from the seventh chain, work 28sc")).toBe(1);
+    expect(result?.translated.startsWith("12) Starting from the seventh chain, work 28sc ")).toBe(true);
+  });
+});

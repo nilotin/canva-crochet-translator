@@ -18,7 +18,7 @@
       }
     ]
   },
-  "id": "h-adcec187ab-s81ad840b-bal-kabagi-2-00",
+  "id": "h-adcec187ab-s2ef61896-bal-kabagi-2-00",
   "labels": {
     "families": [],
     "hazards": [],
@@ -44,10 +44,6 @@
         "translated": "Bütün sıraları"
       },
       {
-        "source": "Starting from the third chain",
-        "translated": "Starting from the third chain"
-      },
-      {
         "source": "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz.",
         "translated": "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz."
       },
@@ -66,10 +62,6 @@
       {
         "source": "sıra",
         "translated": "sıra"
-      },
-      {
-        "source": "work",
-        "translated": "work"
       },
       {
         "source": "’dan örüyoruz.",
@@ -129,9 +121,7 @@
           "span-4",
           "span-5",
           "span-6",
-          "span-7",
-          "span-8",
-          "span-9"
+          "span-7"
         ],
         "blockTexts": [
           "Bal kabağı",
@@ -140,14 +130,12 @@
           "Sıra sonlarında two chains çekip bir üst sıraya geçiyoruz.",
           "Bütün sıraları",
           "’dan örüyoruz.",
-          "Starting from the third chain",
-          "work",
           "sıra",
           "iki ucu birleştirmek için ipimizi uzun kesiyoruz."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "cbe93d64103664eeba379a0fd891790e6b949c4acacbd5b72f3edae7041cb3b1"
+        "userPromptSha256": "28a46f2bb51a33ec41edbab3bb58d0685e896de23289a825faa21d16a6fe8511"
       }
     ]
   }

@@ -58,9 +58,9 @@ export type SourceNaturalLanguageNormalization = {
   fullyResolved: boolean;
   /**
    * Ranges of `text` rendered deterministically by a family that opted into
-   * the carrier (currently chain + turn), in source order and non-overlapping.
-   * Empty when nothing opted in or when any rendering could not be located
-   * exactly in the final text (fail closed).
+   * the carrier (chain + turn, word-ordinal chain start), in source order and
+   * non-overlapping. Empty when nothing opted in or when any rendering could
+   * not be located exactly in the final text (fail closed).
    */
   deterministicSpans: readonly DeterministicSpan[];
 };
@@ -270,10 +270,10 @@ const normalizeEnglishCrochetStructures = (
   sourceContext: string = source,
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
-  /** Collects the chain + turn renderings for the deterministic carrier. */
+  /** Collects the renderings of families that opted into the deterministic carrier. */
   renderings?: string[],
 ): string => {
-  const chainTurn = (rendered: string): string => {
+  const recordDeterministicSpan = (rendered: string): string => {
     renderings?.push(rendered);
     return rendered;
   };
@@ -420,13 +420,13 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
-      (_match, count: string) => chainTurn(`Ch ${count} and turn`),
+      (_match, count: string) => recordDeterministicSpan(`Ch ${count} and turn`),
     )
     .replace(
       // Whitespace is consumed only together with the clause's own punctuation,
       // so "dönüyoruz ve ..." keeps its space ("Ch 1 and turn. ve ...").
       /\b(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz(?:\s*[,，.])?/giu,
-      (_match, count: string) => chainTurn(`Ch ${count} and turn.`),
+      (_match, count: string) => recordDeterministicSpan(`Ch ${count} and turn.`),
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+atlayıp\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*\)\s*[,，]?\s*(birinci|ikinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*x(?:\s+örüyoruz)?\b/giu,
@@ -498,7 +498,11 @@ const normalizeEnglishCrochetStructures = (
         const ordinal =
           ordinals[ordinalSource.toLocaleLowerCase("tr-TR")];
 
-        return `${prefix}Starting from the ${ordinal} chain, work ${stitches}${stitchAbbreviation}`;
+        // Only the prose is carried; the stitch count stays notation so it is
+        // still rendered in target notation ("28x" -> "28sc").
+        return `${prefix}${recordDeterministicSpan(
+          `Starting from the ${ordinal} chain, work`,
+        )} ${stitches}${stitchAbbreviation}`;
       },
     )
     .replace(
@@ -587,7 +591,7 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\b/giu,
-      (_match, count: string) => chainTurn(`Ch ${count} and turn`),
+      (_match, count: string) => recordDeterministicSpan(`Ch ${count} and turn`),
     )
     .replace(
       /(\d+)\s*x\s+BLO(?:['’]?dan)?\b/giu,

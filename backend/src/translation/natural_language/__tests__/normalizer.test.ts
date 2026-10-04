@@ -1908,3 +1908,51 @@ describe("deterministic span carrier: chain + turn (Task 21B)", () => {
       .toEqual([]);
   });
 });
+
+describe("deterministic span carrier: word-ordinal chain start (Task 22B)", () => {
+  it.each([
+    ["Yedinci zincirden itibaren 28x örüyoruz.", "Starting from the seventh chain, work 28x.", [[0, 37]]],
+    ["Yedinci zincirden itibaren 28x", "Starting from the seventh chain, work 28x", [[0, 37]]],
+    ["Dördüncü zincirden itibaren 12x örüyoruz.", "Starting from the fourth chain, work 12x.", [[0, 36]]],
+    ["Üçüncü zincirden itibaren 8hdc", "Starting from the third chain, work 8hdc", [[0, 35]]],
+    ["zincir üzerine üçüncü zincirden itibaren 18hdc", "Starting from the third chain, work 18hdc", [[0, 35]]],
+    [
+      "Yedinci zincirden itibaren 28x örüyoruz ve kenarı dikiyoruz.",
+      "Starting from the seventh chain, work 28x ve kenarı dikiyoruz.",
+      [[0, 37]],
+    ],
+    ["Kenarı dikip yedinci zincirden itibaren 28x örüyoruz.", "Kenarı dikip Starting from the seventh chain, work 28x.", [[13, 50]]],
+    [
+      "1) 10 zincir çekip dönüyoruz. Üçüncü zincirden itibaren 8hdc",
+      "1) Ch 10 and turn. Starting from the third chain, work 8hdc",
+      [[3, 18], [19, 54]],
+    ],
+  ] as const)("%s carries only the chain-start prose", (source, text, ranges) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end }) => [start, end])).toEqual(ranges);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+      // The stitch count is never carried: it stays notation.
+      expect(span.text).not.toMatch(/\d+\s*(?:x|hdc|sc|dc|tr)\b/u);
+    }
+    expect(result.deterministicSpans.at(-1)?.text).toMatch(/^Starting from the \w+ chain, work$/u);
+  });
+
+  it("leaves second-chain, numeric-ordinal and Spanish forms off the carrier", () => {
+    const spansOf = (source: string, language: "en" | "es" = "en") =>
+      normalizeSourceNaturalLanguageDetailed(source, language).deterministicSpans.map(({ text }) => text);
+    expect(spansOf("ikinci zincirden itibaren 5x")).toEqual([]);
+    expect(spansOf("İkinci zincirden itibaren 5x örüyoruz.")).toEqual([]);
+    expect(spansOf("3. zincirden itibaren 8x")).toEqual([]);
+    expect(spansOf("7. sık iğneye ipimizi sabitliyoruz.")).toEqual([]);
+    expect(
+      spansOf("12 zincir çekip geriye dönüyoruz. 4 zincir atlıyoruz. 3. zincirden itibaren 18x. zincir üzerine 5x"),
+    ).toEqual(["Ch 12 and turn."]);
+    expect(spansOf("Yedinci zincirden itibaren 28x örüyoruz.", "es")).toEqual([]);
+    expect(normalizeSourceNaturalLanguage("ikinci zincirden itibaren 5x", "en"))
+      .toBe("Starting from the second chain, 5x");
+    expect(normalizeSourceNaturalLanguage("3. zincirden itibaren 8x", "en"))
+      .toBe("Starting from the 3rd chain, work 8x");
+  });
+});

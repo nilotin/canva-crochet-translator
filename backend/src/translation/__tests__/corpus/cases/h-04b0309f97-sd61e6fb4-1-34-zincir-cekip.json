@@ -37,11 +37,11 @@
       }
     ]
   },
-  "id": "h-04b0309f97-s305cce0b-1-34-zincir-cekip",
+  "id": "h-04b0309f97-sd61e6fb4-1-34-zincir-cekip",
   "labels": {
     "families": [],
     "hazards": [],
-    "zeroProvider": false
+    "zeroProvider": true
   },
   "lane": "harvested",
   "origins": [
@@ -53,17 +53,7 @@
     }
   ],
   "provider": {
-    "entries": [
-      {
-        "source": "Starting from the seventh chain",
-        "translated": "Starting from the seventh chain"
-      },
-      {
-        "source": "work",
-        "translated": "work"
-      }
-    ],
-    "mode": "oracle"
+    "mode": "none"
   },
   "request": {
     "blocks": [
@@ -96,20 +86,6 @@
         "warnings": []
       }
     ],
-    "providerCalls": [
-      {
-        "blockIds": [
-          "span-0",
-          "span-1"
-        ],
-        "blockTexts": [
-          "Starting from the seventh chain",
-          "work"
-        ],
-        "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
-        "targetLanguage": "en",
-        "userPromptSha256": "9c18ce4c8b68ae62a27053cea7fca22a62188520fef5ddcc33a016e113178ea3"
-      }
-    ]
+    "providerCalls": []
   }
 }
