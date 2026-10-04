@@ -6,6 +6,7 @@ import type {
 } from "../providers/provider.js";
 import { translateBlocks } from "../translator.js";
 import { validateTranslation } from "../validator.js";
+import { reservedPlaceholder } from "../notation/immutable.js";
 
 class StubProvider implements TranslationProvider {
   readonly name = "stub";
@@ -6709,5 +6710,107 @@ describe("tool/yarn intro family is provider-independent when every slot is dete
     const [result] = await translateBlocks([{ id: "block", text }], "en", { provider });
     expect(result?.translated.split("\n")[0]).toBe(introEn);
     expect(provider.requests.length).toBeGreaterThan(0);
+  });
+});
+
+describe("deterministic span carrier keeps chain + turn out of provider ownership (Task 21B)", () => {
+  // Hostile providers: erase everything, paraphrase English, or drop placeholders.
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text.replace(/\bCh\b/gu, "Chain").replace(/\bturn\b/gu, "rotate").replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const sentTexts = (provider: InspectingProvider) => provider.protectedTexts;
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["1 zincir çekip dönüyoruz.", "Ch 1 and turn."],
+    ["2 zincir çekip dönüyoruz.", "Ch 2 and turn."],
+    ["1 zincir, dön", "Ch 1 and turn"],
+  ])("a pure clause %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "chain-turn", text }], "en", { provider });
+      expect(result).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["1 zincir çekip dönüyoruz ve kenarı dikiyoruz.", "Ch 1 and turn.", "ve kenarı dikiyoruz."],
+    ["Kenarı dikip 1 zincir çekip dönüyoruz.", "Ch 1 and turn.", "Kenarı dikip"],
+    ["3) 1 zincir çekip dönüyoruz ve kenarı dikiyoruz.", "Ch 1 and turn.", "ve kenarı dikiyoruz."],
+  ])("a mixed line %s offers only its prose to the provider", async (text, deterministic, prose) => {
+    const echo = new InspectingProvider();
+    const [echoed] = await translateBlocks([{ id: "chain-turn", text }], "en", { provider: echo });
+    expect(sentTexts(echo)).toEqual([prose]);
+    // The deterministic text is read-only context, never a translatable span.
+    expect(echo.requests[0]?.userPrompt).toContain(deterministic);
+    expect(occurrences(echoed?.translated, deterministic)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      const [result] = await translateBlocks([{ id: "chain-turn", text }], "en", { provider });
+      // Exactly once, byte-exact, whatever the provider does to the prose.
+      expect(occurrences(result?.translated, deterministic)).toBe(1);
+      expect(result?.translated).not.toMatch(/Chain|rotate/u);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    const rewritten = new RewritingProvider(hostile.rewrite);
+    const [paraphrased] = await translateBlocks([{ id: "chain-turn", text }], "en", { provider: rewritten });
+    // The prose is still provider-owned.
+    expect(paraphrased?.translated).toContain("EDGE");
+  });
+
+  it("formatting units still translate and project the mixed line", async () => {
+    const text = "1 zincir çekip dönüyoruz ve kenarı dikiyoruz.";
+    const split = text.indexOf(" ve ");
+    const provider = new InspectingProvider();
+    const [result] = await translateBlocks([{
+      id: "chain-turn-formatted", text,
+      formattingRegions: [
+        { id: "fmt-0", start: 0, end: split },
+        { id: "fmt-1", start: split, end: text.length },
+      ],
+    }], "en", { provider });
+    expect(result?.valid).toBe(true);
+    expect(occurrences(result?.translated, "Ch 1 and turn")).toBe(1);
+    expect(sentTexts(provider).join(" ")).not.toMatch(/\bCh\b|turn/u);
+  });
+
+  it("the validator still checks the restored chain count", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "1 zincir çekip dönüyoruz ve kenarı dikiyoruz.";
+    expect(validateTranslation(source, "Ch 1 and turn. and sew the edge.", "en", options).valid).toBe(true);
+    expect(validateTranslation(source, "Ch 3 and turn. and sew the edge.", "en", options).valid).toBe(false);
+  });
+
+  it("fails closed when the source already holds a reserved placeholder", async () => {
+    const provider = new InspectingProvider();
+    const text = `${reservedPlaceholder(0)} 1 zincir çekip dönüyoruz ve kenarı dikiyoruz.`;
+    const [result] = await translateBlocks([{ id: "chain-turn-reserved", text }], "en", { provider });
+    expect(result?.valid).toBe(false);
+    expect(result?.translated).toBe("");
+    expect(provider.requests).toHaveLength(0);
+  });
+
+  it("the style layer receives the restored fragment once and leaves it unchanged", async () => {
+    const provider = new InspectingProvider();
+    const text = "12) 1 zincir çekip dönüyoruz ve sıranın sonunu dikiyoruz.";
+    const [result] = await translateBlocks([{ id: "chain-turn-style", text }], "en", { provider });
+    expect(occurrences(result?.translated, "Ch 1 and turn.")).toBe(1);
+    expect(result?.translated.startsWith("12) Ch 1 and turn. ")).toBe(true);
   });
 });

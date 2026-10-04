@@ -1,7 +1,10 @@
 import { extractRoundReferences, renderRoundReference } from "./natural_language/round_references.js";
 import { extractSourceMeasurementSpans } from "./measurements.js";
 import { extractSourceAtomicNaturalLanguageSpans } from "./natural_language/atomic_spans.js";
-import { normalizeSourceNaturalLanguageDetailed } from "./natural_language/normalizer.js";
+import {
+  normalizeSourceNaturalLanguageDetailed,
+  type DeterministicSpan,
+} from "./natural_language/normalizer.js";
 import { normalizeTranslationStyle } from "./natural_language/style_normalizer.js";
 import {
   legacyCourseUnitResolver,
@@ -17,6 +20,7 @@ import {
   containsReservedPlaceholder,
   isPatternOnlyProtectedText,
   protectImmutablePattern,
+  reservedPlaceholder,
   restoreImmutablePattern,
 } from "./notation/immutable.js";
 import {
@@ -25,6 +29,7 @@ import {
 } from "./instruction_marker.js";
 import {
   lexMixedSegment,
+  type LexedMixedSegment,
   normalizeMixedProseTranslation,
   reconstructMixedSegmentWithProjection,
   validateMixedProseSpans,
@@ -171,6 +176,69 @@ const isDeterministicallyResolvedForTargetLanguage = (
   );
 };
 
+/**
+ * Deterministic carrier for one mixed segment: each normalizer-rendered span
+ * (`deterministicSpans`) is hidden behind a canonical reserved placeholder, so
+ * the mixed lexer treats it as immutable and never offers it to the provider
+ * as a translatable span. `restore` puts the exact rendered text back once,
+ * after reconstruction. When every remaining piece is immutable, `identity`
+ * reconstructs the flat segment from its own (deterministic) text with no
+ * provider call. Undefined (today's flat behavior) when there is nothing to
+ * carry or the carrier cannot be lexed safely.
+ */
+type DeterministicCarrier = {
+  readonly lexed: LexedMixedSegment;
+  readonly identity?: ReadonlyMap<string, string>;
+  readonly restore: (text: string) => string;
+};
+
+const deterministicCarrier = (
+  normalized: string,
+  spans: readonly DeterministicSpan[],
+  targetLanguage: TargetLanguage,
+  idPrefix: string,
+  flat: LexedMixedSegment,
+): DeterministicCarrier | undefined => {
+  if (spans.length === 0 || containsReservedPlaceholder(normalized)) return undefined;
+
+  const rendered = new Map<string, string>();
+  let text = "";
+  let cursor = 0;
+  spans.forEach((span, index) => {
+    const placeholder = reservedPlaceholder(index);
+    text += normalized.slice(cursor, span.start) + placeholder;
+    rendered.set(placeholder, span.text);
+    cursor = span.end;
+  });
+  text += normalized.slice(cursor);
+
+  const lexed = lexMixedSegment(text, targetLanguage, idPrefix, {
+    reservedPlaceholders: [...rendered.keys()],
+  });
+  if (!lexed.valid) return undefined;
+  if (lexed.classification === "pattern_only") {
+    return {
+      lexed: { ...flat, spans: [] },
+      identity: new Map(flat.spans.map(({ id, text: spanText }) => [id, spanText])),
+      restore: (output) => output,
+    };
+  }
+  if (lexed.classification !== "mixed") return undefined;
+  return {
+    lexed,
+    // Reserved tokens are reconstructed verbatim, so each placeholder occurs
+    // exactly once; anything else is left in place for the leak guard.
+    restore: (output) =>
+      [...rendered].reduce(
+        (result, [placeholder, deterministic]) =>
+          result.split(placeholder).length === 2
+            ? result.replace(placeholder, () => deterministic)
+            : result,
+        output,
+      ),
+  };
+};
+
 const translateSegment = async (
   block: TranslationBlock,
   segmentIndex: number,
@@ -256,13 +324,27 @@ const translateSegment = async (
     !hasMeasurement &&
     (roundTokens.length === 0 || hasNonRoundImmutable)
   ) {
+    // Normalizer-rendered deterministic spans stay immutable: only the
+    // remaining prose is offered to the provider as translatable spans.
+    const carrier = mixed.valid
+      ? deterministicCarrier(
+          normalized,
+          normalization.deterministicSpans,
+          targetLanguage,
+          block.id,
+          mixed,
+        )
+      : undefined;
+    const lexed = carrier?.lexed ?? mixed;
+    const restoreDeterministic = carrier?.restore ?? ((text: string) => text);
+
     if (!mixed.valid) {
       structuralErrors = mixed.errors.map((message) => ({
         code: "INTERNAL_MIXED_LEXER_ERROR" as const,
         message,
       }));
       restored = block.text;
-    } else if (mixed.spans.length === 0) {
+    } else if (lexed.spans.length === 0) {
       // The segment contains at least one immutable/notation token (hence
       // "mixed") but zero natural-language spans -- e.g. "x - dc" or
       // "x: v" in an abbreviations legend. There is nothing for the
@@ -272,28 +354,32 @@ const translateSegment = async (
       // Reconstruct deterministically instead, exactly like a
       // pattern-only segment.
       const reconstructed = reconstructMixedSegmentWithProjection(
-        mixed.tokens,
-        new Map(),
+        lexed.tokens,
+        carrier?.identity ?? new Map(),
       );
 
-      restored = restoreLeadingInstruction(instruction, reconstructed.text);
+      restored = restoreLeadingInstruction(
+        instruction,
+        restoreDeterministic(reconstructed.text),
+      );
       structuralErrors = [];
 
-      if (instruction === undefined && normalized === block.text) {
+      if (carrier === undefined && instruction === undefined && normalized === block.text) {
         mixedProjectionPieces = reconstructed.pieces;
       }
     } else {
-      const providerSpans = mixed.spans.map((span, index) => ({
+      const providerSpans = lexed.spans.map((span, index) => ({
         ...span,
         id: `span-${index}`,
       }));
       const internalIdByProviderId = new Map(
         providerSpans.map((span, index) => [
           span.id,
-          mixed.spans[index]?.id ?? span.id,
+          lexed.spans[index]?.id ?? span.id,
         ]),
       );
 
+      // The deterministic text stays visible as read-only prose context.
       const prompt = buildMixedSpanPrompt(
         targetLanguage,
         normalized,
@@ -347,13 +433,16 @@ const translateSegment = async (
         })),
       );
       const reconstructed = reconstructMixedSegmentWithProjection(
-        mixed.tokens,
+        lexed.tokens,
         translations,
       );
 
-      restored = restoreLeadingInstruction(instruction, reconstructed.text);
+      restored = restoreLeadingInstruction(
+        instruction,
+        restoreDeterministic(reconstructed.text),
+      );
 
-      if (instruction === undefined && normalized === block.text) {
+      if (carrier === undefined && instruction === undefined && normalized === block.text) {
         mixedProjectionPieces = reconstructed.pieces;
       }
     }

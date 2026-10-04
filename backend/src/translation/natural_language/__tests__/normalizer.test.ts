@@ -1875,3 +1875,36 @@ describe("course-end turn family is unit-neutral (Task 18B)", () => {
       .toBe("Sıra sonunda 1 zincir çekip dönüyoruz.");
   });
 });
+
+describe("deterministic span carrier: chain + turn (Task 21B)", () => {
+  it.each([
+    ["1 zincir çekip dönüyoruz.", "Ch 1 and turn.", [[0, 14]]],
+    ["2 zincir çekip dönüyoruz.", "Ch 2 and turn.", [[0, 14]]],
+    ["1 zincir, dön", "Ch 1 and turn", [[0, 13]]],
+    ["1 zincir çekip dönüyoruz ve kenarı dikiyoruz.", "Ch 1 and turn. ve kenarı dikiyoruz.", [[0, 14]]],
+    ["Kenarı dikip 1 zincir çekip dönüyoruz.", "Kenarı dikip Ch 1 and turn.", [[13, 27]]],
+  ] as const)("%s exposes exactly its chain + turn rendering", (source, text, ranges) => {
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en");
+    expect(result.text).toBe(text);
+    expect(result.deterministicSpans.map(({ start, end }) => [start, end])).toEqual(ranges);
+    for (const span of result.deterministicSpans) {
+      expect(result.text.slice(span.start, span.end)).toBe(span.text);
+    }
+  });
+
+  it("keeps whitespace when no punctuation follows the clause", () => {
+    expect(normalizeSourceNaturalLanguage("1 zincir çekip dönüyoruz ve kenarı dikiyoruz.", "en"))
+      .toBe("Ch 1 and turn. ve kenarı dikiyoruz.");
+    expect(normalizeSourceNaturalLanguage("1 zincir çekip dönüyoruz, sonra", "en"))
+      .toBe("Ch 1 and turn. sonra");
+  });
+
+  it("other families and other languages expose no carrier spans", () => {
+    expect(normalizeSourceNaturalLanguageDetailed("Bütün sıra sonlarında 1 zincir çekip dönüyoruz.", "en")
+      .deterministicSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed("13) 5 sıra 16x", "en").deterministicSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed("1 zincir çekip dönüyoruz.", "es").deterministicSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed("1 zincir çekip dönüyoruz.", "en", "materials").deterministicSpans)
+      .toEqual([]);
+  });
+});

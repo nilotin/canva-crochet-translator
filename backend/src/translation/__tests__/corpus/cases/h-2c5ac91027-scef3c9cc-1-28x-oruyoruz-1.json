@@ -11,7 +11,7 @@
       }
     ]
   },
-  "id": "h-2c5ac91027-sbeea7f04-1-28x-oruyoruz-1",
+  "id": "h-2c5ac91027-scef3c9cc-1-28x-oruyoruz-1",
   "labels": {
     "families": [],
     "hazards": [],
@@ -29,8 +29,8 @@
   "provider": {
     "entries": [
       {
-        "source": "Ch",
-        "translated": "Ch"
+        "source": "At the end of each row",
+        "translated": "At the end of each row"
       },
       {
         "source": "Work",
@@ -39,10 +39,6 @@
       {
         "source": "and turn.",
         "translated": "and turn."
-      },
-      {
-        "source": "and turn. At the end of each row",
-        "translated": "and turn. At the end of each row"
       },
       {
         "source": "ch",
@@ -76,19 +72,17 @@
           "span-0",
           "span-1",
           "span-2",
-          "span-3",
-          "span-4"
+          "span-3"
         ],
         "blockTexts": [
           "Work",
-          "Ch",
-          "and turn. At the end of each row",
+          "At the end of each row",
           "ch",
           "and turn."
         ],
         "systemPromptSha256": "d26a36c6b099ce7f4cebbe4fd6a994eea27a60665d4a53e58426d4646a413c55",
         "targetLanguage": "en",
-        "userPromptSha256": "0a3d7648fa3e1fe31c30930980fc3bf1868a7d7ff66cf00f100967ec329b52c3"
+        "userPromptSha256": "d9f25fe363a2b3e3ae5a5a154ad4860316dac4bf8d55f87083e5ad4a323cf861"
       }
     ]
   }

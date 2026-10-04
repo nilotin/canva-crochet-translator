@@ -43,9 +43,26 @@ const fullyResolvedReferencedLoopStitchCountPattern =
 const fullyResolvedChainTurnSlipStitchContinuationPattern =
   /^\s*\d+\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\s*[,，.]\s*(?:zincir\s+üzerine\s+)?(?:birinci|ikinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+\d+\s*(?:x|hdc|sc|dc|tr)\s*[,，]\s*\d+\s*x\s+atla\s*[,，]?\s*sıradaki\s+(?:sık\s+iğneye|ilmeğe)\s+cc\s*[,，]\s*tekrar\s+(?:sıradaki|sırdaki)\s+(?:sık\s+iğneye|ilmeğe)\s+cc(?:\s+yapıyoruz)?\s*[.]\s*bu\s+şekilde\s+sıra\s+sonuna\s+kadar\s+devam\s+ediyoruz\s*[.]\s*sıra\s+sonuna\s+geldiğimizde\s+\d+\s+zincir\s+çekiyoruz\s*[.]?\s*$/iu;
 
+/**
+ * An exact range of `text` that a deterministic renderer produced. The carrier
+ * keeps it immutable through provider translation; it is never re-rendered.
+ */
+export type DeterministicSpan = {
+  readonly start: number;
+  readonly end: number;
+  readonly text: string;
+};
+
 export type SourceNaturalLanguageNormalization = {
   text: string;
   fullyResolved: boolean;
+  /**
+   * Ranges of `text` rendered deterministically by a family that opted into
+   * the carrier (currently chain + turn), in source order and non-overlapping.
+   * Empty when nothing opted in or when any rendering could not be located
+   * exactly in the final text (fail closed).
+   */
+  deterministicSpans: readonly DeterministicSpan[];
 };
 
 const englishOrdinal = (raw: string): string => {
@@ -253,7 +270,13 @@ const normalizeEnglishCrochetStructures = (
   sourceContext: string = source,
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
+  /** Collects the chain + turn renderings for the deterministic carrier. */
+  renderings?: string[],
 ): string => {
+  const chainTurn = (rendered: string): string => {
+    renderings?.push(rendered);
+    return rendered;
+  };
   if (targetLanguage !== "en") return source;
 
   return normalizeEnglishRoundCountStructures(
@@ -397,11 +420,13 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /\b(\d+)\s+zincir\s*,?\s*dön\b/giu,
-      (_match, count: string) => `Ch ${count} and turn`,
+      (_match, count: string) => chainTurn(`Ch ${count} and turn`),
     )
     .replace(
-      /\b(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\s*[,，.]?/giu,
-      (_match, count: string) => `Ch ${count} and turn.`,
+      // Whitespace is consumed only together with the clause's own punctuation,
+      // so "dönüyoruz ve ..." keeps its space ("Ch 1 and turn. ve ...").
+      /\b(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz(?:\s*[,，.])?/giu,
+      (_match, count: string) => chainTurn(`Ch ${count} and turn.`),
     )
     .replace(
       /(^|[^\p{L}\p{N}_])(\d+)\s+zincir\s+atlayıp\s*\(\s*düğme\s+iliği\s+oluşturuyoruz\s*\)\s*[,，]?\s*(birinci|ikinci|üçüncü|dördüncü|beşinci|altıncı|yedinci|sekizinci|dokuzuncu|onuncu)\s+zincirden\s+itibaren\s+(\d+)\s*x(?:\s+örüyoruz)?\b/giu,
@@ -562,7 +587,7 @@ const normalizeEnglishCrochetStructures = (
     )
     .replace(
       /(\d+)\s+zincir\s+çekip\s+(?:geriye\s+)?dönüyoruz\b/giu,
-      (_match, count: string) => `Ch ${count} and turn`,
+      (_match, count: string) => chainTurn(`Ch ${count} and turn`),
     )
     .replace(
       /(\d+)\s*x\s+BLO(?:['’]?dan)?\b/giu,
@@ -1392,6 +1417,7 @@ const normalizeSourceNaturalLanguageBase = (
   sourceContext: string = source,
   sourceOffset = 0,
   resolveCourseUnit: CourseUnitResolver = legacyCourseUnitResolver,
+  renderings?: string[],
 ): string =>
   normalizeSimpleLoopInstruction(
     normalizeConditionalLoopInstruction(
@@ -1402,6 +1428,7 @@ const normalizeSourceNaturalLanguageBase = (
           sourceContext,
           sourceOffset,
           resolveCourseUnit,
+          renderings,
         ),
         targetLanguage,
       ),
@@ -1570,13 +1597,14 @@ export type SourceNormalizationOptions = {
   readonly resolveCourseUnit?: CourseUnitResolver;
 };
 
-export const normalizeSourceNaturalLanguage = (
+const normalizeCollectingRenderings = (
   source: string,
   targetLanguage: TargetLanguage,
-  contentKind: "pattern" | "materials" = "pattern",
-  sourceContext: string = source,
-  sourceOffset = 0,
-  options: SourceNormalizationOptions = {},
+  contentKind: "pattern" | "materials",
+  sourceContext: string,
+  sourceOffset: number,
+  options: SourceNormalizationOptions,
+  renderings?: string[],
 ): string => {
   if (contentKind === "pattern" && targetLanguage === "en") {
     const sleeve = renderEnglishSleeveInstruction(source);
@@ -1593,7 +1621,55 @@ export const normalizeSourceNaturalLanguage = (
     sourceContext,
     sourceOffset,
     options.resolveCourseUnit,
+    renderings,
   );
+};
+
+export const normalizeSourceNaturalLanguage = (
+  source: string,
+  targetLanguage: TargetLanguage,
+  contentKind: "pattern" | "materials" = "pattern",
+  sourceContext: string = source,
+  sourceOffset = 0,
+  options: SourceNormalizationOptions = {},
+): string =>
+  normalizeCollectingRenderings(
+    source,
+    targetLanguage,
+    contentKind,
+    sourceContext,
+    sourceOffset,
+    options,
+  );
+
+/**
+ * Locates each collected rendering in the final normalized text: longest
+ * first, never overlapping, each exactly as often as it was rendered. If any
+ * rendering is missing (a later rule consumed or rewrote it), no span is
+ * returned, so the segment keeps today's flat behavior.
+ */
+const locateDeterministicRenderings = (
+  text: string,
+  renderings: readonly string[],
+): DeterministicSpan[] => {
+  const needed = new Map<string, number>();
+  for (const rendered of renderings) needed.set(rendered, (needed.get(rendered) ?? 0) + 1);
+  const spans: DeterministicSpan[] = [];
+  for (const [rendered, count] of [...needed].sort(([left], [right]) => right.length - left.length)) {
+    let from = 0;
+    let found = 0;
+    while (found < count) {
+      const start = text.indexOf(rendered, from);
+      if (start < 0) return [];
+      const end = start + rendered.length;
+      if (!spans.some((span) => start < span.end && span.start < end)) {
+        spans.push({ start, end, text: rendered });
+        found += 1;
+      }
+      from = start + 1;
+    }
+  }
+  return spans.sort((left, right) => left.start - right.start);
 };
 
 const fullyResolvedLoopCompactChainTurnPattern =
@@ -1628,13 +1704,15 @@ export const normalizeSourceNaturalLanguageDetailed = (
   sourceOffset = 0,
   options: SourceNormalizationOptions = {},
 ): SourceNaturalLanguageNormalization => {
-  const normalized = normalizeSourceNaturalLanguage(
+  const renderings: string[] = [];
+  const normalized = normalizeCollectingRenderings(
     source,
     targetLanguage,
     contentKind,
     sourceContext,
     sourceOffset,
     options,
+    renderings,
   );
 
   const trimmedSource = source.trim();
@@ -1673,5 +1751,9 @@ export const normalizeSourceNaturalLanguageDetailed = (
   return {
     text: normalized,
     fullyResolved,
+    deterministicSpans:
+      contentKind === "pattern" && targetLanguage === "en"
+        ? locateDeterministicRenderings(normalized, renderings)
+        : [],
   };
 };
