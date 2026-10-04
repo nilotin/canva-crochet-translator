@@ -822,7 +822,9 @@ const normalizeEnglishCrochetStructures = (
       ". Without cutting the yarn, continue by joining the arms",
     )
     .replace(
-      /(^|\n)(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]\s*dan(?=\s)/gimu,
+      // The apostrophe is optional so legacy "flodan", "FLOdan" and "BLO dan"
+      // render here too (previously only a style repair fixed them).
+      /(^|\n)(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]?\s*dan(?=\s)/gimu,
       (_match, lineStart: string, prefix: string, loop: string) =>
         `${lineStart}${prefix}${recordDeterministicSpan("In")} ${loop.toUpperCase()},`,
     )

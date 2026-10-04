@@ -493,33 +493,6 @@ const normalizeEnglishCrochetInstructionLine = (
     return `${bullet}While crocheting the legs, add stuffing every ${start}-${end} rounds. While stuffing, make sure the work does not twist, as shown in the image. (If you keep straightening the work with your hands as you stuff, it will not twist and the legs will look much neater.)`;
   }
 
-  const shortLoopRound =
-    /^(\s*(?:\d+\)\s*)?)(FLO|BLO)\s*[‘’'`´]?\s*dan\s+([\s\S]+)$/iu.exec(
-      source,
-    );
-
-  if (shortLoopRound) {
-    const prefix = shortLoopRound[1] ?? "";
-    const loop = shortLoopRound[2]?.toUpperCase();
-
-    if (!loop) {
-      return translated;
-    }
-
-    const escapedPrefix = prefix.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&",
-    );
-
-    return translated.replace(
-      new RegExp(
-        `^(${escapedPrefix})?${loop}\\s+from\\s+`,
-        "iu",
-      ),
-      `${prefix}In ${loop}, `,
-    );
-  }
-
   const hookWithBrandedColorYarn = new RegExp(
     `^(\\s*✦\\s*)?(\\d+(?:[.,]\\d+)?)\\s+(?:numara|no)\\s+tığ\\s*[,，]\\s*(${TURKISH_YARN_COLOR_PATTERN})(?:\\s+renk)?\\s*\\(\\s*([^)]+?)\\s*\\)\\s+ip\\s+ile\\s+örüyoruz[.]?\\s*$`,
     "iu",

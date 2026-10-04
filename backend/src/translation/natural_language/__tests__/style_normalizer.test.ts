@@ -432,16 +432,18 @@ describe("normalizeTranslationStyle", () => {
     }
   });
 
-  it("normalizes a short FLO round", () => {
-    expect(
-      normalizeTranslationStyle(
-        "7) FLO ‘dan (5x, 1v)*6 = 42x",
-        "7) FLO from (5sc, 1inc)*6 = 42sc",
-        "en",
-      ),
-    ).toBe(
-      "7) In FLO, (5sc, 1inc)*6 = 42sc",
-    );
+  it("no longer repairs short FLO/BLO rounds (the normalizer renders and carries \"In\", Task 23I)", () => {
+    for (const source of ["7) FLO ‘dan (5x, 1v)*6 = 42x", "7) flodan (5x, 1v)*6 = 42x", "7) BLO dan (5x, 1v)*6 = 42x"]) {
+      const loop = /blo/iu.test(source) ? "BLO" : "FLO";
+      // The canonical pipeline output passes through unchanged...
+      expect(normalizeTranslationStyle(source, `7) In ${loop}, (5sc, 1inc)*6 = 42sc`, "en")).toBe(
+        `7) In ${loop}, (5sc, 1inc)*6 = 42sc`,
+      );
+      // ...and style is no longer the owner that rewrites a provider's wording.
+      expect(normalizeTranslationStyle(source, `7) ${loop} from (5sc, 1inc)*6 = 42sc`, "en")).toBe(
+        `7) ${loop} from (5sc, 1inc)*6 = 42sc`,
+      );
+    }
   });
 
   it("normalizes a branded color-yarn hook intro", () => {

@@ -85,7 +85,8 @@ describe("normalizeSourceNaturalLanguage", () => {
   );
 
   it.each([
-    ["flodan 32x", "FLO’dan 32x"],
+    // The normalizer renders the legacy spelling itself (Task 23I), like "FLO’dan 32x".
+    ["flodan 32x", "In FLO, 32x"],
     ["blodan 24x", "24sc in BLO"],
   ] as const)(
     "canonicalizes apostrophe-less FLO/BLO Turkish suffix forms",
@@ -2235,5 +2236,36 @@ describe("deterministic span carrier: ch/skip fragment (Task 23H)", () => {
       "Ch 3, skip 2 sts, work 1sc in the next single crochet. Continue in this way to the end of the round.",
     );
     expect(result.deterministicSpans).toEqual([]);
+  });
+});
+
+describe("legacy FLO/BLO spellings render the carried \"In\" in the normalizer (Task 23I)", () => {
+  it.each([
+    ["flodan", "FLO"],
+    ["FLOdan", "FLO"],
+    ["Flodan", "FLO"],
+    ["FLO dan", "FLO"],
+    ["FLO’dan", "FLO"],
+    ["FLO'dan", "FLO"],
+    ["FLO‘dan", "FLO"],
+    ["FLO`dan", "FLO"],
+    ["FLO´dan", "FLO"],
+    ["FLO’ dan", "FLO"],
+    ["blodan", "BLO"],
+    ["BLOdan", "BLO"],
+    ["BLO dan", "BLO"],
+    ["BLO’dan", "BLO"],
+    ["BLO'dan", "BLO"],
+  ] as const)("%s renders In %s with only \"In\" carried", (spelling, loop) => {
+    const result = normalizeSourceNaturalLanguageDetailed(`5) ${spelling} (3x, 1v)*6 = 30x`, "en");
+    expect(result.text).toBe(`5) In ${loop}, (3x, 1v)*6 = 30x`);
+    expect(result.deterministicSpans.map(({ start, end, text }) => [start, end, text])).toEqual([[3, 5, "In"]]);
+  });
+
+  it("does not widen the apostrophe set or touch Spanish", () => {
+    // U+02BC was handled by neither the normalizer nor the old style repair.
+    expect(normalizeSourceNaturalLanguageDetailed("5) FLOʼdan (3x, 1v)*6 = 30x", "en").deterministicSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguage("5) flodan (3x, 1v)*6 = 30x", "es")).toBe("5) FLO’dan (3x, 1v)*6 = 30x");
+    expect(normalizeSourceNaturalLanguageDetailed("5) BLO dan (3x, 1v)*6 = 30x", "es").deterministicSpans).toEqual([]);
   });
 });

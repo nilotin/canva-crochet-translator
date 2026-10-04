@@ -7665,3 +7665,74 @@ describe("the ch/skip fragment is carried while style keeps the eye parenthetica
     expect(valid("24) 15sc, ch 2, skip 2 sts, 9dc, ch 3, skip 1 st, 38sc")).toBe(false);
   });
 });
+
+describe("legacy FLO/BLO spellings no longer depend on the style repair (Task 23I)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = {
+    empty: () => "",
+    rewrite: (text: string) =>
+      text.replace(/\bIn\b/gu, "Out").replace(/\bFLO\b|\bBLO\b/gu, "LOOP").replace(/^[‘’'`´]?\s*dan$/u, "from").replace(/kenarı/iu, "EDGE"),
+    dropPlaceholders: (text: string) => text.replace(/__XQ[A-Z]+QX__\s?/gu, ""),
+  };
+  const translate = async (provider: InspectingProvider, text: string) =>
+    (await translateBlocks([{ id: "loop", text }], "en", { provider }))[0];
+  const occurrences = (text: string | undefined, needle: string) => (text ?? "").split(needle).length - 1;
+
+  it.each([
+    ["5) flodan (3x, 1v)*6 = 30x", "5) In FLO, (3sc, 1inc)*6 = 30sc"],
+    ["5) FLOdan (3x, 1v)*6 = 30x", "5) In FLO, (3sc, 1inc)*6 = 30sc"],
+    ["5) FLO dan (3x, 1v)*6 = 30x", "5) In FLO, (3sc, 1inc)*6 = 30sc"],
+    ["5) blodan (2x, 1v)*6 = 18x", "5) In BLO, (2sc, 1inc)*6 = 18sc"],
+    ["5) BLOdan (2x, 1v)*6 = 18x", "5) In BLO, (2sc, 1inc)*6 = 18sc"],
+    ["5) BLO dan (2x, 1v)*6 = 18x", "5) In BLO, (2sc, 1inc)*6 = 18sc"],
+  ])("a pure line %s needs no provider and survives every hostile provider", async (text, expected) => {
+    for (const rewrite of Object.values(hostile)) {
+      const provider = new RewritingProvider(rewrite);
+      expect(await translate(provider, text)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.requests).toHaveLength(0);
+    }
+  });
+
+  it.each([
+    ["flodan (3x, 1v)*6, sonra kenarı dikiyoruz.", "In FLO, (3sc, 1inc)*6,", ["sonra kenarı dikiyoruz."]],
+    ["Kenarı dikip.\nBLO dan (2x, 1v)*6 = 18x", "In BLO, (2sc, 1inc)*6 = 18sc", ["Kenarı dikip."]],
+    // The source's own English "In" stays provider text.
+    ["In bu sırada:\nflodan (3x, 1v)*6, sonra kenarı dikiyoruz.", "In FLO, (3sc, 1inc)*6,", ["In bu sırada", "sonra kenarı dikiyoruz."]],
+  ])("a mixed line %s offers only its prose to the provider", async (text, carried, prose) => {
+    const echo = new InspectingProvider();
+    const echoed = await translate(echo, text);
+    expect(echo.protectedTexts).toEqual(prose);
+    expect(occurrences(echoed?.translated, carried)).toBe(1);
+    expect(echoed?.valid).toBe(true);
+    for (const rewrite of Object.values(hostile)) {
+      const result = await translate(new RewritingProvider(rewrite), text);
+      expect(occurrences(result?.translated, carried)).toBe(1);
+      expect(result?.translated.match(/\d+/gu)).toEqual(text.match(/\d+/gu));
+    }
+    expect((await translate(new RewritingProvider(hostile.rewrite), text))?.translated).toMatch(/EDGE/u);
+  });
+
+  it("no short-loop line is atomically covered, so no provider bypass depends on the retired repair", () => {
+    for (const text of ["5) FLO’dan (3x, 1v)*6 = 30x", "5) flodan (3x, 1v)*6 = 30x", "5) BLO dan (3x, 1v)*6 = 30x"]) {
+      expect(extractSourceAtomicNaturalLanguageSpans(text)).toEqual([]);
+    }
+  });
+
+  it("the validator still checks counts and notation beside the carried In", () => {
+    const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+    const source = "5) flodan (3x, 1v)*6 = 30x";
+    const valid = (target: string) => validateTranslation(source, target, "en", options).valid;
+    expect(valid("5) In FLO, (3sc, 1inc)*6 = 30sc")).toBe(true);
+    expect(valid("5) In FLO, (4sc, 1inc)*6 = 30sc")).toBe(false);
+    expect(valid("5) In FLO, (3sc, 1dec)*6 = 30sc")).toBe(false);
+  });
+});
