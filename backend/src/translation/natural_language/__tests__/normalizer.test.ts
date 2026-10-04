@@ -2339,13 +2339,75 @@ describe("source-data spans name the copied brand in source and rendered coordin
     // An earlier rule already rewrote the brand: the render and the scan disagree.
     ["Kırmızı renk ip (Alize 1 zincir, dön) ile başlıyoruz.", "Start with red yarn (Alize Ch 1 and turn)."],
     ["2.20 numara tığ, siyah (Sihirli halka içine 6x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (6x into the magic ring), work as follows."],
-    // A tracking sentinel in the source disables recording.
-    ["Kırmızı renk ip (Alize \uE002 3x) ile başlıyoruz.", "Start with red yarn (Alize \uE002 3x)."],
-    ["2.20 numara tığ, siyah (\uE000Alize\uE001 3x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (\uE000Alize\uE001 3x), work as follows."],
+    // An earlier rule rewrote the brand while marks were off (Task 23K-4 fallback).
+    ["Kırmızı renk ip (Alize \uE000 1 zincir, dön) ile başlıyoruz.", "Start with red yarn (Alize \uE000 Ch 1 and turn)."],
   ])("fails closed for %j", (source, text) => {
     const result = normalizeSourceNaturalLanguageDetailed(source, "en", "pattern");
     expect(result.text).toBe(text);
     expect(scanSourceDataRanges(source, "en")).toHaveLength(1);
     expect(result.sourceDataSpans).toEqual([]);
+  });
+});
+
+describe("source-data spans survive tracking sentinels in the source (Task 23K-4)", () => {
+  const sd = (source: string) =>
+    normalizeSourceNaturalLanguageDetailed(source, "en", "pattern").sourceDataSpans.map(
+      ({ sourceStart, sourceEnd, renderedStart, renderedEnd, text }) => [sourceStart, sourceEnd, renderedStart, renderedEnd, text],
+    );
+
+  it.each(["\uE000", "\uE001", "\uE002", "\uE003"])(
+    "places a brand holding %j in both coordinate spaces without recovering deterministic spans",
+    (sentinel) => {
+      for (const [source, brand] of [
+        [`◆ 2.20 numara tığ, siyah (Alize ${sentinel}3x) ip ile örüyoruz.`, `Alize ${sentinel}3x`],
+        [`3) 2,5 no tığ, Açık gri renk (Brand ${sentinel}3x 1v)ip ile örüyoruz`, `Brand ${sentinel}3x 1v`],
+        [`2 numara tığ, siyah ip (${sentinel}3x) ile örüyoruz.`, `${sentinel}3x`],
+        [`2 numara tığ, siyah ip ile (Alize ${sentinel}1v) örüyoruz.`, `Alize ${sentinel}1v`],
+        [`Kırmızı renk ip (Alize ${sentinel}3x) ile başlıyoruz.`, `Alize ${sentinel}3x`],
+      ] as const) {
+        const result = normalizeSourceNaturalLanguageDetailed(source, "en", "pattern");
+        expect(result.deterministicSpans, source).toEqual([]);
+        expect(result.sourceDataSpans.map(({ text }) => text), source).toEqual([brand]);
+        const [span] = result.sourceDataSpans;
+        expect(source.slice(span!.sourceStart, span!.sourceEnd)).toBe(brand);
+        expect(result.text.slice(span!.renderedStart, span!.renderedEnd)).toBe(brand);
+        expect(scanSourceDataRanges(source, "en")).toEqual([
+          { sourceStart: span!.sourceStart, sourceEnd: span!.sourceEnd, text: brand },
+        ]);
+      }
+    },
+  );
+
+  it("maps two identical brands to their own occurrences, in order", () => {
+    expect(sd("2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz. 2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.")).toEqual([
+      [24, 33, 45, 54, "Alize \uE0003x"],
+      [76, 85, 119, 128, "Alize \uE0003x"],
+    ]);
+  });
+
+  it("gives the tool intro and the yarn intro independent spans", () => {
+    expect(sd("2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz. Kırmızı renk ip (Brand \uE0021v) ile başlıyoruz.")).toEqual([
+      [24, 33, 45, 54, "Alize \uE0003x"],
+      [69, 78, 95, 104, "Brand \uE0021v"],
+    ]);
+  });
+
+  it("never pairs the same text in unrelated prose", () => {
+    expect(sd("Alize \uE0003x güzel. 2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.")).toEqual([
+      [41, 50, 62, 71, "Alize \uE0003x"],
+    ]);
+  });
+
+  it("keeps sentinels outside the brand byte-exact", () => {
+    const source = "\uE001 Not: 2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz. Sonra \uE003";
+    const result = normalizeSourceNaturalLanguageDetailed(source, "en", "pattern");
+    expect(result.text).toBe("\uE001 Not: Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Sonra \uE003");
+    expect(sd(source)).toEqual([[31, 39, 52, 60, "Alize 3x"]]);
+  });
+
+  it("stays English pattern text only", () => {
+    const source = "2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.";
+    expect(normalizeSourceNaturalLanguageDetailed(source, "es", "pattern").sourceDataSpans).toEqual([]);
+    expect(normalizeSourceNaturalLanguageDetailed(source, "en", "materials").sourceDataSpans).toEqual([]);
   });
 });

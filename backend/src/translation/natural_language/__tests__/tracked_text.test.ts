@@ -225,3 +225,65 @@ describe("TrackedText records source-data ranges as a second, independent kind (
     expect(both.spans()).toEqual(deterministicOnly.spans());
   });
 });
+
+const positionedRanges = (tracked: TrackedText) =>
+  tracked.positionedSourceDataSpans().map(({ start, end, text }) => [start, end, text]);
+
+describe("compose places source data without marks when the text holds a mark code point (Task 23K-4)", () => {
+  const brandRule = (tracked: TrackedText) =>
+    tracked.replace(/\((.+?)\)/gu, (_match, brand: string) => tracked.compose`(${tracked.sourceData(brand)})`);
+
+  it("with recording on, composes exactly the marked rendering of markSourceData", () => {
+    const viaCompose = brandRule(TrackedText.of("a (Alize 3x) b", true));
+    expect(viaCompose.text).toBe("a (Alize 3x) b");
+    expect(sourceRanges(viaCompose)).toEqual([[3, 11, "Alize 3x"]]);
+    expect(positionedRanges(viaCompose)).toEqual([]);
+  });
+
+  it.each(["\uE000", "\uE001", "\uE002", "\uE003"])(
+    "with %j in the text, keeps marks off and positions every piece by construction",
+    (sentinel) => {
+      const source = `${sentinel} (Alize ${sentinel}3x) ve (Alize ${sentinel}3x)`;
+      const result = brandRule(TrackedText.of(source, true));
+      expect(result.text).toBe(source);
+      expect(result.spans()).toEqual([]);
+      expect(result.sourceDataSpans()).toEqual([]);
+      expect(positionedRanges(result)).toEqual([
+        [3, 12, `Alize ${sentinel}3x`],
+        [18, 27, `Alize ${sentinel}3x`],
+      ]);
+    },
+  );
+
+  it("never positions when recording was not requested", () => {
+    const result = brandRule(TrackedText.of("\uE000 (Alize 3x)", false));
+    expect(result.text).toBe("\uE000 (Alize 3x)");
+    expect(result.positionedSourceDataSpans()).toEqual([]);
+  });
+
+  it("shifts nested compositions and moves through later edits", () => {
+    const tracked = TrackedText.of("\uE000 X", true);
+    const result = tracked
+      .replace(/X/u, () => tracked.compose`>> ${tracked.mark(tracked.compose`yarn (${tracked.sourceData("Alize 3x")})`)} <<`)
+      .replace(/^/u, "start ");
+    expect(result.text).toBe("start \uE000 >> yarn (Alize 3x) <<");
+    expect(result.spans()).toEqual([]);
+    expect(positionedRanges(result)).toEqual([[17, 25, "Alize 3x"]]);
+  });
+
+  it("fails closed when a later edit touches a positioned range", () => {
+    const result = brandRule(TrackedText.of("\uE000 (Alize 3x)", true));
+    expect(positionedRanges(result.replace(/3x/u, "3sc"))).toEqual([]);
+    expect(result.replace(/3x/u, "3sc").text).toBe("\uE000 (Alize 3sc)");
+  });
+
+  it("keeps marks and pieces apart: a positioned rendering under recording breaks only that channel", () => {
+    const tracked = TrackedText.of("X Y", true);
+    const result = tracked
+      .replace(/X/u, () => tracked.mark("Work"))
+      .replace(/Y/u, () => ({ text: "Alize", sourceData: [{ start: 0, end: 5 }] }));
+    expect(result.text).toBe("Work Alize");
+    expect(ranges(result)).toEqual([[0, 4, "Work"]]);
+    expect(result.positionedSourceDataSpans()).toEqual([]);
+  });
+});

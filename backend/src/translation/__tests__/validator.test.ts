@@ -1326,3 +1326,23 @@ describe("structural source data creates no notation requirement (Task 23K-1)", 
     expect(codes(tool("Alize 3x"), "Con un ganchillo de 2.20 mm y hilo negro (Alize 3pb), tejemos de la siguiente manera.", "es")).toEqual([]);
   });
 });
+
+describe("sentinel-bearing brands are source data only while copied exactly (Task 23K-4)", () => {
+  const options = { notationCaseInsensitive: true, contentKind: "pattern" as const };
+  const codes = (source: string, target: string) =>
+    validateTranslation(source, target, "en", options).errors.map(({ code }) => code);
+  const intro = (brand: string) => `Using a 2.20 mm crochet hook and black yarn (${brand}), work as follows`;
+
+  it.each(["\uE000", "\uE001", "\uE002", "\uE003"])("an exact brand holding %j needs no notation, real notation still does", (sentinel) => {
+    const brand = `Alize ${sentinel}3x`;
+    const source = `2.20 numara tığ, siyah (${brand}) ip ile örüyoruz ve 3x örüyoruz.`;
+    expect(codes(source, `${intro(brand)} and work 3sc.`)).toEqual([]);
+    expect(codes(source, `${intro(brand)} and work 3x.`)).toEqual(["LOST_PATTERN_NOTATION"]);
+    expect(codes(source, `${intro(brand)} and work 4sc.`)).toEqual(["NUMBER_MISMATCH"]);
+    // A corrupted brand loses the exclusion: it can never stand in for the lost instruction.
+    expect(codes(source, `${intro(`Alize ${sentinel}3sc`)} and work 3x.`)).toEqual(["LOST_PATTERN_NOTATION"]);
+    const increase = `◆ 2.20 numara tığ, siyah (Alize ${sentinel}1v) ip ile örüyoruz ve 1v örüyoruz.`;
+    expect(codes(increase, `◆ ${intro(`Alize ${sentinel}1v`)} and work 1inc.`)).toEqual([]);
+    expect(codes(increase, `◆ ${intro(`Alize ${sentinel}1v`)} and work 1v.`)).toEqual(["LOST_PATTERN_NOTATION"]);
+  });
+});

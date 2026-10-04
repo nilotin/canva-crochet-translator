@@ -8063,3 +8063,93 @@ describe("deterministic spans are carried on fully-resolved and whole-block path
     expect(result?.valid).toBe(true);
   });
 });
+
+describe("brands holding tracking sentinels stay exact source data on every intro shape (Task 23K-4)", () => {
+  class RewritingProvider extends InspectingProvider {
+    constructor(private readonly rewrite: (text: string) => string) {
+      super();
+    }
+    override async translate(request: Parameters<TranslationProvider["translate"]>[0]) {
+      this.requests.push(request);
+      this.protectedTexts.push(...request.blocks.map(({ text }) => text));
+      return { translations: request.blocks.map(({ id, text }) => ({ id, translated: this.rewrite(text) })) };
+    }
+  }
+  const hostile = (text: string) =>
+    text.replace(/Alize|Brand/gu, "acrylic").replace(/\b(?:\d+)x\b/gu, "9sc").replace(/kenarı/giu, "EDGE");
+  const translate = async (text: string, provider: InspectingProvider) =>
+    (await translateBlocks([{ id: "sentinel", text }], "en", { provider }))[0];
+  const SENTINELS = ["\uE000", "\uE001", "\uE002", "\uE003"];
+  const brands = (s: string) => [`Alize ${s}3x`, `Alize ${s}1v`, `${s}3x`, `Brand ${s}3x 1v`];
+  const shapes = [
+    "2.20 numara tığ, siyah (B) ip ile örüyoruz.",
+    "✦ 2.20 numara tığ, Açık gri (B) ip ile örüyoruz.",
+    "◆ 2.20 numara tığ, siyah (B) ip ile örüyoruz.",
+    "3) 2,5 no tığ, siyah renk (B)ip ile örüyoruz",
+    "Kırmızı renk ip (B) ile başlıyoruz.",
+  ];
+
+  it(`keeps every brand byte-exact and valid (${SENTINELS.length} code points x 4 brands x ${shapes.length} shapes)`, async () => {
+    for (const sentinel of SENTINELS)
+      for (const brand of brands(sentinel))
+        for (const shape of shapes)
+          for (const rewrite of [(text: string) => text, hostile]) {
+            const text = shape.replace("B", brand);
+            const provider = new RewritingProvider(rewrite);
+            const result = await translate(text, provider);
+            expect(result?.valid, text).toBe(true);
+            expect(result?.translated, text).toContain(`(${brand})`);
+            expect(result?.translated, text).not.toMatch(/\d+(?:sc|inc)\b/u);
+            expect(provider.protectedTexts.join(" "), text).not.toContain(brand);
+          }
+  });
+
+  it("still converts and validates real notation outside a sentinel brand", async () => {
+    for (const [text, expected] of [
+      ["2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz ve 3x örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows ve 3sc örüyoruz."],
+      ["◆ 2.20 numara tığ, siyah (Alize \uE0011v) ip ile örüyoruz ve 1v örüyoruz.", "◆ Using a 2.20 mm crochet hook and black yarn (Alize \uE0011v), work as follows ve 1inc örüyoruz."],
+      ["Kırmızı renk ip (Alize \uE0023x) ile başlıyoruz ve 6x örüyoruz.", "Start with red yarn (Alize \uE0023x) ve 6sc örüyoruz."],
+    ] as const) {
+      const provider = new InspectingProvider();
+      expect(await translate(text, provider)).toMatchObject({ translated: expected, valid: true, errors: [] });
+      expect(provider.protectedTexts.join(" ")).not.toContain("Alize");
+    }
+  });
+
+  it("covers the fully-resolved, normalizer-only, numbered, whole-block and yarn paths", async () => {
+    for (const [text, expected, calls] of [
+      ["2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows.", 0],
+      ["◆ 2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.", "◆ Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows.", 0],
+      ["3) 2.20 numara tığ, siyah (Alize \uE0011v) ip ile örüyoruz.", "3) Using a 2.20 mm crochet hook and black yarn (Alize \uE0011v), work as follows.", 0],
+      ["2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz ve kenarı dikiyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows ve kenarı dikiyoruz.", 1],
+      ["Kırmızı renk ip (Alize \uE0023x) ile başlıyoruz.", "Start with red yarn (Alize \uE0023x).", 1],
+      ["Kırmızı renk ip (Alize \uE0023x) ile başlıyoruz ve kenarı dikiyoruz.", "Start with red yarn (Alize \uE0023x) ve kenarı dikiyoruz.", 1],
+    ] as const) {
+      const provider = new InspectingProvider();
+      expect(await translate(text, provider)).toMatchObject({ translated: expected, valid: true });
+      // Deterministic spans stay off on sentinel input: the English may reach the provider, the brand never does.
+      expect(provider.requests, text).toHaveLength(calls);
+      expect(provider.protectedTexts.join(" ")).not.toContain("Alize");
+    }
+  });
+
+  it("maps duplicate brands, two families and the same text in prose independently", async () => {
+    for (const [text, expected] of [
+      ["2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz. 2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows. Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows."],
+      ["2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz. Kırmızı renk ip (Brand \uE0021v) ile başlıyoruz.", "Using a 2.20 mm crochet hook and black yarn (Alize \uE0003x), work as follows. Start with red yarn (Brand \uE0021v)."],
+    ] as const) {
+      expect(await translate(text, new InspectingProvider())).toMatchObject({ translated: expected, valid: true });
+    }
+    // The same text in unrelated prose is not source data: its notation still converts.
+    const prose = await translate("Alize \uE0003x güzel. 2.20 numara tığ, siyah (Alize \uE0003x) ip ile örüyoruz.", new InspectingProvider());
+    expect(prose?.translated).toContain("(Alize \uE0003x), work as follows.");
+    expect(prose?.translated.startsWith("Alize \uE0003sc")).toBe(true);
+  });
+
+  it("keeps sentinels in unrelated prose, before and after an intro, byte-exact", async () => {
+    const text = "\uE001 Not: 2.20 numara tığ, siyah (Alize 3x) ip ile örüyoruz. Sonra \uE003";
+    const result = await translate(text, new InspectingProvider());
+    expect(result?.translated).toBe("\uE001 Not: Using a 2.20 mm crochet hook and black yarn (Alize 3x), work as follows. Sonra \uE003");
+    expect(result?.valid).toBe(true);
+  });
+});

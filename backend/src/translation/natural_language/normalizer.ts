@@ -26,7 +26,7 @@ import {
   TURKISH_YARN_COLOR_PATTERN,
 } from "./yarn_colors.js";
 import { renderEnglishSleeveInstruction } from "./sleeve_instructions.js";
-import { TrackedText, type DeterministicSpan } from "./tracked_text.js";
+import { type Composed, type DeterministicSpan, type SourceDataPiece, TrackedText } from "./tracked_text.js";
 
 const targetPhrase = (
   targetLanguage: TargetLanguage,
@@ -721,8 +721,8 @@ const normalizeEnglishCrochetStructures = (
         const color = translateTurkishYarnColor(colorSource, "en");
 
         return color
-          ? `${prefix}${recordDeterministicSpan(
-              `Start with ${color} yarn (${tracked.markSourceData(brand.trim())})`,
+          ? tracked.compose`${prefix}${tracked.mark(
+              tracked.compose`Start with ${color} yarn (${tracked.sourceData(brand.trim())})`,
             )}`
           : _match;
       },
@@ -1327,11 +1327,11 @@ const normalizeToolMaterialIntro = (
 
   // A brand is source data, and the rendering a carried deterministic span,
   // only where the whole intro is deterministic.
-  const brandOf = (yarnBrand: string, deterministic: boolean): string =>
+  const brandOf = (yarnBrand: string, deterministic: boolean): string | SourceDataPiece =>
     targetLanguage === "en" && deterministic
-      ? source.markSourceData(yarnBrand.trim())
+      ? source.sourceData(yarnBrand.trim())
       : yarnBrand.trim();
-  const carried = (rendered: string, deterministic: boolean): string =>
+  const carried = (rendered: Composed, deterministic: boolean): Composed =>
     targetLanguage === "en" && deterministic ? source.mark(rendered) : rendered;
 
   normalized = normalized.replace(
@@ -1347,8 +1347,8 @@ const normalizeToolMaterialIntro = (
       const brand = brandOf(yarnBrand, deterministic);
 
       return targetLanguage === "en"
-        ? carried(`Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`, deterministic)
-        : `Con un ganchillo de ${size} mm y hilo ${description} (${brand}), tejemos de la siguiente manera`;
+        ? carried(source.compose`Using a ${size} mm crochet hook and ${description} yarn (${brand}), work as follows`, deterministic)
+        : `Con un ganchillo de ${size} mm y hilo ${description} (${yarnBrand.trim()}), tejemos de la siguiente manera`;
     },
   );
 
@@ -1365,8 +1365,8 @@ const normalizeToolMaterialIntro = (
       const brand = brandOf(yarnBrand, deterministic);
 
       return targetLanguage === "en"
-        ? carried(`Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`, deterministic)
-        : `Con un ganchillo de ${size} mm y hilo ${description} ${brand}, tejemos de la siguiente manera`;
+        ? carried(source.compose`Using a ${size} mm crochet hook and ${description} ${brand} yarn, work as follows`, deterministic)
+        : `Con un ganchillo de ${size} mm y hilo ${description} ${yarnBrand.trim()}, tejemos de la siguiente manera`;
     },
   );
 
@@ -1377,7 +1377,7 @@ const normalizeToolMaterialIntro = (
         translateTurkishYarnColor(color, targetLanguage) ?? color.trim();
 
       return targetLanguage === "en"
-        ? carried(`Using a ${size} mm crochet hook and ${translatedColor} yarn (${brandOf(brand, true)}), work as follows`, true)
+        ? carried(source.compose`Using a ${size} mm crochet hook and ${translatedColor} yarn (${brandOf(brand, true)}), work as follows`, true)
         : `Con un ganchillo de ${size} mm y hilo ${translatedColor} (${brand.trim()}), tejemos de la siguiente manera`;
     },
   );
@@ -1783,14 +1783,26 @@ const fullyResolvedLongButtonholeGuidancePattern =
  * in order and text; otherwise nothing is reported (fail closed).
  */
 const pairSourceData = (
-  rendered: readonly DeterministicSpan[],
+  tracked: TrackedText,
   source: string,
   targetLanguage: TargetLanguage,
 ): SourceDataSpan[] => {
+  // Marked ranges when recording was on; ranges `compose` positioned when the
+  // source held a mark code point and recording was off. Only one of the two
+  // can be filled for one text; callers never see which one it was.
+  const rendered = [...tracked.sourceDataSpans(), ...tracked.positionedSourceDataSpans()].sort(
+    (left, right) => left.start - right.start,
+  );
   const scanned = scanSourceDataRanges(source, targetLanguage);
   if (scanned.length !== rendered.length) return [];
   const pairs = rendered.map((span, index) => ({ span, range: scanned[index] }));
-  return pairs.every(({ span, range }) => range !== undefined && range.text === span.text)
+  return pairs.every(
+    ({ span, range }) =>
+      range !== undefined &&
+      range.text === span.text &&
+      source.slice(range.sourceStart, range.sourceEnd) === span.text &&
+      tracked.text.slice(span.start, span.end) === span.text,
+  )
     ? pairs.map(({ span, range }) => ({
         sourceStart: range!.sourceStart,
         sourceEnd: range!.sourceEnd,
@@ -1857,6 +1869,6 @@ export const normalizeSourceNaturalLanguageDetailed = (
     text: tracked.text,
     fullyResolved,
     deterministicSpans: recordSpans ? tracked.spans() : [],
-    sourceDataSpans: recordSpans ? pairSourceData(tracked.sourceDataSpans(), source, targetLanguage) : [],
+    sourceDataSpans: recordSpans ? pairSourceData(tracked, source, targetLanguage) : [],
   };
 };
